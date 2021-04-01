@@ -1,9 +1,12 @@
-local  LIBCOLORMANIPULATION10 = "LibColorManipulation-1.0";
-local  LIBCOLORMANIPULATION10_MINOR = 1;
+local    LIBCOLORMANIPULATION10 = "LibColorManipulation-1.0";
+local    LIBCOLORMANIPULATION10_MINOR = 2;
 if not LibStub then error(LIBCOLORMANIPULATION10 .. " requires LibStub."); end;
-local  color_module = LibStub:NewLibrary(LIBCOLORMANIPULATION10, LIBCOLORMANIPULATION10_MINOR);
+local  color_module = LibStub:NewLibrary(
+         LIBCOLORMANIPULATION10, 
+         LIBCOLORMANIPULATION10_MINOR
+       );
 
-color_module.name = LIBCOLORMANIPULATION10
+color_module.name  = LIBCOLORMANIPULATION10;
 color_module.minor = LIBCOLORMANIPULATION10_MINOR;
 
 --color parsing, formatting and computation.
