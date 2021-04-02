@@ -6,13 +6,36 @@
 
 local addOnName, ns = ...;
 
-local function notify(...) print("[" .. RP_Find.addOnTitle .. "]", ...) end;
+-- libraries
+local AceAddon          = LibStub("AceAddon-3.0");
+local AceConfigDialog   = LibStub("AceConfigDialog-3.0");
+local AceConfigDialog   = LibStub("AceConfigDialog-3.0");
+local AceConfigRegistry = LibStub("AceConfigRegistry-3.0");
+local AceConfigRegistry = LibStub("AceConfigRegistry-3.0");
+local AceDB             = LibStub("AceDB-3.0");
+local AceDBOptions      = LibStub("AceDBOptions-3.0");
+local AceGUI            = LibStub("AceGUI-3.0");
+local AceLocale         = LibStub("AceLocale-3.0");
+local LibDBIcon         = LibStub("LibDBIcon-1.0");
+local LibDataBroker     = LibStub("LibDataBroker-1.1");
+-- local LibToast          = LibStub("LibToast-1.0");
+local L                 = AceLocale:GetLocale(addOnName);
 
-local RP_Find = LibStub("AceAddon-3.0"):NewAddon( 
-        addOnName, 
-        "AceConsole-3.0", 
-        "AceEvent-3.0",
-        "AceTimer-3.0"
+local MEMORY_WARN_MB = 1000 * 3;
+local MEMORY_WARN_GB = 1000 * 1000;
+
+local configDB = "RP_Find_ConfigDB";
+local finderDB = "RP_FindDB";
+local addonChannel = "xtensionxtooltip2";
+local addonPrefix = { trp3 = "RPB1" };
+local PLAYER_RECORD = "RP_Find Player Record";
+
+local RP_Find = AceAddon:NewAddon( 
+        addOnName 
+        , "AceConsole-3.0"
+        , "AceEvent-3.0"
+        , "AceTimer-3.0"
+        , "LibToast-1.0"
       );
 
 RP_Find.addOnName    = addOnName;
@@ -20,19 +43,126 @@ RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
 RP_Find.addOnIcon    = "Interface\\ICONS\\inv_misc_tolbaradsearchlight";
 RP_Find.addOnColor   = { 221 / 255, 255 / 255, 51 / 255, 1 };
+RP_Find.addOnToast   = "RP_Find_notify";
 
-local L = LibStub("AceLocale-3.0"):GetLocale(addOnName);
-local AceGUI = LibStub("AceGUI-3.0");
+local popup =
+  { deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
+    deleteDBNow = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
+  };
 
-local configDB = "RP_Find_ConfigDB";
-local finderDB = "RP_FindDB";
 
-local addonChannel = "xtensionxtooltip2";
-local addonPrefix = { trp3 = "RPB1" };
-local PLAYER_RECORD = "RP_Find Player Record";
+StaticPopupDialogs[popup.deleteDBonLogin] =
+{ 
+  showAlert = true,
+  text = L["Popup Delete DB on Login"],
+  button1 = YES,
+  button2 = NO,
+  exclusive = true,
+  OnAccept = function() RP_Find.db.profile.config.deleteDBonLogin = true end,
+  OnCancel = function() RP_Find:Notify("Setting cleared.");
+                        RP_Find.db.profile.config.deleteDBonLogin = false end,
+  timeout = 60,
+  whileDead = true,
+  hideOnEscape = true,
+  hideOnCancel = true,
+  preferredIndex = 3,
+  wide = true,
+  OnShow = function(self, data) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3) end,
+}
+
+StaticPopupDialogs[popup.deleteDBNow] =
+{ showAlert = true,
+  text = L["Popup Delete DB Now"],
+  button1 = YES,
+  button2 = NO,
+  exclusive = true,
+  OnAccept = function() RP_Find:WipeDatabaseNow() end,
+  OnCancel = function() RP_Find:Notify("Database deletion aborted.") end,
+  timeout = 60,
+  whileDead = true,
+  hideOnEscape = true,
+  hideOnCancel = true,
+  preferredIndex = 3,
+  wide = true,
+  OnShow = function(self, data) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3) end,
+}
+
+function RP_Find:WipeDatabaseNow()
+  self.preWipeMemory = GetAddOnMemoryUsage(self.addOnName);
+
+  self.Finder:Hide();
+  self.Finder:LetTheChildrenGo();
+  _G[finderDB] = {};
+  self.playerRecords = {};
+  UpdateAddOnMemoryUsage();
+  self:Notify("Database deleted.");
+
+end;
+
+function RP_Find:InitializeToast()
+  self:RegisterToast(self.addOnToast,
+    function(toast, ...)
+      toast:SetTitle(self.addOnTitle);
+      toast:SetIconTexture(self.addOnIcon);
+      toast:SetText(...);
+    end);
+end;
+
+function RP_Find:SendToast(message)
+  self:SpawnToast(self.addOnToast, message, true);
+end;
+
+function RP_Find:Notify(forceChat, ...) 
+  local dots = { ... };
+  if     type(forceChat) == "boolean" and forceChat
+  then   print("[" .. self.addOnTitle .. "]", unpack(dots));
+  elseif type(forceChat) == "boolean" -- and not forceChat
+  then   self:SendToast(table.concat(dots, " "))
+  elseif self.db.profile.config.notifyMethod == "chat"
+  then   print("[" .. self.addOnTitle .. "]", forceChat, unpack(dots));
+         PlaySound(self.db.profile.config.notifySound);
+  else   self:SendToast(forceChat .. table.concat(dots, " "));
+         PlaySound(self.db.profile.config.notifySound);
+  end;
+end;
+
+local menu =
+{ 
+  notifySound =
+    {
+      [139868 ] = L["Sound Silent Trigger"   ],
+      [18871  ] = L["Sound Alarm Clock 1"    ],
+      [12867  ] = L["Sound Alarm Clock 2"    ],
+      [12889  ] = L["Sound Alarm Clock 3"    ],
+      [118460 ] = L["Sound Azerite Armor"    ],
+      [18019  ] = L["Sound Bnet Login"       ],
+      [5274   ] = L["Sound Auction Open"     ],
+      [38326  ] = L["Sound Digsite Complete" ],
+      [31578  ] = L["Sound Epic Loot"        ],
+      [9378   ] = L["Sound Flag Taken"       ],
+      [3332   ] = L["Sound Friend Login"     ],
+      [3175   ] = L["Sound Map Ping"         ],
+      [8959   ] = L["Sound Raid Warning"     ],
+      [39516  ] = L["Sound Store Purchase"   ],
+      [37881  ] = L["Sound Vignette Ping"    ],
+      [111370 ] = L["Sound Voice Friend"     ],
+      [110985 ] = L["Sound Voice Join"       ],
+      [111368 ] = L["Sound Voice In"         ],
+      [111367 ] = L["Sound Voice Out"        ],
+  },
+  notifySoundOrder =
+  {  139868, 1887, 12867, 12889, 118460, 5274, 38326,
+     31578, 9378, 3332, 3175, 8959, 39516, 111370,
+     110985, 111368, 111367 
+  }
+};
 
 local function initializeDatabase()
-  _G[finderDB] = _G[finderDB] or {};
+  if RP_Find.db.profile.config.deleteDBonLogin
+  then _G[finderDB] = {};
+  else _G[finderDB] = _G[finderDB] or {};
+  end;
+
   local database = _G[finderDB];
 
   database.rolePlayers = database.rolePlayers or {};
@@ -198,25 +328,33 @@ local ORANGE = LEGENDARY_ORANGE_COLOR:GenerateHexColor();
 local WHITE  = WHITE_FONT_COLOR:GenerateHexColor();
 
 local myDataBroker = 
-  LibStub("LibDataBroker-1.1"):NewDataObject(
+  LibDataBroker:NewDataObject(
     RP_Find.addOnTitle,
     { type    = "data source",
-    text    = RP_Find.addOnTitle,
-    icon    = RP_Find.addOnIcon,
-    OnClick = function() RP_Find:ToggleFinderFrame() end,
+      text    = RP_Find.addOnTitle,
+      icon    = RP_Find.addOnIcon,
+      OnClick = function() RP_Find:ToggleFinderFrame() end,
     }
- );
+  );
         
-local myDBicon = LibStub("LibDBIcon-1.0");
+
+myDataBroker.iconCoords = { 1, 0, 1, 0 };
 
 local myDefaults =
 { profile =
   { config =
-    { showIcon       = true,
+    { notifyMethod = "toast",
+      loginMessage = false,
+      showIcon       = true,
+      lockIcon       = false,
       finderTooltips = true,
       monitorMSP     = true,
       monitorTRP3    = true,
       alertTRP3Scan  = false,
+      alertAllTRP3Scan = false,
+      alertTRP3Connect = false,
+      notifySound = 37881,
+      deleteDBonLogin = false,
     },
   },
 };
@@ -306,29 +444,6 @@ local function makeListHeader(baseText, sortField)
   return newHeader;
 end;
 
---[===[
-local nameHeader = AceGUI:Create("InteractiveLabel");
-nameHeader:SetRelativeWidth(col[1]);
-nameHeader:SetFontObject(GameFontHighlightSmall);
-nameHeader.baseText = "Name";
-nameHeader:SetText(nameHeader.baseText);
-nameHeader:SetColor(1, 1, 0);
-nameHeader.recordSortField = "playerName";
-nameHeader:SetCallback("OnClick", ListHeader_SetRecordSortField)
-headers:AddChild(nameHeader);
-
-local lastHeader = AceGUI:Create("InteractiveLabel");
-lastHeader:SetRelativeWidth(col[2]);
-lastHeader:SetFontObject(GameFontHighlightSmall);
-lastHeader.baseText = "Last Seen";
-lastHeader:SetText(lastHeader.baseText);
-lastHeader:SetColor(1, 1, 0);
-lastHeader.recordSortField = "timestamp";
-lastHeader:SetCallback("OnClick", ListHeader_SetRecordSortField)
-headers:AddChild(lastHeader);
---]===]
-
-
 makeListHeader("Name",      "playerName");
 makeListHeader("Last Seen", "timestamp" );
 
@@ -339,11 +454,7 @@ Finder.playerListFrame:SetLayout("Flow");
 displayFrame:AddChild(Finder.playerListFrame);
 
 function Finder:UpdateTitle(event, ...)
-  self:SetTitle(RP_Find.addOnTitle .. " - " 
-             .. RP_Find:CountPlayerData() 
-             .. " players known ("
-             .. RP_Find:CountPlayerRecords() 
-             .. " loaded)");
+  self:SetTitle(RP_Find:CountPlayerRecords() .. " Player Records");
 end;
 
 function Finder:UpdateDisplay(event, ...)
@@ -403,10 +514,17 @@ RP_Find.Finder = Finder;
 function RP_Find:LoadSelfRecord()
   self.my = self:GetPlayerRecord(self.me, self.realm);
 end;
+local function Spacer(info)
+  return { type = "description",
+           name = " ",
+           width = info and info.width or 0.1,
+           order = info and info.order or 10,
+         }
+end
 
 function RP_Find:OnInitialize()
 
-  self.db = LibStub("AceDB-3.0"):New(configDB, myDefaults);
+  self.db = AceDB:New(configDB, myDefaults);
     
   self.db.RegisterCallback(self, "OnProfileChanged", "LoadSelfRecord");
   self.db.RegisterCallback(self, "OnProfileCopied",  "LoadSelfRecord");
@@ -421,60 +539,227 @@ function RP_Find:OnInitialize()
       { type                 = "description",
         name                 = L["Version Info"],
         order                = 1,
+        hidden = function() UpdateAddOnMemoryUsage() return false end,
       },
       configOptions          =
       { type                 = "group",
         name                 = L["Config Options"],
         order                = 1,
         args                 =
-        { showIcon           =
+        { 
+          showIcon           =
           { name             = L["Config Show Icon"],
             type             = "toggle",
-            order            = 1,
+            order            = 20,
             desc             = L["Config Show Icon Tooltip"],
             get              = function() return self.db.profile.config.showIcon end,
             set              = "ToggleMinimapIcon",
-            width            = 1.5,
+            width            = "full",
           },
+--[[
+          spacer1 = Spacer({ order = 21 }),
+
+          lockIcon =
+          { name = L["Config Lock Icon"],
+            type = "toggle",
+            order = 25,
+            desc = L["Config Lock Icon Tooltip"],
+            get = function() return self.db.profile.config.lockIcon end,
+            set = function(info, value) 
+                     self.db.profile.config.lockIcon = value;
+                     if value 
+                     then LibDBIcon:Lock(self.addOnName) 
+                     else LibDBIcon:Unlock(self.addOnName) 
+                     end
+                  end,
+            width = 1.5,
+          },
+--]]
           monitorMSP         =
           { name             = L["Config Monitor MSP"],
             type             = "toggle",
-            order            = 2,
+            order            = 30,
             desc             = L["Config Monitor MSP Tooltip"],
             get              = function() return self.db.profile.config.monitorMSP end,
             set              = function(info, value) self.db.profile.config.monitorMSP = value end,
             disabled         = function() return not msp end,
+            width = "full",
           },
           monitorTRP3        =
           { name             = L["Config Monitor TRP3"],
             type             = "toggle",
-            order            = 3,
+            order            = 40,
             desc             = L["Config Monitor TRP3 Tooltip"],
             get              = function() return self.db.profile.config.monitorTRP3 end,
             set              = function(info, value) self.db.profile.config.monitorTRP3 = value end,
-          },
-          alertTRP3Scan      =
-          { name             = L["Config Alert TRP3 Scan"],
-            type             = "toggle",
-            order            = 4,
-            desc             = L["Config Alert TRP3 Scan Tooltip"],
-            get              = function() return self.db.profile.config.alertTRP3Scan end,
-            set              = function(info, value) self.db.profile.config.alertTRP3Scan = value end,
-            disabled         = function() return not self.db.profile.config.monitorTRP3 end,
-          },
-          alertAllTRP3Scan   = 
-          { name             = L["Config Alert All TRP3 Scan"],
-            type             = "toggle",
-            order            = 5,
-            desc             = L["Config Alert All TRP3 Scan Tooltip"],
-            get              = function() return self.db.profile.config.alertAllTRP3Scan end,
-            set              = function(info, value) self.db.profile.config.alertAllTRP3Scan = value end,
-            disabled         = function() return not self.db.profile.config.alertTRP3Scan end,
-            hidden           = function() return not self.db.profile.config.monitorTRP3 end,
+            width = "full",
           },
         },
       },
-      profiles               = LibStub("AceDBOptions-3.0"):GetOptionsTable(self.db),
+      databaseConfig =
+      { name = function() 
+                 local  currentUsage = GetAddOnMemoryUsage(self.addOnName);
+                 if     currentUsage >= MEMORY_WARN_GB
+                 then   return L["Config Database Warning GB"]
+                 elseif currentUsage >= MEMORY_WARN_MB
+                 then   return L["Config Database Warning MB"]
+                 else   return L["Config Database"]
+                 end
+               end,
+        type = "group",
+        order = 50,
+        args =
+        { memoryUsage = 
+          { name = L["Config Memory Usage"],
+            type = "group",
+            inline = true,
+            order = 55,
+            hidden = function() return GetAddOnMemoryUsage(self.addOnName) == 0 end,
+            args =
+            { memoryUsageBlurb =
+               { name = function() 
+                          local value, units, warn;
+                          local currentUsage = GetAddOnMemoryUsage(self.addOnName);
+                          if currentUsage < 1000
+                          then value, units, warn = currentUsage, "KB", "";
+                          elseif currentUsage < 1000 * 1000
+                          then value, units, warn = currentUsage / 1000, "MB", "";
+                               if value > 2 then warn = L["Warning High Memory MB"] end;
+                          else value, units, warn = currentUsage / 1000 * 1000, "GB",
+                                                    L["Warning High Memory GB"];
+                          end;
+                       return string.format(L["Format Memory Usage"], value, units, warn);
+                     end,
+                 type = "description",
+                 fontSize = "medium",
+                 order = 1,
+                 width = "full",
+              },
+            },
+          },
+          deleteDBonLogin =
+          { name = L["Config Delete DB on Login"],
+            type = "toggle",
+            width = "full",
+            order = 60,
+            desc = L["Config Delete DB on Login Tooltip"],
+            get = function() return self.db.profile.config.deleteDBonLogin end,
+            set = function(info, value)
+                    if not value then self.db.profile.config.deleteDBonLogin = value
+                    else StaticPopup_Show(popup.deleteDBonLogin)
+                    end
+                  end,
+          },
+          deleteDBnow =
+          { name = L["Button Delete DB Now"],
+            type = "execute",
+            width = 2,
+            order = 70,
+            desc = L["Button Delete DB Now Tooltip"],
+            func = function() StaticPopup_Show(popup.deleteDBNow) end,
+          },
+        },
+      },
+      notifyOptions =
+      { type = "group",
+        name = L["Config Notify"],
+        order = 2,
+        args = 
+        {
+          loginMessage       =
+          { name             = L["Config Login Message"],
+            type             = "toggle",
+            order            = 10,
+            desc             = L["Config Login Message Tooltip"],
+            get              = function() return self.db.profile.config.loginMessage end,
+            set              = function(info, value) self.db.profile.config.loginMessage = value end,
+            width = "full",
+          },
+          notifyMethod       =
+          { name             = L["Config Notify Method"],
+            type             = "select",
+            order            = 20,
+            desc             = L["Config Notify Method Tooltip"],
+            get              = function() return self.db.profile.config.notifyMethod end,
+            set              = function(info, value) self.db.profile.config.notifyMethod = value end,
+            values           = { chat = L["Menu Notify Method Chat"],
+                                 toast = L["Menu Notify Method Toast"] },
+            sorting          = { "chat", "toast" },
+            width            = 1,
+          },
+          spacer1 = Spacer({ order = 21 }),
+          notifySound = 
+          { name = L["Config Notify Sound"],
+            type = "select",
+            order = 30,
+            desc = L["Config Notify Sound Tooltip"],
+            get = function() return self.db.profile.config.notifySound end,
+            set = function(info, value) self.db.profile.config.notifySound = value;
+                        PlaySound(value);
+                      end,
+            values = menu.notifySound,
+            sorting = menu.notifySoundOrder,
+            width = 1,
+          },
+          testNotifyMethod   =
+          { name             = L["Button Test Notify"],
+            type             = "execute",
+            order            = 40,
+            desc             = L["Button Test Notify Tooltip"],
+            func             = function()
+                                 local chat = self.db.profile.config.notifyMethod == "chat"
+                                 self:Notify(L[chat and "Notify Test Chat" or "Notify Test Toast"])
+                                 end,
+            width            = 2.1, 
+          },
+          trp3Group =
+          { name = L["Config TRP3"],
+            type = "group",
+            inline = true,
+            order = 50,
+            args =
+            {
+              instructTRP3 =
+              { name = L["Instruct TRP3"],
+                type = "description",
+                order = 60,
+                width = "full"
+              },
+              alertTRP3Scan      =
+              { name             = L["Config Alert TRP3 Scan"],
+                type             = "toggle",
+                order            = 70,
+                desc             = L["Config Alert TRP3 Scan Tooltip"],
+                get              = function() return self.db.profile.config.alertTRP3Scan end,
+                set              = function(info, value) self.db.profile.config.alertTRP3Scan = value end,
+                disabled         = function() return not self.db.profile.config.monitorTRP3 end,
+                width = "full",
+              },
+              spacer1 = Spacer({ order = 80 }),
+              alertAllTRP3Scan   = 
+              { name             = L["Config Alert All TRP3 Scan"],
+                type             = "toggle",
+                order            = 90,
+                desc             = L["Config Alert All TRP3 Scan Tooltip"],
+                get              = function() return self.db.profile.config.alertAllTRP3Scan end,
+                set              = function(info, value) self.db.profile.config.alertAllTRP3Scan = value end,
+                disabled         = function() return not self.db.profile.config.alertTRP3Scan end,
+                width = 1.5,
+              },
+              alertTRP3Connect =
+              { name = L["Config Alert TRP3 Connect"],
+                type = "toggle",
+                order = 100,
+                desc = L["Config Alert TRP3 Connect Tooltip"],
+                get              = function() return self.db.profile.config.alertTRP3Connect end,
+                set              = function(info, value) self.db.profile.config.alertTRP3Connect = value end,
+                disabled         = function() return not self.db.profile.config.monitorTRP3 end,
+                width = "full",
+              },
+            },
+          },
+        },
+      },
       credits                =
         { type               = "group",
           name               = L["Credits Header"],
@@ -484,24 +769,37 @@ function RP_Find:OnInitialize()
             creditsHeader    =
             { type           = "description",
               name           = "|cffffff00" .. L["Credits Header"] .. "|r",
-              order          = 2,
+              order          = 10,
               fontSize       = "medium",
             },
             creditsInfo      =
             { type           = "description",
               name           = L["Credits Info"],
-              order          = 3,
+              order          = 20,
             },
          },
-       },
+      },
+      profiles               = AceDBOptions:GetOptionsTable(self.db),
     },
   };
 
-  myDBicon:Register(RP_Find.addOnTitle, myDataBroker, RP_Find.db.profile.config.ShowIcon);
-  self:RegisterChatCommand("rpidicon", "ToggleMinimapIcon");
+  self.addOnDbicon = LibDBIcon:Register(
+    self.addOnTitle, 
+    myDataBroker, self.db.profile.config.ShowIcon
+  );
+ -- self:RegisterChatCommand("rpidicon", "ToggleMinimapIcon");
 
-  LibStub("AceConfig-3.0"):RegisterOptionsTable( self.addOnName, self.options);
-  LibStub("AceConfigDialog-3.0"):AddToBlizOptions(self.addOnName, self.addOnTitle, self.options);
+  AceConfigRegistry:RegisterOptionsTable(
+    self.addOnName,
+    self.options, 
+    false
+  );
+
+  AceConfigDialog:AddToBlizOptions(
+    self.addOnName,
+    self.addOnTitle
+  );
+  --]]
 
   initializeDatabase();
 
@@ -510,11 +808,15 @@ end;
 -- data broker
 --
 function RP_Find:ToggleMinimapIcon()
-  self.db.profile.config.showIcon = not self.db.profile.config.showIcon;
-  if self.db.profile.config.showIcon then myDBicon:Show() else myDBicon:Hide(); end;
+  if IsShiftKeyDown()
+  then self.Finder:Hider();
+       self:OpenOptions();
+  else self.db.profile.config.showIcon = not self.db.profile.config.showIcon;
+       if self.db.profile.config.showIcon then myDBicon:Show() else myDBicon:Hide(); end;
+  end;
 end;
 
-function RP_Find:ToggleFinderFrame() 
+function RP_Find:ToggleFinderFrame(button) 
   if self.Finder
   then if self.Finder:IsShown() then self.Finder:Hide() else self.Finder:Show(); end;
   end;
@@ -528,6 +830,10 @@ function RP_Find:OnEnable()
     self:LoadSelfRecord();
     self:RegisterMspReceived();
     self:RegisterTrp3Channel();
+    self:InitializeToast();
+    if   self.db.profile.config.loginMessage
+    then self:Notify(L["Notify Login Message"]);
+    end;
   end;
 
 function RP_Find:RegisterPlayer(playerName, server)
@@ -574,10 +880,12 @@ function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
   if   self.db.profile.config.monitorTRP3 and prefix == addonPrefix.trp3 
        and sender ~= self.me
   then 
-       print(text);
        if     text:find("^RPB1~TRP3HI")
        then   self:GetPlayerRecord(sender, nil);
               self.Finder:UpdateDisplay();
+              if self.db.profile.config.alertTRP3Connect
+              then self:Notify(L["Format Alert TRP3 Connect"], sender);
+              end;
        elseif text:find("^RPB1~C_SCAN~")
        then   self:GetPlayerRecord(sender, nil);
               if   self.db.profile.config.alertTRP3Scan
@@ -585,7 +893,7 @@ function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
                        or
                        text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
                    )
-              then notify(
+              then self:Notify(
                     string.format(
                       L["Format Alert TRP3 Scan"],
                       sender, 
@@ -603,10 +911,6 @@ RP_Find:RegisterEvent("CHAT_MSG_ADDON_LOGGED", "AddonMessageReceived");
 
 -- menu data
 --
-local menu =
-{ 
-};
-
 local buttonSize = 85;
 
 --[[
@@ -644,7 +948,12 @@ RP_Find.configButton:SetText(L["Button Config"]);
 RP_Find.configButton:ClearAllPoints();
 RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
-RP_Find.configButton:SetScript("OnClick", function() RP_Find:OpenOptions() end);
+RP_Find.configButton:SetScript("OnClick", 
+  function() 
+    RP_Find.Finder:Hide();
+    RP_Find:OpenOptions();
+  end
+);
 
 --[[
   RP_Find.configButton:SetScript("OnShow",
@@ -689,9 +998,14 @@ finderTooltipsLabel:SetPoint("LEFT", finderTooltipsCheckbox, "RIGHT", 2, 0);
 local SLASH = "/rpfind";
 _G["SLASH_RP_FIND1"] = SLASH;
 
+function RP_Find:OpenOptions()
+  InterfaceOptionsFrame:Show();
+  InterfaceOptionsFrame_OpenToCategory(self.addOnTitle);
+end;
+
 function RP_Find:HelpCommand()
-  notify(L["Slash Commands"]);
-  notify(L["Slash Options"]);
+  self:Notify(true, L["Slash Commands"]);
+  self:Notify(true, L["Slash Options"]);
 end;
 
 SlashCmdList["RP_FIND"] = 
