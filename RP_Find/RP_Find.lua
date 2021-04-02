@@ -18,17 +18,25 @@ local AceGUI            = LibStub("AceGUI-3.0");
 local AceLocale         = LibStub("AceLocale-3.0");
 local LibDBIcon         = LibStub("LibDBIcon-1.0");
 local LibDataBroker     = LibStub("LibDataBroker-1.1");
--- local LibToast          = LibStub("LibToast-1.0");
 local L                 = AceLocale:GetLocale(addOnName);
 
 local MEMORY_WARN_MB = 1000 * 3;
 local MEMORY_WARN_GB = 1000 * 1000;
+local SLASH = "/rpfind";
 
 local configDB = "RP_Find_ConfigDB";
 local finderDB = "RP_FindDB";
 local addonChannel = "xtensionxtooltip2";
 local addonPrefix = { trp3 = "RPB1" };
 local PLAYER_RECORD = "RP_Find Player Record";
+
+local col = {
+ gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
+ orange = function(str) return LEGENDARY_ORANGE_COLOR:WrapTextInColorCode(str) end,
+ white  = function(str) return       WHITE_FONT_COLOR:WrapTextInColorCode(str) end,
+ white  = function(str) return         RED_FONT_COLOR:WrapTextInColorCode(str) end,
+ green  = function(str) return       GREEN_FONT_COLOR:WrapTextInColorCode(str) end,
+};
 
 local RP_Find = AceAddon:NewAddon( 
         addOnName 
@@ -38,8 +46,6 @@ local RP_Find = AceAddon:NewAddon(
         , "LibToast-1.0"
       );
 
-local function red(str) return RED_FONT_COLOR:WrapTextInColorCode(str) end;
-local function green(str) return GREEN_FONT_COLOR:WrapTextInColorCode(str) end;
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
@@ -49,9 +55,8 @@ RP_Find.addOnToast   = "RP_Find_notify";
 
 local popup =
   { deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
-    deleteDBNow = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
+    deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
   };
-
 
 StaticPopupDialogs[popup.deleteDBonLogin] =
 { 
@@ -91,7 +96,7 @@ StaticPopupDialogs[popup.deleteDBNow] =
 
 function RP_Find:PurgePlayerData(playerName)
   self.data.rolePlayers[playerName] = nil;
-  self.playerRecords[playerName] = nil;
+  self.playerRecords[playerName]    = nil;
 end;
 
 function RP_Find:SmartPruneDatabase(interactive)
@@ -131,6 +136,7 @@ function RP_Find:WipeDatabaseNow()
 end;
 
 function RP_Find:InitializeToast()
+  print("initializing toast");
   self:RegisterToast(self.addOnToast,
     function(toast, ...)
       toast:SetTitle(self.addOnTitle);
@@ -139,9 +145,7 @@ function RP_Find:InitializeToast()
     end);
 end;
 
-function RP_Find:SendToast(message)
-  self:SpawnToast(self.addOnToast, message, true);
-end;
+function RP_Find:SendToast(message) self:SpawnToast(self.addOnToast, message, true); end;
 
 function RP_Find:Notify(forceChat, ...) 
   local dots = { ... };
@@ -202,12 +206,13 @@ local function initializeDatabase(wipe)
   RP_Find.playerRecords = {};
 end;
 
-function RP_Find:NewPlayerRecord(playerName, server, sourceID, playerData)
+function RP_Find:NewPlayerRecord(playerName, server, playerData)
 
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
 
   local playerRecord = {}
+
   for   methodName, func in pairs(self.PlayerMethods)
   do    playerRecord[methodName] = func;
   end;
@@ -217,7 +222,7 @@ function RP_Find:NewPlayerRecord(playerName, server, sourceID, playerData)
 
   if   playerData
   then for field, value in pairs(playerData)
-       do   playerRecord:Set(field, value, sourceID or "UNKNOWN");
+       do   playerRecord:Set(field, value)
        end;
   end;
 
@@ -227,40 +232,36 @@ function RP_Find:NewPlayerRecord(playerName, server, sourceID, playerData)
   return playerRecord;
 end;
 
-function RP_Find:GetPlayerRecord(playerName, server, sourceID)
+function RP_Find:GetPlayerRecord(playerName, server)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
   if   self.playerRecords[playerName]
   then return self.playerRecords[playerName]
-  else return self:NewPlayerRecord(playerName, nil, sourceID);
+  else return self:NewPlayerRecord(playerName)
   end;
 end;
 
 function RP_Find:GetAllPlayerRecords() 
   local list = {};
-  for playerName, playerRecord in pairs(self.playerRecords)
-  do table.insert(list, playerRecord)
-  end;
+  for _, record in pairs(self.playerRecords) do table.insert(list, record); end;
   return list;
 end;
 
 function RP_Find:GetAllPlayerData()
   local list = {};
-  for playerName, playerData in pairs(self.data.rolePlayers)
-  do table.insert(list, playerData)
-  end;
+  for _, data in pairs(self.data.rolePlayers) do table.insert(list, data) end;
   return list;
 end;
 
 function RP_Find:CountPlayerRecords()
   local count = 0;
-  for playerName, _ in pairs(self.playerRecords) do count = count + 1; end;
+  for _, _ in pairs(self.playerRecords) do count = count + 1; end;
   return count;
 end;
 
 function RP_Find:CountPlayerData()
   local count = 0
-  for playerName, _ in pairs(self.data.rolePlayers) do count = count + 1 end;
+  for _, _ in pairs(self.data.rolePlayers) do count = count + 1 end;
   return count;
 end;
 
@@ -279,24 +280,23 @@ RP_Find.PlayerMethods =
     end,
 
   ["Set"] =
-    function(self, field, value, sourceID)
+    function(self, field, value)
       self.data.fields[field] = self.data.fields[field] or {};
       self.data.fields[field].value = value;
-      self.data.fields[field].sourceID = sourceID;
       self.data.fields[field].when = time();
       self.data.last.when = time();
       return self;
     end,
 
   ["SetTimestamp"] =
-    function(self, field, timeStamp, sourceID)
+    function(self, field, timeStamp)
       timeStamp = timeStamp or time();
       if not field
       then   self.data.last.when = timeStamp
       elseif self.data.fields[field]
       then   self.data.fields[field].when = timeStamp;
       elseif type(field) == "string"
-      then   self:Set(field, nil, sourceID, { when = timeStamp });
+      then   self:Set(field, nil, { when = timeStamp });
       end;
       return self;
     end,
@@ -337,31 +337,8 @@ RP_Find.PlayerMethods =
       end
     end,
 
-  ["GetSource"] = 
-    function(self, field)
-      if not field then return self.data.last.sourceID
-      elseif self.data.fields[field]
-      then   return self.data.fields[field].sourceID
-      else   return "UNKNOWN"
-      end
-    end,
-
-  ["GetAll"] =
-    function(self, field)
-      if not field then return self.data.fields
-      elseif self.data.fields[field]
-      then   return self.data.fields[field].value, 
-                    self.data.fields[field].when, 
-                    self.data.fields[field].sourceID
-      else   return nil, time(), "UNKNOWN", {}
-      end
-    end,
 };
 
-local col = {};
-function col.gray(text)   return LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(text) end;
-function col.orange(text) return LEGENDARY_ORANGE_COLOR:WrapTextInColorCode(text)    end;
-function col.white(text)  return WHITE_FONT_COLOR:WrapTextInColorCode(text) end;
 
 local ORANGE = LEGENDARY_ORANGE_COLOR:GenerateHexColor();
 local WHITE  = WHITE_FONT_COLOR:GenerateHexColor();
@@ -371,41 +348,40 @@ local myDataBroker =
     RP_Find.addOnTitle,
     { type    = "data source",
       text    = RP_Find.addOnTitle,
+      label   = RP_Find.addOnTitle,
       icon    = RP_Find.addOnIcon,
-      OnClick = function() RP_Find:ToggleFinderFrame() end,
+      OnClick = function() RP_Find.OnMinimapButtonClick() end,
+      OnEnter = function() RP_Find.OnMinimapButtonEnter() end,
+      OnLeave = function() RP_Find.OnMinimapButtonLeave() end,
     }
   );
         
-
-myDataBroker.iconCoords = { 1, 0, 1, 0 };
-
 local myDefaults =
 { profile =
   { config =
-    { notifyMethod = "toast",
-      loginMessage = false,
-      showIcon       = true,
-      lockIcon       = false,
-      finderTooltips = true,
-      monitorMSP     = true,
-      monitorTRP3    = true,
-      alertTRP3Scan  = false,
+    { notifyMethod     = "toast",
+      loginMessage     = false,
+      finderTooltips   = true,
+      monitorMSP       = true,
+      monitorTRP3      = true,
+      alertTRP3Scan    = false,
       alertAllTRP3Scan = false,
       alertTRP3Connect = false,
-      notifySound = 37881,
-      deleteDBonLogin = false,
+      notifySound      = 37881,
+      deleteDBonLogin  = false,
     },
   },
+  global = { minimapbutton = {}, },
 };
 
-local recordSortField = "playerName";
+local recordSortField        = "playerName";
 local recordSortFieldReverse = false;
 
 local function sortPlayerRecords(a, b)
   local function helper(booleanValue)
     if recordSortFieldReverse
     then return not booleanValue
-    else return booleanValue
+    else return     booleanValue
     end;
   end;
 
@@ -419,6 +395,7 @@ local function sortPlayerRecords(a, b)
 end;
 
 local Finder = AceGUI:Create("Window");
+Finder.col = { 0.35, 0.25 };
 
 Finder:SetWidth(500);
 Finder:SetHeight(300);
@@ -427,8 +404,6 @@ Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
 Finder.content:SetPoint("TOPRIGHT", Finder.frame, "TOPRIGHT", -20, -50);
 Finder:Hide();
-
-local col = { 0.35, 0.25 };
 
 local displayFrame = AceGUI:Create("InlineGroup");
 displayFrame:SetFullWidth(true);
@@ -466,7 +441,7 @@ local currentCol = 1;
 
 local function makeListHeader(baseText, sortField)
   local newHeader = AceGUI:Create("InteractiveLabel");
-  newHeader:SetRelativeWidth(col[currentCol]);
+  newHeader:SetRelativeWidth(Finder.col[currentCol]);
   currentCol = currentCol + 1;
   newHeader.baseText = baseText;
   if     recordSortField == sortField and recordSortFieldReverse
@@ -522,13 +497,13 @@ function Finder:UpdateDisplay(event, ...)
       local nameField = AceGUI:Create("Label");
       nameField:SetFontObject(GameFontNormalSmall);
       nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
-      nameField:SetRelativeWidth(col[1]);
+      nameField:SetRelativeWidth(Finder.col[1]);
       line:AddChild(nameField);
 
       lastSeenField = AceGUI:Create("Label");
       lastSeenField:SetFontObject(GameFontNormalSmall);
       lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
-      lastSeenField:SetRelativeWidth(col[2]);
+      lastSeenField:SetRelativeWidth(Finder.col[2]);
       line:AddChild(lastSeenField);
 
       scrollFrame:AddChild(line);
@@ -536,13 +511,10 @@ function Finder:UpdateDisplay(event, ...)
 
 end;
 
-function Finder:LetTheChildrenGo(event)
-  self.playerListFrame:ReleaseChildren();
-end;
+function Finder:LetTheChildrenGo(event) self.playerListFrame:ReleaseChildren(); end;
 
-Finder:SetCallback("OnShow", "UpdateDisplay");
+Finder:SetCallback("OnShow",  "UpdateDisplay"   );
 Finder:SetCallback("OnClose", "LetTheChildrenGo");
-
 
 function RP_Find:UpdateDisplay(...) self.Finder:UpdateDisplay(...); end
 
@@ -553,214 +525,202 @@ RP_Find.Finder = Finder;
 function RP_Find:LoadSelfRecord() self.my = self:GetPlayerRecord(self.me, self.realm); end;
 
 local function Spacer(info)
-  return { type = "description",
-           name = " ",
-           width = info and info.width or 0.1,
-           order = info and info.order or 10,
-         }
+  return 
+  { type  = "description",
+    name  = " ",
+    width = info and info.width or 0.1,
+    order = info and info.order or 10,
+  }
 end
 
 function RP_Find:OnInitialize()
 
   self.db = AceDB:New(configDB, myDefaults);
-    
   self.db.RegisterCallback(self, "OnProfileChanged", "LoadSelfRecord");
   self.db.RegisterCallback(self, "OnProfileCopied",  "LoadSelfRecord");
   self.db.RegisterCallback(self, "OnProfileReset",   "LoadSelfRecord");
   
   self.options               =
-  { type                     = "group",
-    name                     = RP_Find.addOnTitle,
-    order                    = 1,
-    args                     =
-    { versionInfo            =
-      { type                 = "description",
-        name                 = L["Version Info"],
-        order                = 1,
-        fontSize             = "medium",
-        width                = "full",
-        hidden               = function() UpdateAddOnMemoryUsage() return false end,
+  { type          = "group",
+    name          = RP_Find.addOnTitle,
+    order         = 1,
+    args          =
+    { versionInfo =
+      { type      = "description",
+        name      = L["Version Info"],
+        order     = 1,
+        fontSize  = "medium",
+        width     = "full",
+        hidden    = function() UpdateAddOnMemoryUsage() return false end,
       },
-      configOptions          =
-      { type                 = "group",
-        name                 = L["Config Options"],
-        order                = 1,
-        args                 =
-        { 
-          showIcon           =
-          { name             = L["Config Show Icon"],
-            type             = "toggle",
-            order            = 20,
-            desc             = L["Config Show Icon Tooltip"],
-            get              = function() return self.db.profile.config.showIcon end,
-            set              = "ToggleMinimapIcon",
-            width            = "full",
+      configOptions =
+      { type        = "group",
+        name        = L["Config Options"],
+        order       = 1,
+        args        =
+        {
+          showIcon  =
+          { name    = L["Config Show Icon"],
+            type    = "toggle",
+            order   = 20,
+            desc    = L["Config Show Icon Tooltip"],
+            get     = function() return not self.db.global.minimapbutton.hide end,
+            set     = function(info, value) 
+                        self.db.global.minimapbutton.hide = not value 
+                        self:ShowOrHideMinimapButton(); 
+                      end,
+            width   = "full",
           },
---[[
-          spacer1 = Spacer({ order = 21 }),
-
-          lockIcon =
-          { name = L["Config Lock Icon"],
-            type = "toggle",
-            order = 25,
-            desc = L["Config Lock Icon Tooltip"],
-            get = function() return self.db.profile.config.lockIcon end,
-            set = function(info, value) 
-                     self.db.profile.config.lockIcon = value;
-                     if value 
-                     then LibDBIcon:Lock(self.addOnName) 
-                     else LibDBIcon:Unlock(self.addOnName) 
-                     end
-                  end,
-            width = 1.5,
+          monitorMSP =
+          { name     = L["Config Monitor MSP"],
+            type     = "toggle",
+            order    = 30,
+            desc     = L["Config Monitor MSP Tooltip"],
+            get      = function() return self.db.profile.config.monitorMSP end,
+            set      = function(info, value) self.db.profile.config.monitorMSP  = value end,
+            disabled = function() return not msp end,
+            width    = "full",
           },
---]]
-          monitorMSP         =
-          { name             = L["Config Monitor MSP"],
-            type             = "toggle",
-            order            = 30,
-            desc             = L["Config Monitor MSP Tooltip"],
-            get              = function() return self.db.profile.config.monitorMSP end,
-            set              = function(info, value) self.db.profile.config.monitorMSP = value end,
-            disabled         = function() return not msp end,
-            width = "full",
-          },
-          monitorTRP3        =
-          { name             = L["Config Monitor TRP3"],
-            type             = "toggle",
-            order            = 40,
-            desc             = L["Config Monitor TRP3 Tooltip"],
-            get              = function() return self.db.profile.config.monitorTRP3 end,
-            set              = function(info, value) self.db.profile.config.monitorTRP3 = value end,
-            width = "full",
+          monitorTRP3 =
+          { name      = L["Config Monitor TRP3"],
+            type      = "toggle",
+            order     = 40,
+            desc      = L["Config Monitor TRP3 Tooltip"],
+            get       = function() return self.db.profile.config.monitorTRP3 end,
+            set       = function(info, value) self.db.profile.config.monitorTRP3  = value end,
+            width     = "full",
           },
         },
       },
       databaseConfig =
-      { name = function() 
-                 local  currentUsage = GetAddOnMemoryUsage(self.addOnName);
-                 if     currentUsage >= MEMORY_WARN_GB
-                 then   return L["Config Database Warning GB"]
-                 elseif currentUsage >= MEMORY_WARN_MB
-                 then   return L["Config Database Warning MB"]
-                 else   return L["Config Database"]
-                 end
-               end,
-        type = "group",
+      { name  = function() 
+                  local  currentUsage =  GetAddOnMemoryUsage(self.addOnName);
+                  if     currentUsage >= MEMORY_WARN_GB
+                  then   return L["Config Database Warning GB"]
+                  elseif currentUsage >= MEMORY_WARN_MB
+                  then   return L["Config Database Warning MB"]
+                  else   return L["Config Database"]
+                  end
+                end,
+        type  = "group",
         order = 50,
-        args =
+        args  =
         { memoryUsageBlurb =
-          { type = "group",
-            name = L["Config Memory Usage"],
-            order = 55,
-            width = "full",
-            inline = true,
-            args =
-            { 
-              header =
-              { name = L["Config Database Counts"],
-                order = 58,
-                type = "description",
-                fontSize = "large",
-                width = "full",
+          { type           = "group",
+            name           = L["Config Memory Usage"],
+            order          = 55,
+            width          = "full",
+            inline         = true,
+            args           =
+            {
+              header       =
+              { name       = L["Config Database Counts"],
+                order      = 58,
+                type       = "description",
+                fontSize   = "large",
+                width      = "full",
               },
-              counting =
-              { name = function()
-                         return string.format(
-                           L["Format Database Counts"], 
-                           self:CountPlayerData(),
-                           self:CountPlayerRecords())
-                       end,
-                order = 60,
-                type = "description",
+              counting   =
+              { name     = function() 
+                             return 
+                               string.format( 
+                                 L["Format Database Counts"], 
+                                 self:CountPlayerData(), 
+                                 self:CountPlayerRecords()
+                               ) 
+                           end,
+                order    = 60,
+                type     = "description",
                 fontSize = "medium",
-                width = "full",
+                width    = "full",
               },
-              blurb =
-              { name = function() 
-                         local value, units, warn;
-                         local currentUsage = GetAddOnMemoryUsage(self.addOnName);
-                         if currentUsage < 1000
-                         then value, units, warn = currentUsage, "KB", "";
-                         elseif currentUsage < 1000 * 1000
-                         then value, units, warn = currentUsage / 1000, "MB", "";
-                              if value > 2 then warn = L["Warning High Memory MB"] end;
-                         else value, units, warn = currentUsage / 1000 * 1000, "GB",
-                             L["Warning High Memory GB"];
-                         end;
-                         return string.format(L["Format Memory Usage"], value, units, warn);
-                       end,
-                type = "description",
+              blurb      =
+              { name     = function() 
+                             local value, units, warn;
+                             local currentUsage = GetAddOnMemoryUsage(self.addOnName);
+
+                             if     currentUsage < 1000
+                             then   value, units, warn = currentUsage, "KB", "";
+                             elseif currentUsage < 1000 * 1000
+                             then   value, units, warn = currentUsage / 1000, "MB", "";
+                                    if value > 2 then warn = L["Warning High Memory MB"] end;
+                             else   value, units, warn = currentUsage / 1000 * 1000, "GB",
+                                    L["Warning High Memory GB"];
+                             end;
+                             return string.format(L["Format Memory Usage"], value, units, warn);
+                           end,
+                type     = "description",
                 fontSize = "medium",
-                order = 65,
-                width = "full",
-                hidden = function() return GetAddOnMemoryUsage(self.addOnName) == 0 end,
+                order    = 65,
+                width    = "full",
+                hidden   = function() return GetAddOnMemoryUsage(self.addOnName) == 0 end,
               },
             },
           },
           deleteDBonLogin =
-          { name = L["Config Delete DB on Login"],
-            type = "toggle",
-            width = "full",
-            order = 80,
-            desc = L["Config Delete DB on Login Tooltip"],
-            get = function() return self.db.profile.config.deleteDBonLogin end,
-            set = function(info, value)
-                    if not value then self.db.profile.config.deleteDBonLogin = value
-                    else StaticPopup_Show(popup.deleteDBonLogin)
-                    end
-                  end,
+          { name          = L["Config Delete DB on Login"],
+            type          = "toggle",
+            width         = "full",
+            order         = 80,
+            desc          = L["Config Delete DB on Login Tooltip"],
+            get           = function() return self.db.profile.config.deleteDBonLogin end,
+            set           = function(info, value) 
+                              if not value 
+                              then   self.db.profile.config.deleteDBonLogin = value 
+                              else   StaticPopup_Show(popup.deleteDBonLogin) 
+                              end
+                            end,
           },
           deleteDBnow =
-          { name = L["Button Delete DB Now"],
-            type = "execute",
-            width = "full",
-            order = 85,
-            desc = L["Button Delete DB Now Tooltip"],
-            func = function() StaticPopup_Show(popup.deleteDBNow) end,
+          { name      = L["Button Delete DB Now"],
+            type      = "execute",
+            width     = "full",
+            order     = 85,
+            desc      = L["Button Delete DB Now Tooltip"],
+            func      = function() StaticPopup_Show(popup.deleteDBNow) end,
           },
-          configSmartPruning =
-          { name = L["Config Smart Pruning"],
-            type = "group",
-            width = "full",
-            order = 90,
-            inline = true,
-            args =
+          configSmartPruning  =
+          { name              = L["Config Smart Pruning"],
+            type              = "group",
+            width             = "full",
+            order             = 90,
+            inline            = true,
+            args              =
             {
               useSmartPruning =
-              { name = L["Config Use Smart Pruning"],
-                type = "toggle",
-                width = "full",
-                order = 95,
-                desc = L["Config Use Smart Pruning Tooltip"],
-                get = function() return self.db.profile.config.useSmartPruning end,
-                set = function(info, value) self.db.profile.config.useSmartPruning = value end,
-                disabled = function() return self.db.profile.config.deleteDBonLogin end,
+              { name          = L["Config Use Smart Pruning"],
+                type          = "toggle",
+                width         = "full",
+                order         = 95,
+                desc          = L["Config Use Smart Pruning Tooltip"],
+                get           = function() return self.db.profile.config.useSmartPruning end,
+                set           = function(info, value) self.db.profile.config.useSmartPruning  = value end,
+                disabled      = function() return self.db.profile.config.deleteDBonLogin end,
               },
               smartPruningThreshold =
-              { name = L["Config Smart Pruning Threshold"],
-                type = "range",
-                dialogControl = "Log_Slider",
-                isPercent = true,
-                width = "full",
-                min = 0,
-                softMin = math.log(SECONDS_PER_HOUR / 4);
-                softMax = math.log(30 * SECONDS_PER_DAY);
-                max = 20,
-                step = 0.01,
-                order = 105,
-                get = function() return self.db.profile.config.smartPruningThreshold end,
-                set = function(info, value) self.db.profile.config.smartPruningThreshold = value end,
-                disabled = function() return not self.db.profile.config.useSmartPruning end,
+              { name                = L["Config Smart Pruning Threshold"],
+                type                = "range",
+                dialogControl       = "Log_Slider",
+                isPercent           = true,
+                width               = "full",
+                min                 = 0,
+                softMin             = math.log(SECONDS_PER_HOUR / 4);
+                softMax             = math.log(30 * SECONDS_PER_DAY);
+                max                 = 20,
+                step                = 0.01,
+                order               = 105,
+                get                 = function() return self.db.profile.config.smartPruningThreshold end,
+                set                 = function(info, value) self.db.profile.config.smartPruningThreshold  = value end,
+                disabled            = function() return not self.db.profile.config.useSmartPruning end,
               },
               smartPruneNow =
-              { name = L["Button Smart Prune Database"],
-                type = "execute",
-                width = "full",
-                order = 110,
-                desc = L["Button Smart Prune Database Tooltip"],
-                func = function() self:SmartPruneDatabase(true, "true == interactive") end,
-                disabled = function() return not self.db.profile.config.useSmartPruning end,
+              { name        = L["Button Smart Prune Database"],
+                type        = "execute",
+                width       = "full",
+                order       = 110,
+                desc        = L["Button Smart Prune Database Tooltip"],
+                func        = function() self:SmartPruneDatabase(true) end, -- true = interactive
+                disabled    = function() return not self.db.profile.config.useSmartPruning end,
               },
             },
           },
@@ -772,128 +732,126 @@ function RP_Find:OnInitialize()
         order = 2,
         args = 
         {
-          loginMessage       =
-          { name             = L["Config Login Message"],
-            type             = "toggle",
-            order            = 10,
-            desc             = L["Config Login Message Tooltip"],
-            get              = function() return self.db.profile.config.loginMessage end,
-            set              = function(info, value) self.db.profile.config.loginMessage = value end,
-            width = "full",
+          loginMessage =
+          { name       = L["Config Login Message"],
+            type       = "toggle",
+            order      = 10,
+            desc       = L["Config Login Message Tooltip"],
+            get        = function() return self.db.profile.config.loginMessage end,
+            set        = function(info, value) self.db.profile.config.loginMessage  = value end,
+            width      = "full",
           },
-          notifyMethod       =
-          { name             = L["Config Notify Method"],
-            type             = "select",
-            order            = 20,
-            desc             = L["Config Notify Method Tooltip"],
-            get              = function() return self.db.profile.config.notifyMethod end,
-            set              = function(info, value) self.db.profile.config.notifyMethod = value end,
-            values           = { chat = L["Menu Notify Method Chat"],
-                                 toast = L["Menu Notify Method Toast"] },
-            sorting          = { "chat", "toast" },
-            width            = 1,
+          notifyMethod =
+          { name       = L["Config Notify Method"],
+            type       = "select",
+            order      = 20,
+            desc       = L["Config Notify Method Tooltip"],
+            get        = function() return self.db.profile.config.notifyMethod end,
+            set        = function(info, value) self.db.profile.config.notifyMethod  = value end,
+            sorting    = { "chat", "toast" },
+            width      = 1,
+            values     = { chat = L["Menu Notify Method Chat"], toast = L["Menu Notify Method Toast"] },
           },
           spacer1 = Spacer({ order = 21 }),
-          notifySound = 
-          { name = L["Config Notify Sound"],
-            type = "select",
-            order = 30,
-            desc = L["Config Notify Sound Tooltip"],
-            get = function() return self.db.profile.config.notifySound end,
-            set = function(info, value) self.db.profile.config.notifySound = value;
-                        PlaySound(value);
-                      end,
-            values = menu.notifySound,
-            sorting = menu.notifySoundOrder,
-            width = 1,
+          notifySound =
+          { name      = L["Config Notify Sound"],
+            type      = "select",
+            order     = 30,
+            desc      = L["Config Notify Sound Tooltip"],
+            get       = function() return self.db.profile.config.notifySound end,
+            set       = function(info, value) self.db.profile.config.notifySound  = value; PlaySound(value); end,
+            values    = menu.notifySound,
+            sorting   = menu.notifySoundOrder,
+            width     = 1,
           },
-          testNotifyMethod   =
-          { name             = L["Button Test Notify"],
-            type             = "execute",
-            order            = 40,
-            desc             = L["Button Test Notify Tooltip"],
-            func             = function()
-                                 local chat = self.db.profile.config.notifyMethod == "chat"
-                                 self:Notify(L[chat and "Notify Test Chat" or "Notify Test Toast"])
-                                 end,
-            width            = 2.1, 
+          testNotifyMethod =
+          { name           = L["Button Test Notify"],
+            type           = "execute",
+            order          = 40,
+            desc           = L["Button Test Notify Tooltip"],
+            func           = function() 
+                               local chat = self.db.profile.config.notifyMethod == "chat" 
+                               self:Notify(L[chat and "Notify Test Chat" 
+                                                   or "Notify Test Toast"]) 
+                               end,
+            width          = 2.1,
           },
-          trp3Group =
-          { name = L["Config TRP3"],
-            type = "group",
-            inline = true,
-            order = 50,
-            args =
+          trp3Group        =
+          { name           = L["Config TRP3"],
+            type           = "group",
+            inline         = true,
+            order          = 50,
+            args           =
             {
               instructTRP3 =
-              { name = L["Instruct TRP3"],
-                type = "description",
-                order = 60,
-                width = "full"
+              { name       = L["Instruct TRP3"],
+                type       = "description",
+                order      = 60,
+                width      = "full"
               },
-              alertTRP3Scan      =
-              { name             = L["Config Alert TRP3 Scan"],
-                type             = "toggle",
-                order            = 70,
-                desc             = L["Config Alert TRP3 Scan Tooltip"],
-                get              = function() return self.db.profile.config.alertTRP3Scan end,
-                set              = function(info, value) self.db.profile.config.alertTRP3Scan = value end,
-                disabled         = function() return not self.db.profile.config.monitorTRP3 end,
-                width = "full",
+              alertTRP3Scan =
+              { name        = L["Config Alert TRP3 Scan"],
+                type        = "toggle",
+                order       = 70,
+                desc        = L["Config Alert TRP3 Scan Tooltip"],
+                get         = function() return self.db.profile.config.alertTRP3Scan end,
+                set         = function(info, value) self.db.profile.config.alertTRP3Scan    = value end,
+                disabled    = function() return not self.db.profile.config.monitorTRP3 end,
+                width       = "full",
               },
-              spacer1 = Spacer({ order = 80 }),
-              alertAllTRP3Scan   = 
-              { name             = L["Config Alert All TRP3 Scan"],
-                type             = "toggle",
-                order            = 90,
-                desc             = L["Config Alert All TRP3 Scan Tooltip"],
-                get              = function() return self.db.profile.config.alertAllTRP3Scan end,
-                set              = function(info, value) self.db.profile.config.alertAllTRP3Scan = value end,
-                disabled         = function() return not self.db.profile.config.alertTRP3Scan end,
-                width = 1.5,
+              spacer1          = Spacer({ order = 80 }),
+              alertAllTRP3Scan =
+              { name           = L["Config Alert All TRP3 Scan"],
+                type           = "toggle",
+                order          = 90,
+                desc           = L["Config Alert All TRP3 Scan Tooltip"],
+                get            = function() return self.db.profile.config.alertAllTRP3Scan end,
+                set            = function(info, value) self.db.profile.config.alertAllTRP3Scan   = value end,
+                disabled       = function() return not self.db.profile.config.alertTRP3Scan end,
+                width          = 1.5,
               },
               alertTRP3Connect =
-              { name = L["Config Alert TRP3 Connect"],
-                type = "toggle",
-                order = 100,
-                desc = L["Config Alert TRP3 Connect Tooltip"],
-                get              = function() return self.db.profile.config.alertTRP3Connect end,
-                set              = function(info, value) self.db.profile.config.alertTRP3Connect = value end,
-                disabled         = function() return not self.db.profile.config.monitorTRP3 end,
-                width = "full",
+              { name           = L["Config Alert TRP3 Connect"],
+                type           = "toggle",
+                order          = 100,
+                desc           = L["Config Alert TRP3 Connect Tooltip"],
+                get            = function() return self.db.profile.config.alertTRP3Connect end,
+                set            = function(info, value) self.db.profile.config.alertTRP3Connect  = value end,
+                disabled       = function() return not self.db.profile.config.monitorTRP3 end,
+                width          = "full",
               },
             },
           },
         },
       },
-      credits                =
-        { type               = "group",
-          name               = L["Credits Header"],
-          order              = 10,
-          args               =
-          {
-            creditsHeader    =
-            { type           = "description",
-              name           = "|cffffff00" .. L["Credits Header"] .. "|r",
-              order          = 10,
-              fontSize       = "medium",
-            },
-            creditsInfo      =
-            { type           = "description",
-              name           = L["Credits Info"],
-              order          = 20,
-            },
-         },
+      credits             =
+      { type            = "group",
+        name            = L["Credits Header"],
+        order           = 10,
+        args            =
+        { creditsHeader =
+          { type        = "description",
+            name        = "|cffffff00" .. L["Credits Header"] .. "|r",
+            order       = 10,
+            fontSize    = "medium",
+          },
+          creditsInfo =
+          { type      = "description",
+            name      = L["Credits Info"],
+            order     = 20,
+          },
+        },
       },
-      profiles               = AceDBOptions:GetOptionsTable(self.db),
+      profiles = AceDBOptions:GetOptionsTable(self.db),
     },
   };
 
-  self.addOnDbicon = LibDBIcon:Register(
-    self.addOnTitle, 
-    myDataBroker, self.db.profile.config.ShowIcon
-  );
- -- self:RegisterChatCommand("rpidicon", "ToggleMinimapIcon");
+  self.addOnMinimapButton = 
+    LibDBIcon:Register(
+      self.addOnTitle, 
+      self.addOnDataBroker,
+      self.db.profile.global.minimapbutton
+    );
 
   AceConfigRegistry:RegisterOptionsTable(
     self.addOnName,
@@ -901,47 +859,52 @@ function RP_Find:OnInitialize()
     false
   );
 
-  AceConfigDialog:AddToBlizOptions(
-    self.addOnName,
-    self.addOnTitle
-  );
-  --]]
-
+  AceConfigDialog:AddToBlizOptions(self.addOnName, self.addOnTitle);
   initializeDatabase();
 
 end;
 
 -- data broker
 --
-function RP_Find:ToggleMinimapIcon()
-  if IsShiftKeyDown()
-  then self.Finder:Hider();
-       self:OpenOptions();
-  else self.db.profile.config.showIcon = not self.db.profile.config.showIcon;
-       if self.db.profile.config.showIcon then myDBicon:Show() else myDBicon:Hide(); end;
+
+function RP_Find:ShowOrHideMinimapButton()
+  if   self.db.global.minimapbutton.hide
+  then self.addOnMinimapButton:Hide();
+  else self.addOnMinimapButton:Show();
   end;
 end;
 
-function RP_Find:ToggleFinderFrame(button) 
-  if self.Finder
-  then if self.Finder:IsShown() then self.Finder:Hide() else self.Finder:Show(); end;
-  end;
+function RP_Find.OnMinimapButtonClick(frame, button)
+  if     button == "RightButton"
+  then   RP_Find:OpenOptions();
+  elseif RP_Find.Finder:IsShown()
+  then   RP_Find.Finder:Hide();
+  else   RP_Find.Finder:Show();
 end;
 
-_G[addOnName] = RP_Find;
+function RP_Find.OnMinimapButtonEnter(frame)
+  GameTooltip:ClearLines();
+  GameTooltip:SetOwner(RP_Find.Finder, "ANCHOR_CURSOR");
+  GameTooltip:SetOwner(RP_Find.Finder, "ANCHOR_PRESERVE");
+  GameTooltip:AddLine(RP_Find.addOnTitle);
+  GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window");
+  GameTooltip:AddDoubleLine("Right-Click", RP_Find.addOnTitle .. " Options");
+  GameTooltip:Show();
+end;
+
+function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
 
 function RP_Find:OnEnable()
-    self.realm = GetNormalizedRealmName() or GetRealmName():gsub("[%-%s]","");
-    self.me = UnitName("player") .. "-" .. RP_Find.realm;
-    self:LoadSelfRecord();
-    self:SmartPruneDatabase(false); -- false = not interactive
-    self:RegisterMspReceived();
-    self:RegisterTrp3Channel();
-    self:InitializeToast();
-    if   self.db.profile.config.loginMessage
-    then self:Notify(L["Notify Login Message"]);
-    end;
-  end;
+  self.realm = GetNormalizedRealmName() or GetRealmName():gsub("[%-%s]","");
+  self.me = UnitName("player") .. "-" .. RP_Find.realm;
+  self:InitializeToast();
+  self:LoadSelfRecord();
+  self:SmartPruneDatabase(false); -- false = not interactive
+  self:ShowOrHideMinimapButton();
+  self:RegisterMspReceived();
+  self:RegisterTrp3Channel();
+  if self.db.profile.config.loginMessage then self:Notify(L["Notify Login Message"]); end;
+end;
 
 function RP_Find:RegisterPlayer(playerName, server)
   local playerRecord = self:GetPlayerRecord(playerName, server);
@@ -952,62 +915,64 @@ function RP_Find:RegisterMspReceived()
   tinsert(msp.callback.received, 
     function(playerName) 
       if   self.db.profile.config.monitorMSP and playerName ~= self.me
-      then local playerRecord = self:GetPlayerRecord(playerName, server, "MSP_CALLBACK");
+      then self:GetPlayerRecord(playerName, server, "MSP_CALLBACK");
            self.Finder:UpdateDisplay();
       end;
     end);
 end;
 
 local function haveJoinedChannel(channel)
-  local channelData = { GetChannelList() };
-  local channelList = {};
-  local channelCount = 0;
-  while #channelData > 0
-  do local channelId = table.remove(channelData, 1);
-     local channelName = table.remove(channelData, 1);
-     local channelDisabled = table.remove(channelData, 1);
-     if not channelDisabled 
-     then channelList[channelName] = channelId;
-          channelCount = channelCount + 1;
-     end;
+  local chanData  = { GetChannelList() };
+  local chanList  = {};
+  local chanCount = 0;
+  while #chanData > 0
+  do    local  chanId       = table.remove(chanData, 1);
+        local  chanName     = table.remove(chanData, 1);
+        local  chanDisabled = table.remove(chanData, 1);
+        if not chanDisabled 
+        then   chanList[chanName] = chanId;
+               chanCount = chanCount + 1;
+        end;
   end;
-  return channelList[channel] ~= nil, channelCount;
+  return chanList[channel] ~= nil, chanCount;
 end;
+
 function RP_Find:RegisterTrp3Channel()
   if not C_ChatInfo.IsAddonMessagePrefixRegistered(addonPrefix.trp3)
   then   RP_Find.trp3ChannelRegistered = C_ChatInfo.RegisterAddonMessagePrefix(addonPrefix.trp3);
   end;
-  local haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
+
+  local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
   if not haveJoinedAddonChannel and channelCount < 10
-  then JoinTemporaryChannel(addonChannel);
+  then   JoinTemporaryChannel(addonChannel);
   end;
 end;
 
 function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
-  if   self.db.profile.config.monitorTRP3 and prefix == addonPrefix.trp3 
-       and sender ~= self.me
-  then 
-       if     text:find("^RPB1~TRP3HI")
+  if   self.db.profile.config.monitorTRP3 
+   and prefix == addonPrefix.trp3 
+   and sender ~= self.me
+  then if     text:find("^RPB1~TRP3HI")
        then   self:GetPlayerRecord(sender, nil);
               self.Finder:UpdateDisplay();
-              if self.db.profile.config.alertTRP3Connect
+
+              if   self.db.profile.config.alertTRP3Connect
               then self:Notify(L["Format Alert TRP3 Connect"], sender);
               end;
        elseif text:find("^RPB1~C_SCAN~")
        then   self:GetPlayerRecord(sender, nil);
               if   self.db.profile.config.alertTRP3Scan
-                   and (self.db.profile.config.alertAllTrp3Scan 
-                       or
-                       text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
+              and  (self.db.profile.config.alertAllTrp3Scan 
+                    or text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
                    )
               then self:Notify(
-                    string.format(
-                      L["Format Alert TRP3 Scan"],
-                      sender, 
-                      C_Map.GetMapInfo(tonumber(text:match("~(%d+)$"))).name
-                    )
-                  );
-            end;
+                     string.format(
+                       L["Format Alert TRP3 Scan"],
+                       sender, 
+                       C_Map.GetMapInfo(tonumber(text:match("~(%d+)$"))).name
+                     )
+                   );
+              end;
        end;
   end;
 end;
@@ -1055,23 +1020,10 @@ RP_Find.configButton:SetText(L["Button Config"]);
 RP_Find.configButton:ClearAllPoints();
 RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
-RP_Find.configButton:SetScript("OnClick", 
-  function() 
-    RP_Find.Finder:Hide();
-    RP_Find:OpenOptions();
-  end
+RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end
 );
 
 --[[
-  RP_Find.configButton:SetScript("OnShow",
-  function()
-    local autoSave = RP_Find.db.profile.config.autoSave;
-    RP_Find.cancelButton:SetShown(not autoSave);
-    RP_Find.saveButton:SetShown(not autoSave);
-    RP_Find.closeButton:SetShown(autoSave);
-  end);
---]]
---
 local finderTooltipsCheckbox = CreateFrame("Checkbutton", nil, Finder.frame, "ChatConfigCheckButtonTemplate");
 finderTooltipsCheckbox:ClearAllPoints();
 finderTooltipsCheckbox:SetSize(20,20);
@@ -1101,8 +1053,8 @@ finderTooltipsCheckbox:SetScript("OnClick",
 local finderTooltipsLabel = Finder.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalGraySmall");
 finderTooltipsLabel:SetText(L["Label Finder Tooltips"]);
 finderTooltipsLabel:SetPoint("LEFT", finderTooltipsCheckbox, "RIGHT", 2, 0);
+--]]
 
-local SLASH = "/rpfind";
 _G["SLASH_RP_FIND1"] = SLASH;
 
 function RP_Find:OpenOptions()
@@ -1112,16 +1064,19 @@ end;
 
 function RP_Find:HelpCommand()
   self:Notify(true, L["Slash Commands"]);
-  self:Notify(true, L["Slash Options"]);
+  self:Notify(true, L["Slash Options" ]);
 end;
 
 SlashCmdList["RP_FIND"] = 
   function(a)
     local  param = { strsplit(" ", a); };
     local  cmd = table.remove(param, 1);
-
-    if     cmd == "" or cmd == "help"                   then RP_Find:HelpCommand();
-    elseif cmd:match("^option") or cmd:match("^config") then RP_Find:OpenOptions();
+    if     cmd == "" or cmd == "help"                   
+    then   RP_Find:HelpCommand();
+    elseif cmd:match("^option") or cmd:match("^config") 
+    then   RP_Find:OpenOptions();
     else   RP_Find:HelpCommand();
     end;
   end;
+
+_G[addOnName] = RP_Find;
