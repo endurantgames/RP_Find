@@ -38,6 +38,8 @@ local RP_Find = AceAddon:NewAddon(
         , "LibToast-1.0"
       );
 
+local function red(str) return RED_FONT_COLOR:WrapTextInColorCode(str) end;
+local function green(str) return GREEN_FONT_COLOR:WrapTextInColorCode(str) end;
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
@@ -87,16 +89,45 @@ StaticPopupDialogs[popup.deleteDBNow] =
   OnShow = function(self, data) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3) end,
 }
 
+function RP_Find:PurgePlayerData(playerName)
+  self.data.rolePlayers[playerName] = nil;
+  self.playerRecords[playerName] = nil;
+end;
+
+function RP_Find:SmartPruneDatabase(interactive)
+  if not self.db.profile.config.useSmartPruning then return end;
+  self.Finder:Hide();
+  InterfaceOptionsFrame:Hide();
+  local now = time();
+  local count = 0;
+
+  local function getTimestamp(playerData) return playerData.last and playerData.last.when or 0 end;
+
+  local secs = math.exp(self.db.profile.config.smartPruningThreshold);
+  for   playerName, playerData in pairs(self.data.rolePlayers)
+  do    if  now - getTimestamp(playerData) > secs and playerName ~= self.me
+        then count = count + 1; 
+        end; 
+  end;
+
+  UpdateAddOnMemoryUsage();
+  if interactive and count > 0 
+  then self:Notify(string.format(L["Format Smart Pruning Done"], count)); 
+  else self:Notify(L["Notify Smart Pruning Zero"]);
+  end;
+end;
+
 function RP_Find:WipeDatabaseNow()
   self.preWipeMemory = GetAddOnMemoryUsage(self.addOnName);
-
+  InterfaceOptionsFrame:Hide();
   self.Finder:Hide();
   self.Finder:LetTheChildrenGo();
-  _G[finderDB] = {};
-  self.playerRecords = {};
+
+  initializeDatabase(true); -- true = wipe
+  self:LoadSelfRecord();
+
   UpdateAddOnMemoryUsage();
   self:Notify("Database deleted.");
-
 end;
 
 function RP_Find:InitializeToast()
@@ -157,8 +188,8 @@ local menu =
   }
 };
 
-local function initializeDatabase()
-  if RP_Find.db.profile.config.deleteDBonLogin
+local function initializeDatabase(wipe)
+  if wipe or RP_Find.db.profile.config.deleteDBonLogin
   then _G[finderDB] = {};
   else _G[finderDB] = _G[finderDB] or {};
   end;
@@ -209,6 +240,14 @@ function RP_Find:GetAllPlayerRecords()
   local list = {};
   for playerName, playerRecord in pairs(self.playerRecords)
   do table.insert(list, playerRecord)
+  end;
+  return list;
+end;
+
+function RP_Find:GetAllPlayerData()
+  local list = {};
+  for playerName, playerData in pairs(self.data.rolePlayers)
+  do table.insert(list, playerData)
   end;
   return list;
 end;
@@ -511,9 +550,8 @@ RP_Find.timer = RP_Find:ScheduleRepeatingTimer("UpdateDisplay", 10);
 
 RP_Find.Finder = Finder;
 
-function RP_Find:LoadSelfRecord()
-  self.my = self:GetPlayerRecord(self.me, self.realm);
-end;
+function RP_Find:LoadSelfRecord() self.my = self:GetPlayerRecord(self.me, self.realm); end;
+
 local function Spacer(info)
   return { type = "description",
            name = " ",
@@ -539,7 +577,9 @@ function RP_Find:OnInitialize()
       { type                 = "description",
         name                 = L["Version Info"],
         order                = 1,
-        hidden = function() UpdateAddOnMemoryUsage() return false end,
+        fontSize             = "medium",
+        width                = "full",
+        hidden               = function() UpdateAddOnMemoryUsage() return false end,
       },
       configOptions          =
       { type                 = "group",
@@ -609,31 +649,52 @@ function RP_Find:OnInitialize()
         type = "group",
         order = 50,
         args =
-        { memoryUsage = 
-          { name = L["Config Memory Usage"],
-            type = "group",
-            inline = true,
+        { memoryUsageBlurb =
+          { type = "group",
+            name = L["Config Memory Usage"],
             order = 55,
-            hidden = function() return GetAddOnMemoryUsage(self.addOnName) == 0 end,
+            width = "full",
+            inline = true,
             args =
-            { memoryUsageBlurb =
-               { name = function() 
-                          local value, units, warn;
-                          local currentUsage = GetAddOnMemoryUsage(self.addOnName);
-                          if currentUsage < 1000
-                          then value, units, warn = currentUsage, "KB", "";
-                          elseif currentUsage < 1000 * 1000
-                          then value, units, warn = currentUsage / 1000, "MB", "";
-                               if value > 2 then warn = L["Warning High Memory MB"] end;
-                          else value, units, warn = currentUsage / 1000 * 1000, "GB",
-                                                    L["Warning High Memory GB"];
-                          end;
-                       return string.format(L["Format Memory Usage"], value, units, warn);
-                     end,
-                 type = "description",
-                 fontSize = "medium",
-                 order = 1,
-                 width = "full",
+            { 
+              header =
+              { name = L["Config Database Counts"],
+                order = 58,
+                type = "description",
+                fontSize = "large",
+                width = "full",
+              },
+              counting =
+              { name = function()
+                         return string.format(
+                           L["Format Database Counts"], 
+                           self:CountPlayerData(),
+                           self:CountPlayerRecords())
+                       end,
+                order = 60,
+                type = "description",
+                fontSize = "medium",
+                width = "full",
+              },
+              blurb =
+              { name = function() 
+                         local value, units, warn;
+                         local currentUsage = GetAddOnMemoryUsage(self.addOnName);
+                         if currentUsage < 1000
+                         then value, units, warn = currentUsage, "KB", "";
+                         elseif currentUsage < 1000 * 1000
+                         then value, units, warn = currentUsage / 1000, "MB", "";
+                              if value > 2 then warn = L["Warning High Memory MB"] end;
+                         else value, units, warn = currentUsage / 1000 * 1000, "GB",
+                             L["Warning High Memory GB"];
+                         end;
+                         return string.format(L["Format Memory Usage"], value, units, warn);
+                       end,
+                type = "description",
+                fontSize = "medium",
+                order = 65,
+                width = "full",
+                hidden = function() return GetAddOnMemoryUsage(self.addOnName) == 0 end,
               },
             },
           },
@@ -641,7 +702,7 @@ function RP_Find:OnInitialize()
           { name = L["Config Delete DB on Login"],
             type = "toggle",
             width = "full",
-            order = 60,
+            order = 80,
             desc = L["Config Delete DB on Login Tooltip"],
             get = function() return self.db.profile.config.deleteDBonLogin end,
             set = function(info, value)
@@ -653,10 +714,55 @@ function RP_Find:OnInitialize()
           deleteDBnow =
           { name = L["Button Delete DB Now"],
             type = "execute",
-            width = 2,
-            order = 70,
+            width = "full",
+            order = 85,
             desc = L["Button Delete DB Now Tooltip"],
             func = function() StaticPopup_Show(popup.deleteDBNow) end,
+          },
+          configSmartPruning =
+          { name = L["Config Smart Pruning"],
+            type = "group",
+            width = "full",
+            order = 90,
+            inline = true,
+            args =
+            {
+              useSmartPruning =
+              { name = L["Config Use Smart Pruning"],
+                type = "toggle",
+                width = "full",
+                order = 95,
+                desc = L["Config Use Smart Pruning Tooltip"],
+                get = function() return self.db.profile.config.useSmartPruning end,
+                set = function(info, value) self.db.profile.config.useSmartPruning = value end,
+                disabled = function() return self.db.profile.config.deleteDBonLogin end,
+              },
+              smartPruningThreshold =
+              { name = L["Config Smart Pruning Threshold"],
+                type = "range",
+                dialogControl = "Log_Slider",
+                isPercent = true,
+                width = "full",
+                min = 0,
+                softMin = math.log(SECONDS_PER_HOUR / 4);
+                softMax = math.log(30 * SECONDS_PER_DAY);
+                max = 20,
+                step = 0.01,
+                order = 105,
+                get = function() return self.db.profile.config.smartPruningThreshold end,
+                set = function(info, value) self.db.profile.config.smartPruningThreshold = value end,
+                disabled = function() return not self.db.profile.config.useSmartPruning end,
+              },
+              smartPruneNow =
+              { name = L["Button Smart Prune Database"],
+                type = "execute",
+                width = "full",
+                order = 110,
+                desc = L["Button Smart Prune Database Tooltip"],
+                func = function() self:SmartPruneDatabase(true, "true == interactive") end,
+                disabled = function() return not self.db.profile.config.useSmartPruning end,
+              },
+            },
           },
         },
       },
@@ -828,6 +934,7 @@ function RP_Find:OnEnable()
     self.realm = GetNormalizedRealmName() or GetRealmName():gsub("[%-%s]","");
     self.me = UnitName("player") .. "-" .. RP_Find.realm;
     self:LoadSelfRecord();
+    self:SmartPruneDatabase(false); -- false = not interactive
     self:RegisterMspReceived();
     self:RegisterTrp3Channel();
     self:InitializeToast();
