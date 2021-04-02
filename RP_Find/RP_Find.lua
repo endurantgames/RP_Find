@@ -18,39 +18,54 @@ local AceGUI            = LibStub("AceGUI-3.0");
 local AceLocale         = LibStub("AceLocale-3.0");
 local LibDBIcon         = LibStub("LibDBIcon-1.0");
 local LibDataBroker     = LibStub("LibDataBroker-1.1");
+local LibColor          = LibStub("LibColorManipulation-1.0");
 local L                 = AceLocale:GetLocale(addOnName);
 
 local MEMORY_WARN_MB = 1000 * 3;
 local MEMORY_WARN_GB = 1000 * 1000;
-local SLASH = "/rpfind";
-
-local configDB = "RP_Find_ConfigDB";
-local finderDB = "RP_FindDB";
-local addonChannel = "xtensionxtooltip2";
-local addonPrefix = { trp3 = "RPB1" };
-local PLAYER_RECORD = "RP_Find Player Record";
+local PLAYER_RECORD  = "RP_Find Player Record";
+local ARROW_UP       = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
+local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
+local SLASH          = "/rpfind";
+local configDB       = "RP_Find_ConfigDB";
+local finderDB       = "RP_FindDB";
+local addonChannel   = "xtensionxtooltip2";
+local addonPrefix    = { trp3 = "RPB1" };
 
 local col = {
- gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
- orange = function(str) return LEGENDARY_ORANGE_COLOR:WrapTextInColorCode(str) end,
- white  = function(str) return       WHITE_FONT_COLOR:WrapTextInColorCode(str) end,
- white  = function(str) return         RED_FONT_COLOR:WrapTextInColorCode(str) end,
- green  = function(str) return       GREEN_FONT_COLOR:WrapTextInColorCode(str) end,
+  gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
+  orange = function(str) return LEGENDARY_ORANGE_COLOR:WrapTextInColorCode(str) end,
+  white  = function(str) return       WHITE_FONT_COLOR:WrapTextInColorCode(str) end,
+  red    = function(str) return         RED_FONT_COLOR:WrapTextInColorCode(str) end,
+  green  = function(str) return       GREEN_FONT_COLOR:WrapTextInColorCode(str) end,
+  addon  = function(str) return     RP_FIND_FONT_COLOR:WrapTextInColorCode(str) end,
 };
 
-local RP_Find = AceAddon:NewAddon( 
-        addOnName 
-        , "AceConsole-3.0"
-        , "AceEvent-3.0"
-        , "AceTimer-3.0"
-        , "LibToast-1.0"
-      );
+local menu =
+{ notifySound =
+  { [139868 ] = L["Sound Silent Trigger"   ], [18871  ] = L["Sound Alarm Clock 1"    ],
+    [12867  ] = L["Sound Alarm Clock 2"    ], [12889  ] = L["Sound Alarm Clock 3"    ],
+    [118460 ] = L["Sound Azerite Armor"    ], [18019  ] = L["Sound Bnet Login"       ],
+    [5274   ] = L["Sound Auction Open"     ], [38326  ] = L["Sound Digsite Complete" ],
+    [31578  ] = L["Sound Epic Loot"        ], [9378   ] = L["Sound Flag Taken"       ],
+    [3332   ] = L["Sound Friend Login"     ], [3175   ] = L["Sound Map Ping"         ],
+    [8959   ] = L["Sound Raid Warning"     ], [39516  ] = L["Sound Store Purchase"   ],
+    [37881  ] = L["Sound Vignette Ping"    ], [111370 ] = L["Sound Voice Friend"     ],
+    [110985 ] = L["Sound Voice Join"       ], [111368 ] = L["Sound Voice In"         ],
+    [111367 ] = L["Sound Voice Out"        ],
+  },
+  notifySoundOrder = { 139868, 1887, 12867, 12889, 118460, 5274,   38326,  31578, 9378, 
+                       3332,   3175, 8959,  39516, 111370, 110985, 111368, 111367 },
+};
+local RP_Find = AceAddon:NewAddon(
+                  addOnName, 
+                  "AceConsole-3.0", "AceEvent-3.0", 
+                  "AceTimer-3.0" , "LibToast-1.0");
 
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
 RP_Find.addOnIcon    = "Interface\\ICONS\\inv_misc_tolbaradsearchlight";
-RP_Find.addOnColor   = { 221 / 255, 255 / 255, 51 / 255, 1 };
 RP_Find.addOnToast   = "RP_Find_notify";
 
 local popup =
@@ -58,45 +73,49 @@ local popup =
     deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
   };
 
+local function fixPopup(self) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3); end;
+
 StaticPopupDialogs[popup.deleteDBonLogin] =
 { 
-  showAlert = true,
-  text = L["Popup Delete DB on Login"],
-  button1 = YES,
-  button2 = NO,
-  exclusive = true,
-  OnAccept = function() RP_Find.db.profile.config.deleteDBonLogin = true end,
-  OnCancel = function() RP_Find:Notify("Setting cleared.");
-                        RP_Find.db.profile.config.deleteDBonLogin = false end,
-  timeout = 60,
-  whileDead = true,
-  hideOnEscape = true,
-  hideOnCancel = true,
+  showAlert      = true,
+  text           = L["Popup Delete DB on Login"],
+  button1        = YES,
+  button2        = NO,
+  exclusive      = true,
+  OnAccept       = function() RP_Find.db.profile.config.deleteDBonLogin = true end,
+  OnCancel       = function() 
+                     RP_Find:Notify("Setting cleared."); 
+                     RP_Find.db.profile.config.deleteDBonLogin = false
+                   end,
+  timeout        = 60,
+  whileDead      = true,
+  hideOnEscape   = true,
+  hideOnCancel   = true,
   preferredIndex = 3,
-  wide = true,
-  OnShow = function(self, data) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3) end,
+  wide           = true,
+  OnShow         = fixStaticPopup,
 }
 
 StaticPopupDialogs[popup.deleteDBNow] =
-{ showAlert = true,
-  text = L["Popup Delete DB Now"],
-  button1 = YES,
-  button2 = NO,
-  exclusive = true,
-  OnAccept = function() RP_Find:WipeDatabaseNow() end,
-  OnCancel = function() RP_Find:Notify("Database deletion aborted.") end,
-  timeout = 60,
-  whileDead = true,
-  hideOnEscape = true,
-  hideOnCancel = true,
+{ showAlert      = true,
+  text           = L["Popup Delete DB Now"],
+  button1        = YES,
+  button2        = NO,
+  exclusive      = true,
+  OnAccept       = function() RP_Find:WipeDatabaseNow() end,
+  OnCancel       = function() RP_Find:Notify("Database deletion aborted.") end,
+  timeout        = 60,
+  whileDead      = true,
+  hideOnEscape   = true,
+  hideOnCancel   = true,
   preferredIndex = 3,
-  wide = true,
-  OnShow = function(self, data) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3) end,
+  wide           = true,
+  OnShow         = fixStaticPopup,
 }
 
-function RP_Find:PurgePlayerData(playerName)
-  self.data.rolePlayers[playerName] = nil;
-  self.playerRecords[playerName]    = nil;
+function RP_Find:PurgePlayer(name)
+  self.data.rolePlayers[name] = nil;
+  self.playerRecords[name]    = nil;
 end;
 
 function RP_Find:SmartPruneDatabase(interactive)
@@ -110,13 +129,15 @@ function RP_Find:SmartPruneDatabase(interactive)
 
   local secs = math.exp(self.db.profile.config.smartPruningThreshold);
   for   playerName, playerData in pairs(self.data.rolePlayers)
-  do    if  now - getTimestamp(playerData) > secs and playerName ~= self.me
-        then count = count + 1; 
+  do    if   now - getTimestamp(playerData) > secs and playerName ~= self.me
+        then -- self:PurgePlayer(name)
+             count = count + 1; 
         end; 
   end;
 
   UpdateAddOnMemoryUsage();
-  if interactive and count > 0 
+
+  if   interactive and count > 0 
   then self:Notify(string.format(L["Format Smart Pruning Done"], count)); 
   else self:Notify(L["Notify Smart Pruning Zero"]);
   end;
@@ -127,16 +148,13 @@ function RP_Find:WipeDatabaseNow()
   InterfaceOptionsFrame:Hide();
   self.Finder:Hide();
   self.Finder:LetTheChildrenGo();
-
   initializeDatabase(true); -- true = wipe
   self:LoadSelfRecord();
-
   UpdateAddOnMemoryUsage();
   self:Notify("Database deleted.");
 end;
 
 function RP_Find:InitializeToast()
-  print("initializing toast");
   self:RegisterToast(self.addOnToast,
     function(toast, ...)
       toast:SetTitle(self.addOnTitle);
@@ -147,72 +165,39 @@ end;
 
 function RP_Find:SendToast(message) self:SpawnToast(self.addOnToast, message, true); end;
 
+local function playNotifySound() PlaySound(RP_Find.db.profile.config.notifySound); end;
+
 function RP_Find:Notify(forceChat, ...) 
-  local dots = { ... };
+  local  dots = { ... };
   if     type(forceChat) == "boolean" and forceChat
   then   print("[" .. self.addOnTitle .. "]", unpack(dots));
   elseif type(forceChat) == "boolean" -- and not forceChat
   then   self:SendToast(table.concat(dots, " "))
   elseif self.db.profile.config.notifyMethod == "chat"
   then   print("[" .. self.addOnTitle .. "]", forceChat, unpack(dots));
-         PlaySound(self.db.profile.config.notifySound);
+         playNotifySound();
   else   self:SendToast(forceChat .. table.concat(dots, " "));
-         PlaySound(self.db.profile.config.notifySound);
+         playNotifySound();
   end;
 end;
 
-local menu =
-{ 
-  notifySound =
-    {
-      [139868 ] = L["Sound Silent Trigger"   ],
-      [18871  ] = L["Sound Alarm Clock 1"    ],
-      [12867  ] = L["Sound Alarm Clock 2"    ],
-      [12889  ] = L["Sound Alarm Clock 3"    ],
-      [118460 ] = L["Sound Azerite Armor"    ],
-      [18019  ] = L["Sound Bnet Login"       ],
-      [5274   ] = L["Sound Auction Open"     ],
-      [38326  ] = L["Sound Digsite Complete" ],
-      [31578  ] = L["Sound Epic Loot"        ],
-      [9378   ] = L["Sound Flag Taken"       ],
-      [3332   ] = L["Sound Friend Login"     ],
-      [3175   ] = L["Sound Map Ping"         ],
-      [8959   ] = L["Sound Raid Warning"     ],
-      [39516  ] = L["Sound Store Purchase"   ],
-      [37881  ] = L["Sound Vignette Ping"    ],
-      [111370 ] = L["Sound Voice Friend"     ],
-      [110985 ] = L["Sound Voice Join"       ],
-      [111368 ] = L["Sound Voice In"         ],
-      [111367 ] = L["Sound Voice Out"        ],
-  },
-  notifySoundOrder =
-  {  139868, 1887, 12867, 12889, 118460, 5274, 38326,
-     31578, 9378, 3332, 3175, 8959, 39516, 111370,
-     110985, 111368, 111367 
-  }
-};
 
 local function initializeDatabase(wipe)
-  if wipe or RP_Find.db.profile.config.deleteDBonLogin
+  if   wipe or RP_Find.db.profile.config.deleteDBonLogin
   then _G[finderDB] = {};
   else _G[finderDB] = _G[finderDB] or {};
   end;
-
-  local database = _G[finderDB];
-
-  database.rolePlayers = database.rolePlayers or {};
-  RP_Find.data = database;
-  
+  local database        = _G[finderDB];
+  database.rolePlayers  = database.rolePlayers or {};
+  RP_Find.data          = database;
   RP_Find.playerRecords = {};
 end;
 
 function RP_Find:NewPlayerRecord(playerName, server, playerData)
-
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
 
   local playerRecord = {}
-
   for   methodName, func in pairs(self.PlayerMethods)
   do    playerRecord[methodName] = func;
   end;
@@ -220,12 +205,7 @@ function RP_Find:NewPlayerRecord(playerName, server, playerData)
   playerRecord.playerName = playerName;
   playerRecord:Initialize();
 
-  if   playerData
-  then for field, value in pairs(playerData)
-       do   playerRecord:Set(field, value)
-       end;
-  end;
-
+  if playerData then for field, value in pairs(playerData) do playerRecord:Set(field, value) end; end;
   if not playerRecord:Get("First Seen") then playerRecord:Set("First Seen", nil) end;
 
   self.playerRecords[playerName] = playerRecord;
@@ -235,10 +215,12 @@ end;
 function RP_Find:GetPlayerRecord(playerName, server)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
+
   if   self.playerRecords[playerName]
   then return self.playerRecords[playerName]
   else return self:NewPlayerRecord(playerName)
   end;
+
 end;
 
 function RP_Find:GetAllPlayerRecords() 
@@ -271,20 +253,20 @@ RP_Find.PlayerMethods =
     function(self)
       RP_Find.data.rolePlayers[self.playerName] 
         = RP_Find.data.rolePlayers[self.playerName] or {};
-      self.data        = RP_Find.data.rolePlayers[self.playerName];
-      self.data.fields = self.data.fields or {};
-      self.data.last   = self.data.last or {};
+      self.data           = RP_Find.data.rolePlayers[self.playerName];
+      self.data.fields    = self.data.fields or {};
+      self.data.last      = self.data.last or {};
       self.data.last.when = time();
-      self.type        = PLAYER_RECORD;
+      self.type           = PLAYER_RECORD;
       return self;
     end,
 
   ["Set"] =
     function(self, field, value)
-      self.data.fields[field] = self.data.fields[field] or {};
+      self.data.fields[field]       = self.data.fields[field] or {};
       self.data.fields[field].value = value;
-      self.data.fields[field].when = time();
-      self.data.last.when = time();
+      self.data.fields[field].when  = time();
+      self.data.last.when           = time();
       return self;
     end,
 
@@ -305,7 +287,7 @@ RP_Find.PlayerMethods =
 
   ["Get"] =
     function(self, field)
-      if self.data.fields[field]
+      if   self.data.fields[field]
       then return self.data.fields[field].value
       else return nil
       end;
@@ -313,7 +295,8 @@ RP_Find.PlayerMethods =
 
   ["GetTimestamp"] =
     function(self, field)
-      if     not field then return self.data.last.when or time()
+      if     not field 
+      then   return self.data.last.when or time()
       elseif self.data.fields[field] 
       then   return self.data.fields[field].when or time()
       else   return time()
@@ -322,41 +305,42 @@ RP_Find.PlayerMethods =
 
   ["GetHumanReadableTimestamp"] =
     function(self, field, format)
-      local now = time();
+      local now              = time();
       local integerTimestamp = self:GetTimestamp(field);
-      local delta = now - integerTimestamp;
-      if   format 
-      then return date(format, integerTimestamp)
+      local delta            = now - integerTimestamp;
+
+      if     format 
+      then   return date(format, integerTimestamp)
       elseif delta > 24 * 60 * 60
-      then return date("%x", integerTimestamp);
+      then   return date("%x", integerTimestamp);
       elseif delta > 60 * 60
-      then return date("%X", integerTimestamp);
+      then   return date("%X", integerTimestamp);
       elseif delta > 10
-      then return string.format("%i |4minute:minutes; ago", math.ceil(delta / 60));
-      else return string.format("<1 minute ago", delta);
+      then   return string.format("%i |4minute:minutes; ago", math.ceil(delta / 60));
+      else   return string.format("<1 minute ago", delta);
       end
     end,
 
 };
 
-
-local ORANGE = LEGENDARY_ORANGE_COLOR:GenerateHexColor();
-local WHITE  = WHITE_FONT_COLOR:GenerateHexColor();
-
-local myDataBroker = 
+RP_Find.addOnDataBroker = 
   LibDataBroker:NewDataObject(
     RP_Find.addOnTitle,
-    { type    = "data source",
-      text    = RP_Find.addOnTitle,
+    { icon    = RP_Find.addOnIcon,
+      iconR   = RP_FIND_FONT_COLOR.r,
+      iconG   = RP_FIND_FONT_COLOR.g,
+      iconB   = RP_FIND_FONT_COLOR.b,
+      iconA   = 0.5,
       label   = RP_Find.addOnTitle,
-      icon    = RP_Find.addOnIcon,
       OnClick = function() RP_Find.OnMinimapButtonClick() end,
       OnEnter = function() RP_Find.OnMinimapButtonEnter() end,
       OnLeave = function() RP_Find.OnMinimapButtonLeave() end,
+      text    = RP_Find.addOnTitle,
+      type    = "data source",
     }
   );
         
-local myDefaults =
+RP_Find.defaults =
 { profile =
   { config =
     { notifyMethod     = "toast",
@@ -369,9 +353,11 @@ local myDefaults =
       alertTRP3Connect = false,
       notifySound      = 37881,
       deleteDBonLogin  = false,
+      tintAlpha        = 2/3,
+      tintHue          = 198,
     },
+    minimapbutton      = {}, 
   },
-  global = { minimapbutton = {}, },
 };
 
 local recordSortField        = "playerName";
@@ -395,43 +381,85 @@ local function sortPlayerRecords(a, b)
 end;
 
 local Finder = AceGUI:Create("Window");
-Finder.col = { 0.35, 0.25 };
+Finder.col   = { 0.35, 0.25 };
 
 Finder:SetWidth(500);
 Finder:SetHeight(300);
 Finder:SetLayout("Flow");
+Finder:Hide();
+function Finder:SetTint(r, g, b, a)
+  self.r, self.g, self.b, self.a = 
+    r or self.r, g or self.g, b or self.b, a or self.a;
+end;
+function Finder:TintMyRide(r, g, b, a)
+  r, g, b, a = r or self.r, g or self.g, b or self.b, a or self.a;
+  self.regionList = { self.frame:GetRegions() };
+
+  for _, region in ipairs(self.regionList)
+  do  region:SetVertexColor(r, g, b, a);
+  end;
+
+  for _, side in ipairs({"Left", "Right", "Middle"})
+  do for _, button in ipairs({"closeButton", "configButton"})
+     do RP_Find[button][side]:SetDesaturated(true);
+        RP_Find[button][side]:SetVertexColor(r, g, b, a);
+     end;
+  end;
+
+  self.r, self.g, self.b, self.a = r, g, b, a
+end;
+Finder:SetTint(RP_FIND_FONT_COLOR:GetRGBA());
+Finder:SetTint(nil, nil, nil, 2/3);
+
+function Finder:AutoTint()
+  self.addOnColor = LibColor.rgb(self.r, self.g, self.b, self.a);
+
+  self.h, self.s, self.L, self.a = self.addOnColor:hsla();
+  self.h = RP_Find.db.profile.config.tintHue;
+
+  self.addOnColor = LibColor.hsl(
+    RP_Find.db.profile.config.tintHue, 
+    self.s, self.L, self.a
+  );
+
+  self.addOnColor = self.addOnColor:lighten_to(0.25);
+  self.addOnColor = self.addOnColor:desaturate_to(0.75);
+
+  self.r, self.g, self.b, self.a = self.addOnColor:rgba();
+  self:TintMyRide();
+end;
+
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
 Finder.content:SetPoint("TOPRIGHT", Finder.frame, "TOPRIGHT", -20, -50);
-Finder:Hide();
 
 local displayFrame = AceGUI:Create("InlineGroup");
-displayFrame:SetFullWidth(true);
-displayFrame:SetFullHeight(true);
-displayFrame:SetLayout("Flow");
+      displayFrame:SetFullWidth(true);
+      displayFrame:SetFullHeight(true);
+      displayFrame:SetLayout("Flow");
 Finder:AddChild(displayFrame);
 
 local headers = AceGUI:Create("SimpleGroup");
-headers:SetLayout("Flow");
-headers:SetFullWidth(true);
+      headers:SetLayout("Flow");
+      headers:SetFullWidth(true);
 displayFrame:AddChild(headers);
 
 headers.list = {};
 
-local ARROW_UP   = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
-local ARROW_DOWN = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
 local function ListHeader_SetRecordSortField(self, event, button)
   recordSortField = self.recordSortField;
   for headerName, header in pairs(headers.list)
-  do  if recordSortField == self.recordSortField and recordSortFieldReverse and header.recordSortField == self.recordSortField
-      then recordSortFieldReverse = false;
-           header:SetText(header.baseText .. ARROW_UP);
+  do  if     recordSortField == self.recordSortField 
+         and recordSortFieldReverse 
+         and header.recordSortField == self.recordSortField
+      then   recordSortFieldReverse = false;
+             header:SetText(header.baseText .. ARROW_UP);
       elseif recordSortField == self.recordSortField and header.recordSortField == self.recordSortField
-      then recordSortFieldReverse = true;
-           header:SetText(header.baseText .. ARROW_DOWN);
+      then   recordSortFieldReverse = true;
+             header:SetText(header.baseText .. ARROW_DOWN);
       elseif header.recordSortField == self.recordSortField
-      then recordSortFieldReverse = false;
-      else header:SetText(header.baseText)
+      then   recordSortFieldReverse = false;
+      else   header:SetText(header.baseText)
       end;
   end;
   Finder:UpdateDisplay();
@@ -473,39 +501,41 @@ end;
 
 function Finder:UpdateDisplay(event, ...)
   if not self:IsShown() then return end;
+
   self:UpdateTitle(); 
 
   local scrollContainer = AceGUI:Create("SimpleGroup");
-  scrollContainer:SetFullWidth(true);
-  scrollContainer:SetFullHeight(true);
-  scrollContainer:SetLayout("Fill");
+        scrollContainer:SetFullWidth(true);
+        scrollContainer:SetFullHeight(true);
+        scrollContainer:SetLayout("Fill");
+
   self.playerListFrame:AddChild(scrollContainer);
 
   local scrollFrame = AceGUI:Create("ScrollFrame");
-  scrollFrame:SetLayout("Flow");
-  scrollContainer:AddChild(scrollFrame);
+        scrollFrame:SetLayout("Flow");
+        scrollContainer:AddChild(scrollFrame);
 
   local playerRecordList = RP_Find:GetAllPlayerRecords();
   table.sort(playerRecordList, sortPlayerRecords);
 
   for _, playerRecord in ipairs(playerRecordList)
   do  local line = AceGUI:Create("SimpleGroup");
-      line:SetFullWidth(true);
-      line:SetLayout("Flow");
-      line.playerName = playerName;
+            line:SetFullWidth(true);
+            line:SetLayout("Flow");
+            line.playerName = playerName;
 
       local nameField = AceGUI:Create("Label");
-      nameField:SetFontObject(GameFontNormalSmall);
-      nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
-      nameField:SetRelativeWidth(Finder.col[1]);
+            nameField:SetFontObject(GameFontNormalSmall);
+            nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
+            nameField:SetRelativeWidth(Finder.col[1]);
+
+      local lastSeenField = AceGUI:Create("Label");
+            lastSeenField:SetFontObject(GameFontNormalSmall);
+            lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
+            lastSeenField:SetRelativeWidth(Finder.col[2]);
+
       line:AddChild(nameField);
-
-      lastSeenField = AceGUI:Create("Label");
-      lastSeenField:SetFontObject(GameFontNormalSmall);
-      lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
-      lastSeenField:SetRelativeWidth(Finder.col[2]);
       line:AddChild(lastSeenField);
-
       scrollFrame:AddChild(line);
   end;
 
@@ -522,7 +552,9 @@ RP_Find.timer = RP_Find:ScheduleRepeatingTimer("UpdateDisplay", 10);
 
 RP_Find.Finder = Finder;
 
-function RP_Find:LoadSelfRecord() self.my = self:GetPlayerRecord(self.me, self.realm); end;
+function RP_Find:LoadSelfRecord() 
+  self.my = self:GetPlayerRecord(self.me, self.realm); 
+end;
 
 local function Spacer(info)
   return 
@@ -535,7 +567,7 @@ end
 
 function RP_Find:OnInitialize()
 
-  self.db = AceDB:New(configDB, myDefaults);
+  self.db = AceDB:New(configDB, self.defaults);
   self.db.RegisterCallback(self, "OnProfileChanged", "LoadSelfRecord");
   self.db.RegisterCallback(self, "OnProfileCopied",  "LoadSelfRecord");
   self.db.RegisterCallback(self, "OnProfileReset",   "LoadSelfRecord");
@@ -564,9 +596,9 @@ function RP_Find:OnInitialize()
             type    = "toggle",
             order   = 20,
             desc    = L["Config Show Icon Tooltip"],
-            get     = function() return not self.db.global.minimapbutton.hide end,
+            get     = function() return not self.db.profile.minimapbutton.hide end,
             set     = function(info, value) 
-                        self.db.global.minimapbutton.hide = not value 
+                        self.db.profile.minimapbutton.hide = not value 
                         self:ShowOrHideMinimapButton(); 
                       end,
             width   = "full",
@@ -589,6 +621,22 @@ function RP_Find:OnInitialize()
             get       = function() return self.db.profile.config.monitorTRP3 end,
             set       = function(info, value) self.db.profile.config.monitorTRP3  = value end,
             width     = "full",
+          },
+          tintHue =
+          { name = "Tint Hue",
+            type = "range",
+            order = 50,
+            min = 0,
+            max = 360,
+            step = 1,
+            get = function() return self.db.profile.config.tintHue end,
+            set = function(info, value) 
+                    self.Finder.frame:Show();
+                    self.Finder.frame:Lower();
+                    self.db.profile.config.tintHue = value
+                    self.Finder:AutoTint()
+                  end,
+            width = "full",
           },
         },
       },
@@ -845,21 +893,17 @@ function RP_Find:OnInitialize()
       profiles = AceDBOptions:GetOptionsTable(self.db),
     },
   };
-
+  
   self.addOnMinimapButton = 
     LibDBIcon:Register(
       self.addOnTitle, 
-      self.addOnDataBroker,
-      self.db.profile.global.minimapbutton
-    );
-
-  AceConfigRegistry:RegisterOptionsTable(
-    self.addOnName,
-    self.options, 
-    false
+      self.addOnDataBroker, 
+      self.db.profile.minimapbutton
   );
 
-  AceConfigDialog:AddToBlizOptions(self.addOnName, self.addOnTitle);
+  AceConfigRegistry:RegisterOptionsTable(self.addOnName, self.options,   false);
+  AceConfigDialog:AddToBlizOptions(      self.addOnName, self.addOnTitle      );
+
   initializeDatabase();
 
 end;
@@ -868,9 +912,9 @@ end;
 --
 
 function RP_Find:ShowOrHideMinimapButton()
-  if   self.db.global.minimapbutton.hide
-  then self.addOnMinimapButton:Hide();
-  else self.addOnMinimapButton:Show();
+  if     self.db.profile.minimapbutton.hide
+  then   LibDBIcon:Hide(self.addOnTitle);
+  else   LibDBIcon:Show(self.addOnTitle);
   end;
 end;
 
@@ -880,12 +924,13 @@ function RP_Find.OnMinimapButtonClick(frame, button)
   elseif RP_Find.Finder:IsShown()
   then   RP_Find.Finder:Hide();
   else   RP_Find.Finder:Show();
+  end;
 end;
 
 function RP_Find.OnMinimapButtonEnter(frame)
   GameTooltip:ClearLines();
-  GameTooltip:SetOwner(RP_Find.Finder, "ANCHOR_CURSOR");
-  GameTooltip:SetOwner(RP_Find.Finder, "ANCHOR_PRESERVE");
+  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_CURSOR");
+  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_PRESERVE");
   GameTooltip:AddLine(RP_Find.addOnTitle);
   GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window");
   GameTooltip:AddDoubleLine("Right-Click", RP_Find.addOnTitle .. " Options");
@@ -896,18 +941,26 @@ function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
 
 function RP_Find:OnEnable()
   self.realm = GetNormalizedRealmName() or GetRealmName():gsub("[%-%s]","");
-  self.me = UnitName("player") .. "-" .. RP_Find.realm;
+  self.me    = UnitName("player") .. "-" .. RP_Find.realm;
+
   self:InitializeToast();
   self:LoadSelfRecord();
+
   self:SmartPruneDatabase(false); -- false = not interactive
-  self:ShowOrHideMinimapButton();
+
   self:RegisterMspReceived();
   self:RegisterTrp3Channel();
-  if self.db.profile.config.loginMessage then self:Notify(L["Notify Login Message"]); end;
+
+  if   self.db.profile.config.loginMessage 
+  then self:Notify(L["Notify Login Message"]); 
+  end;
+
+  self.Finder:AutoTint();
+  self:ShowOrHideMinimapButton();
 end;
 
 function RP_Find:RegisterPlayer(playerName, server)
-  local playerRecord = self:GetPlayerRecord(playerName, server);
+  local  playerRecord = self:GetPlayerRecord(playerName, server);
 end;
 
 function RP_Find:RegisterMspReceived()
@@ -939,7 +992,8 @@ end;
 
 function RP_Find:RegisterTrp3Channel()
   if not C_ChatInfo.IsAddonMessagePrefixRegistered(addonPrefix.trp3)
-  then   RP_Find.trp3ChannelRegistered = C_ChatInfo.RegisterAddonMessagePrefix(addonPrefix.trp3);
+  then   RP_Find.trp3ChannelRegistered = 
+           C_ChatInfo.RegisterAddonMessagePrefix(addonPrefix.trp3);
   end;
 
   local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
@@ -966,9 +1020,7 @@ function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
                     or text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
                    )
               then self:Notify(
-                     string.format(
-                       L["Format Alert TRP3 Scan"],
-                       sender, 
+                     string.format(L["Format Alert TRP3 Scan"], sender, 
                        C_Map.GetMapInfo(tonumber(text:match("~(%d+)$"))).name
                      )
                    );
@@ -1020,8 +1072,7 @@ RP_Find.configButton:SetText(L["Button Config"]);
 RP_Find.configButton:ClearAllPoints();
 RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
-RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end
-);
+RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end);
 
 --[[
 local finderTooltipsCheckbox = CreateFrame("Checkbutton", nil, Finder.frame, "ChatConfigCheckButtonTemplate");

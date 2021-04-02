@@ -1,12 +1,12 @@
 ## Interface: 90005
-## Version: 9.0.5.0 alpha 1
-## Title: rp|cffddff33Find|r
+## Version: 9.0.5.0 alpha 3
+## Title: rp|cff55ccffFind|r
 ## Author: Oraibi-MoonGuard
 ## Notes: Locate other roleplayers on RP servers
 ## SavedVariables: RP_Find_ConfigDB, RP_FindDB
 ## DefaultState: disabled
 ## OptionalDeps: RP_Tags, RP_Identity, totalRP3, MyRolePlay
 ## X-URL: http://spindrift.games/rpfind
-## X-VersionDate: 2021-03-31
+## X-VersionDate: 2021-04-02
 
 load.xml
