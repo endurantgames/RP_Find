@@ -29,6 +29,7 @@ local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
 local SLASH          = "/rpfind";
 local configDB       = "RP_Find_ConfigDB";
 local finderDB       = "RP_FindDB";
+local finderFrameName = "RP_Find_Finder_Frame";
 local addonChannel   = "xtensionxtooltip2";
 local addonPrefix    = { trp3 = "RPB1" };
 
@@ -40,6 +41,74 @@ local col = {
   green  = function(str) return       GREEN_FONT_COLOR:WrapTextInColorCode(str) end,
   addon  = function(str) return     RP_FIND_FONT_COLOR:WrapTextInColorCode(str) end,
 };
+
+local zoneList =
+{ 1,     7,     10,    14,    15,    17,    18,    21,
+  22,    23,    25,    26,    27,    32,    36,    37,
+  42,    47,    48,    49,    50,    51,    52,    56,
+  57,    62,    63,    64,    65,    66,    69,    70,
+  71,    76,    77,    78,    80,    81,    83,    84,
+  85,    87,    88,    89,    90,    94,    95,    97,
+  100,   102,   103,   104,   105,   106,   107,   108,
+  109,   110,   111,   114,   115,   116,   117,   118,
+  119,   120,   121,   122,   123,   127,   170,   174,
+  194,   198,   199,   201,   202,   203,   204,   205,
+  207,   210,   217,   224,   241,   244,   245,   249,
+  276,   371,   376,   379,   388,   390,   418,   422,
+  425,   433,   460,   461,   462,   463,   465,   467,
+  468,   469,   504,   507,   525,   534,   535,   539,
+  542,   543,   550,   554,   588,   630,   634,   641,
+  646,   650,   680,   739,   790,   830,   862,   863,
+  864,   882,   885,   895,   896,   942,   997,   998,
+  1010,  1022,  1032,  1033,  1034,  1035,  1036,  1037,
+  1039,  1041,  1158,  1161,  1165,  1169,  1170,  1187,
+  1188,  1189,  1190,  1191,  1192,  1193,  1194,  1195,
+  1196,  1197,  1198,  1244,  1245,  1246,  1247,  1248,
+  1249,  1250,  1251,  1252,  1253,  1254,  1255,  1256,
+  1257,  1258,  1259,  1260,  1261,  1262,  1263,  1264,
+  1265,  1266,  1267,  1268,  1269,  1270,  1271,  1272,
+  1273,  1274,  1275,  1276,  1277,  1305,  1306,  1307,
+  1308,  1309,  1310,  1311,  1312,  1313,  1314,  1315,
+  1316,  1317,  1318,  1319,  1320,  1321,  1322,  1323,
+  1324,  1325,  1326,  1327,  1328,  1329,  1330,  1331,
+  1334,  1335,  1336,  1337,  1339,  1347,  1355,  1362,
+  1379,  1396,  1397,  1398,  1399,  1400,  1401,  1402,
+  1403,  1404,  1405,  1406,  1408,  1462,  1523,  1525,
+  1527,  1530,  1533,  1536,  1543,  1565,  1569,  1577,
+  1643,  1740,  1741,  1742,
+};
+local zoneEquiv = {};
+local zoneBacklink = {};
+
+local function getZoneFromMapID(mapID)
+
+  local function passThrough(mapID, info) return mapID, nil end;
+  local function checkParent(mapID, info) 
+    if   info.parentMapId ~= 0 
+    then return nil, info.parentMapId 
+    else return mapID, nil 
+    end 
+  end;
+
+  local hash =
+  { [Enum.UIMapType.Cosmic]    = passThrough,
+    [Enum.UIMapType.World]     = passThrough,
+    [Enum.UIMapType.Continent] = passThrough,
+    [Enum.UIMapType.Zone]      = passThrough,
+    [Enum.UIMapType.Micro]     = checkParent,
+    [Enum.UIMapType.Dungeon]   = checkParent,
+    [Enum.UIMapType.Orphan]    = checkParent,
+  };
+
+  local zone, info
+
+  while not zone do 
+    info = C_Map.GetMapInfo(mapID);
+    zone, mapID = hash[info.mapType](mapID, info);
+  end;
+
+  return zone, info;
+end;
 
 local menu =
 { notifySound =
@@ -56,7 +125,28 @@ local menu =
   },
   notifySoundOrder = { 139868, 1887, 12867, 12889, 118460, 5274,   38326,  31578, 9378, 
                        3332,   3175, 8959,  39516, 111370, 110985, 111368, 111367 },
+  zone = {},
+  zoneOrder = {};
 };
+
+for i, mapID in ipairs(zoneList)
+do  local info = C_Map.GetMapInfo(mapID);
+    if not zoneBacklink[info.name]
+    then menu.zone[mapID] = info.name;
+         table.insert(menu.zoneOrder, mapID);
+         zoneBacklink[info.name] = mapID;
+    else zoneEquiv[mapID] = zoneBacklink[info.name]
+    end;
+end;
+
+local function sortZones(a, b)
+  local nameA = menu.zone[a];
+  local nameB = menu.zone[b];
+  return nameA < nameB;
+end;
+
+table.sort(menu.zoneOrder, sortZones)
+
 local RP_Find = AceAddon:NewAddon(
                   addOnName, 
                   "AceConsole-3.0", "AceEvent-3.0", 
@@ -147,7 +237,6 @@ function RP_Find:WipeDatabaseNow()
   self.preWipeMemory = GetAddOnMemoryUsage(self.addOnName);
   InterfaceOptionsFrame:Hide();
   self.Finder:Hide();
-  self.Finder:LetTheChildrenGo();
   initializeDatabase(true); -- true = wipe
   self:LoadSelfRecord();
   UpdateAddOnMemoryUsage();
@@ -237,13 +326,25 @@ end;
 
 function RP_Find:CountPlayerRecords()
   local count = 0;
-  for _, _ in pairs(self.playerRecords) do count = count + 1; end;
+  if self.playerRecords
+  then for _, _ in pairs(self.playerRecords) do count = count + 1; end;
+  end;
   return count;
 end;
 
 function RP_Find:CountPlayerData()
   local count = 0
-  for _, _ in pairs(self.data.rolePlayers) do count = count + 1 end;
+  if self.data.rolePlayers
+  then for _, _ in pairs(self.data.rolePlayers) do count = count + 1 end;
+  end;
+  return count;
+end;
+
+function RP_Find:CountLFGGroups()
+  local count = 0;
+  if self.groupData
+  then for _, _ in pairs(self.groupData) do count = count + 1 end;
+  end;
   return count;
 end;
 
@@ -381,16 +482,29 @@ local function sortPlayerRecords(a, b)
 end;
 
 local Finder = AceGUI:Create("Window");
+
+function RP_Find:Update(...) self.Finder:Update(...); end
+
 Finder.col   = { 0.35, 0.25 };
 
 Finder:SetWidth(500);
 Finder:SetHeight(300);
 Finder:SetLayout("Flow");
-Finder:Hide();
+
+Finder:SetCallback("OnClose",
+  function(self, event, ...)
+    if self.timer then RP_Find:CancelTimer(self.timer) self.timer = nil; end;
+  end);
+
+_G[finderFrameName] = Finder.frame;
+
+table.insert(UISpecialFrames, finderFrameName);
+
 function Finder:SetTint(r, g, b, a)
   self.r, self.g, self.b, self.a = 
     r or self.r, g or self.g, b or self.b, a or self.a;
 end;
+
 function Finder:TintMyRide(r, g, b, a)
   r, g, b, a = r or self.r, g or self.g, b or self.b, a or self.a;
   self.regionList = { self.frame:GetRegions() };
@@ -421,134 +535,345 @@ function Finder:AutoTint()
     RP_Find.db.profile.config.tintHue, 
     self.s, self.L, self.a
   );
-
-  self.addOnColor = self.addOnColor:lighten_to(0.25);
-  self.addOnColor = self.addOnColor:desaturate_to(0.75);
-
+  self.addOnColor = self.addOnColor:desaturate_to(1/3);
+  self.addOnColor = self.addOnColor:lighten_to(1/3);
+  self.addOnColor.a = 2/3;
   self.r, self.g, self.b, self.a = self.addOnColor:rgba();
   self:TintMyRide();
 end;
 
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
-Finder.content:SetPoint("TOPRIGHT", Finder.frame, "TOPRIGHT", -20, -50);
+Finder.content:SetPoint("TOPRIGHT",   Finder.frame, "TOPRIGHT", -20, -50);
 
-local displayFrame = AceGUI:Create("InlineGroup");
-      displayFrame:SetFullWidth(true);
-      displayFrame:SetFullHeight(true);
-      displayFrame:SetLayout("Flow");
-Finder:AddChild(displayFrame);
+Finder.TabList = 
+{ { value = "Display", text = "Database", },
+  { value = "LFG", text = "Looking for Group" },
+  { value = "Tools", text = "Tools", },
+};
 
-local headers = AceGUI:Create("SimpleGroup");
-      headers:SetLayout("Flow");
-      headers:SetFullWidth(true);
-displayFrame:AddChild(headers);
+Finder.TabListSub50 =
+{ { value = "Display", text = "Database", },
+  { value = "LFG", text = "LFG (Disabled)" },
+  { value = "Tools", text = "Tools", },
+};
 
-headers.list = {};
+function Finder:CreateTabGroup()
+  local tabGroup = AceGUI:Create("TabGroup");
+  tabGroup:SetFullWidth(true);
+  tabGroup:SetFullHeight(true);
 
-local function ListHeader_SetRecordSortField(self, event, button)
-  recordSortField = self.recordSortField;
-  for headerName, header in pairs(headers.list)
-  do  if     recordSortField == self.recordSortField 
-         and recordSortFieldReverse 
-         and header.recordSortField == self.recordSortField
-      then   recordSortFieldReverse = false;
-             header:SetText(header.baseText .. ARROW_UP);
-      elseif recordSortField == self.recordSortField and header.recordSortField == self.recordSortField
-      then   recordSortFieldReverse = true;
-             header:SetText(header.baseText .. ARROW_DOWN);
-      elseif header.recordSortField == self.recordSortField
-      then   recordSortFieldReverse = false;
-      else   header:SetText(header.baseText)
-      end;
+  if UnitLevel("player") >= 50 then tabGroup:SetTabs(self.TabList);
+  else tabGroup:SetTabs(self.TabListSub50);
   end;
-  Finder:UpdateDisplay();
-end;
 
-local currentCol = 1;
+  function tabGroup:LoadTab(tab)
+    _ = self.current and self.current:ReleaseChildren(); 
+    _ = self.scrollFrame and self.scrollFrame:ReleaseChildren();
+    _ = self.scrollContainer and self.scrollContainer:ReleaseChildren();
+    self:ReleaseChildren();
 
-local function makeListHeader(baseText, sortField)
-  local newHeader = AceGUI:Create("InteractiveLabel");
-  newHeader:SetRelativeWidth(Finder.col[currentCol]);
-  currentCol = currentCol + 1;
-  newHeader.baseText = baseText;
-  if     recordSortField == sortField and recordSortFieldReverse
-  then   newHeader:SetText(baseText .. ARROW_UP);
-  elseif recordSortField == sortField
-  then   newHeader:SetText(baseText .. ARROW_DOWN);
-  else   newHeader:SetText(baseText);
+    local scrollContainer = AceGUI:Create("SimpleGroup");
+    scrollContainer:SetFullWidth(true);
+    scrollContainer:SetFullHeight(true);
+    scrollContainer:SetLayout("Fill");
+
+    self.scrollContainer = scrollContainer;
+
+    local scrollFrame = AceGUI:Create("ScrollFrame");
+    scrollFrame:SetFullHeight(true);
+    scrollFrame:SetLayout("Flow");
+
+    self.scrollFrame = scrollFrame;
+
+    local panelFrame = Finder.MakeFunc[tab](Finder);
+    panelFrame:SetFullHeight(true);
+
+    scrollFrame:AddChild(panelFrame);
+    scrollContainer:AddChild(scrollFrame);
+    self:AddChild(scrollContainer);
+
+    self.current = panelFrame;
+    Finder.currentTab = tab;
+    Finder:UpdateTitle();
+
   end;
-  newHeader:SetColor(1, 1, 0);
-  newHeader.recordSortField = sortField;
-  newHeader:SetCallback("OnClick", ListHeader_SetRecordSortField);
-  headers:AddChild(newHeader);
-  headers.list[baseText] = newHeader;
-  return newHeader;
+
+  tabGroup:SetCallback("OnGroupSelected",
+    function(self, event, group)
+      self:LoadTab(group);
+    end);
+
+  self:AddChild(tabGroup);
+  self.TabGroup = tabGroup;
+
 end;
 
-makeListHeader("Name",      "playerName");
-makeListHeader("Last Seen", "timestamp" );
+Finder.MakeFunc = {}
 
-Finder.playerListFrame = AceGUI:Create("SimpleGroup");
-Finder.playerListFrame:SetFullWidth(true);
-Finder.playerListFrame:SetFullHeight(true);
-Finder.playerListFrame:SetLayout("Flow");
-displayFrame:AddChild(Finder.playerListFrame);
+function Finder.MakeFunc.Display(self)
 
-function Finder:UpdateTitle(event, ...)
-  self:SetTitle(RP_Find:CountPlayerRecords() .. " Player Records");
-end;
+  local panelFrame = AceGUI:Create("InlineGroup");
+        panelFrame:SetFullWidth(true);
+        panelFrame:SetFullHeight(true);
+        panelFrame:SetLayout("Flow");
+  
+  local headers = AceGUI:Create("SimpleGroup");
+        headers:SetLayout("Flow");
+        headers:SetFullWidth(true);
+  panelFrame:AddChild(headers);
+  
+  headers.list = {};
+  
+  local function ListHeader_SetRecordSortField(self, event, button)
+    recordSortField = self.recordSortField;
+    for headerName, header in pairs(headers.list)
+    do  if     recordSortField == self.recordSortField 
+           and recordSortFieldReverse 
+           and header.recordSortField == self.recordSortField
+        then   recordSortFieldReverse = false;
+               header:SetText(header.baseText .. ARROW_UP);
+        elseif recordSortField == self.recordSortField and header.recordSortField == self.recordSortField
+        then   recordSortFieldReverse = true;
+               header:SetText(header.baseText .. ARROW_DOWN);
+        elseif header.recordSortField == self.recordSortField
+        then   recordSortFieldReverse = false;
+        else   header:SetText(header.baseText)
+        end;
+    end;
+    Finder.TitleFunc[tab]();
+  end;
+    
+  local currentCol = 1;
 
-function Finder:UpdateDisplay(event, ...)
-  if not self:IsShown() then return end;
+  local function makeListHeader(baseText, sortField)
+    local newHeader = AceGUI:Create("InteractiveLabel");
+    newHeader:SetRelativeWidth(Finder.col[currentCol]);
+    currentCol = currentCol + 1;
+    newHeader.baseText = baseText;
+    if     recordSortField == sortField and recordSortFieldReverse
+    then   newHeader:SetText(baseText .. ARROW_UP);
+    elseif recordSortField == sortField
+    then   newHeader:SetText(baseText .. ARROW_DOWN);
+    else   newHeader:SetText(baseText);
+    end;
+    newHeader:SetColor(1, 1, 0);
+    newHeader.recordSortField = sortField;
+    newHeader:SetCallback("OnClick", ListHeader_SetRecordSortField);
+    headers:AddChild(newHeader);
+    headers.list[baseText] = newHeader;
+    return newHeader;
+   end;
+  
+  makeListHeader("Name",      "playerName");
+  makeListHeader("Last Seen", "timestamp" );
+  
+  playerListFrame = AceGUI:Create("SimpleGroup");
+  playerListFrame:SetFullWidth(true);
+  playerListFrame:SetFullHeight(true);
+  playerListFrame:SetLayout("Flow");
 
-  self:UpdateTitle(); 
+  panelFrame:AddChild(playerListFrame);
 
   local scrollContainer = AceGUI:Create("SimpleGroup");
         scrollContainer:SetFullWidth(true);
         scrollContainer:SetFullHeight(true);
         scrollContainer:SetLayout("Fill");
+  
+  function scrollContainer:Update()
+    self:ReleaseChildren();
+    local scrollFrame = AceGUI:Create("ScrollFrame");
+          scrollFrame:SetLayout("Flow");
+          self:AddChild(scrollFrame);
 
-  self.playerListFrame:AddChild(scrollContainer);
-
-  local scrollFrame = AceGUI:Create("ScrollFrame");
-        scrollFrame:SetLayout("Flow");
-        scrollContainer:AddChild(scrollFrame);
-
-  local playerRecordList = RP_Find:GetAllPlayerRecords();
-  table.sort(playerRecordList, sortPlayerRecords);
-
-  for _, playerRecord in ipairs(playerRecordList)
-  do  local line = AceGUI:Create("SimpleGroup");
-            line:SetFullWidth(true);
-            line:SetLayout("Flow");
-            line.playerName = playerName;
-
-      local nameField = AceGUI:Create("Label");
-            nameField:SetFontObject(GameFontNormalSmall);
-            nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
-            nameField:SetRelativeWidth(Finder.col[1]);
-
-      local lastSeenField = AceGUI:Create("Label");
-            lastSeenField:SetFontObject(GameFontNormalSmall);
-            lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
-            lastSeenField:SetRelativeWidth(Finder.col[2]);
-
-      line:AddChild(nameField);
-      line:AddChild(lastSeenField);
-      scrollFrame:AddChild(line);
+    local playerRecordList = RP_Find:GetAllPlayerRecords();
+    table.sort(playerRecordList, sortPlayerRecords);
+  
+    for _, playerRecord in ipairs(playerRecordList)
+    do  local line = AceGUI:Create("SimpleGroup");
+              line:SetFullWidth(true);
+              line:SetLayout("Flow");
+              line.playerName = playerName;
+    
+        local nameField = AceGUI:Create("Label");
+              nameField:SetFontObject(GameFontNormalSmall);
+              nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
+              nameField:SetRelativeWidth(Finder.col[1]);
+    
+        local lastSeenField = AceGUI:Create("Label");
+              lastSeenField:SetFontObject(GameFontNormalSmall);
+              lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
+              lastSeenField:SetRelativeWidth(Finder.col[2]);
+    
+        line:AddChild(nameField);
+        line:AddChild(lastSeenField);
+        scrollFrame:AddChild(line);
+    end;
+    return scrollFrame;
   end;
 
+  function panelFrame:Update(...) scrollContainer:Update(...); end;
+
+  if self:IsShown() then self.timer = RP_Find:ScheduleRepeatingTimer("Update", 10); end;
+  return panelFrame;
 end;
 
-function Finder:LetTheChildrenGo(event) self.playerListFrame:ReleaseChildren(); end;
+Finder.TitleFunc = {};
+Finder.UpdateFunc= {};
 
-Finder:SetCallback("OnShow",  "UpdateDisplay"   );
-Finder:SetCallback("OnClose", "LetTheChildrenGo");
+function Finder.TitleFunc.Display(self, ...)
+   self:SetTitle(string.format(L["Format Finder Title Display"], RP_Find:CountPlayerRecords()));
+end;
 
-function RP_Find:UpdateDisplay(...) self.Finder:UpdateDisplay(...); end
+function Finder.TitleFunc.LFG(self, ...)
+  if UnitLevel("player") >= 50
+  then self:SetTitle(string.format(L["Format Finder Title LFG"], RP_Find:CountLFGGroups()));
+  else self:SetTitle(L["Format Finder Title LFG Disabled"]);
+  end;
+end;
 
-RP_Find.timer = RP_Find:ScheduleRepeatingTimer("UpdateDisplay", 10);
+function Finder.TitleFunc.Tools(self, ...)
+  self:SetTitle(L["Format Finder Title Tools"]);
+end;
+
+function Finder.UpdateFunc.Display(self, ...)
+  self.TabGroup.current:Update();
+end;
+
+function Finder.UpdateFunc.LFG(self, ...)
+  self.TabGroup.current:Update();
+end;
+
+function Finder.UpdateFunc.Tools(self, ...)
+  self.TabGroup.current:Update();
+end;
+
+function Finder:UpdateTitle(event, ...)
+  local title = self.TitleFunc[self.currentTab]
+  if title then title(self) end;
+end;
+
+function Finder:UpdateContent(event, ...)
+  local update = self.UpdateFunc[self.currentTab]
+  if update then update(self) end;
+end;
+
+function Finder:Update(event, ...)
+  if not self:IsShown() then return end; -- only update if we're shown
+  self:UpdateContent();
+  self:UpdateTitle();
+end;
+
+function Finder.MakeFunc.LFG(self)
+  local panelFrame = AceGUI:Create("SimpleGroup");
+  panelFrame:SetFullWidth(true);
+  panelFrame:SetFullHeight(true);
+  panelFrame:SetLayout("Flow");
+
+  local headline = AceGUI:Create("Heading");
+  headline:SetFullWidth(true);
+  headline:SetText("Looking for Group");
+
+  panelFrame:AddChild(headline);
+
+  local explainSub50 = AceGUI:Create("Label");
+  explainSub50:SetFullWidth(true);
+  explainSub50:SetText("These options are disabled because you are lower than level 50.");
+
+  panelFrame:AddChild(explainSub50);
+
+  local searchFilter = AceGUI:Create("EditBox");
+  searchFilter:SetLabel("Filter (optional)");
+  searchFilter:SetRelativeWidth(2/3);
+  
+  local searchButton = AceGUI:Create("Button");
+  searchButton:SetText("Search");
+  searchButton:SetRelativeWidth(1/3);
+
+  panelFrame:AddChild(searchButton);
+  panelFrame:AddChild(searchFilter);
+
+  local divider = AceGUI:Create("Heading");
+  divider:SetFullWidth(true);
+  divider:SetText("Start Your Own");
+
+  panelFrame:AddChild(divider);
+
+  local newGroupTitle = AceGUI:Create("EditBox");
+  newGroupTitle:SetLabel("Title");
+  newGroupTitle:SetFullWidth(true);
+  
+  panelFrame:AddChild(newGroupTitle);
+
+  local newGroupDetails = AceGUI:Create("MultiLineEditBox");
+  newGroupDetails:SetFullWidth(true);
+  newGroupDetails:SetLabel("Details");
+  newGroupDetails:SetNumLines(6);
+  newGroupDetails:DisableButton(true);
+
+  panelFrame:AddChild(newGroupDetails);
+
+  local spacer = AceGUI:Create("Label");
+  spacer:SetRelativeWidth(2/3)
+  spacer:SetText(" ");
+  
+  panelFrame:AddChild(spacer);
+
+  local listGroupButton = AceGUI:Create("Button");
+  listGroupButton:SetText("List Group");
+  listGroupButton:SetRelativeWidth(1/3);
+
+  panelFrame:AddChild(listGroupButton);
+  
+  if UnitLevel("player") < 50
+  then searchButton:SetDisabled(true);
+       searchFilter:SetDisabled(true);
+       newGroupTitle:SetDisabled(true);
+       newGroupDetails:SetDisabled(true);
+       listGroupButton:SetDisabled(true);
+  else explainSub50:SetText();
+  end;
+
+  return panelFrame;
+end;
+
+function Finder.MakeFunc.Tools(self)
+  local panelFrame = AceGUI:Create("SimpleGroup");
+  panelFrame:SetFullWidth(true);
+  panelFrame:SetFullHeight(true);
+  panelFrame:SetLayout("Flow");
+
+  local headline = AceGUI:Create("Heading");
+  headline:SetFullWidth(true);
+  headline:SetText("Tools");
+
+  panelFrame:AddChild(headline);
+
+  local trp3MapScanButton = AceGUI:Create("Button");
+  trp3MapScanButton:SetRelativeWidth(0.25);
+  trp3MapScanButton:SetText("TRP3 Map Scan");
+
+  panelFrame:AddChild(trp3MapScanButton);
+
+  local zoneID, zoneInfo = getZoneFromMapID(C_Map.GetBestMapForUnit("player"));
+
+  local trp3MapScanZone = AceGUI:Create("Dropdown");
+  trp3MapScanZone:SetLabel("Zone to Scan");
+  trp3MapScanZone:SetRelativeWidth(0.75);
+  trp3MapScanZone:SetList(menu.zone, menu.zoneOrder);
+  trp3MapScanZone:SetValue(zoneID);
+  trp3MapScanZone:SetText(zoneInfo.name);
+
+  panelFrame:AddChild(trp3MapScanZone)
+
+  function panelFrame:Update() return end;
+
+  return panelFrame;
+end;
+
+Finder:CreateTabGroup();
+Finder.TabGroup:LoadTab(Finder.TabList[1].value);
+Finder:Hide();
 
 RP_Find.Finder = Finder;
 
@@ -631,12 +956,19 @@ function RP_Find:OnInitialize()
             step = 1,
             get = function() return self.db.profile.config.tintHue end,
             set = function(info, value) 
-                    self.Finder.frame:Show();
+                    self:ShowFinder();
                     self.Finder.frame:Lower();
                     self.db.profile.config.tintHue = value
                     self.Finder:AutoTint()
                   end,
             width = "full",
+          },
+          tintReset =
+          { name = "Reset Tint",
+            type = "execute",
+            order = 60,
+            width = 1,
+            func = function() self.db.profile.config.tintHue = 198; self.Finder:AutoTint() end;
           },
         },
       },
@@ -918,12 +1250,22 @@ function RP_Find:ShowOrHideMinimapButton()
   end;
 end;
 
+function RP_Find:ShowFinder()
+  self.Finder:Show();
+  self.Finder:Update();
+end;
+
+function RP_Find:HideFinder()
+  self.Finder:Hide();
+end;
+
 function RP_Find.OnMinimapButtonClick(frame, button)
+  print("click!")
   if     button == "RightButton"
   then   RP_Find:OpenOptions();
   elseif RP_Find.Finder:IsShown()
-  then   RP_Find.Finder:Hide();
-  else   RP_Find.Finder:Show();
+  then   RP_Find:HideFinder();
+  else   RP_Find:ShowFinder();
   end;
 end;
 
@@ -968,8 +1310,10 @@ function RP_Find:RegisterMspReceived()
   tinsert(msp.callback.received, 
     function(playerName) 
       if   self.db.profile.config.monitorMSP and playerName ~= self.me
-      then self:GetPlayerRecord(playerName, server, "MSP_CALLBACK");
-           self.Finder:UpdateDisplay();
+      then self:GetPlayerRecord(playerName, server);
+           if   self.Finder.currentTab == "Display"
+           then self.Finder:Update();
+           end;
       end;
     end);
 end;
@@ -1008,7 +1352,7 @@ function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
    and sender ~= self.me
   then if     text:find("^RPB1~TRP3HI")
        then   self:GetPlayerRecord(sender, nil);
-              self.Finder:UpdateDisplay();
+              if self.Finder.currentTab == "Display" then self.Finder:Update(); end;
 
               if   self.db.profile.config.alertTRP3Connect
               then self:Notify(L["Format Alert TRP3 Connect"], sender);
@@ -1037,29 +1381,6 @@ RP_Find:RegisterEvent("CHAT_MSG_ADDON_LOGGED", "AddonMessageReceived");
 --
 local buttonSize = 85;
 
---[[
-RP_Find.resetButton  = CreateFrame("Button", nil, Finder.frame, "UIPanelButtonTemplate");
-RP_Find.resetButton:SetText(L["Button Clear"]);
-RP_Find.resetButton:ClearAllPoints();
-RP_Find.resetButton:SetPoint("BOTTOMRIGHT", Finder.frame, "BOTTOMRIGHT", -20 - buttonSize * 1 - 5 * 1, 20);
-RP_Find.resetButton:SetWidth(buttonSize);
-RP_Find.resetButton:SetScript("OnClick", function(self) StaticPopup_Show(POPUP_CLEAR); end);
-
-RP_Find.cancelButton  = CreateFrame("Button", nil, Finder.frame, "UIPanelButtonTemplate");
-RP_Find.cancelButton:SetText( L["Button Cancel"]);
-RP_Find.cancelButton:ClearAllPoints();
-RP_Find.cancelButton:SetPoint("BOTTOMRIGHT", Finder.frame, "BOTTOMRIGHT",  -20, 20);
-RP_Find.cancelButton:SetWidth(buttonSize);
-RP_Find.cancelButton:SetScript("OnClick", function(self) Finder:ClearPending(); Finder:Hide() end);
-
-RP_Find.saveButton  = CreateFrame("Button", nil, Finder.frame, "UIPanelButtonTemplate");
-RP_Find.saveButton:SetText(L["Button Save"]);
-RP_Find.saveButton:ClearAllPoints();
-RP_Find.saveButton:SetPoint("BOTTOMRIGHT", Finder.frame, "BOTTOMRIGHT", -20 - buttonSize * 2 - 5 * 2, 20);
-RP_Find.saveButton:SetWidth(buttonSize);
-RP_Find.saveButton:SetScript("OnClick", function(self) Finder:ApplyPending(); Finder:Hide(); end);
---]]
-
 RP_Find.closeButton  = CreateFrame("Button", nil, Finder.frame, "UIPanelButtonTemplate");
 RP_Find.closeButton:SetText(L["Button Close"]);
 RP_Find.closeButton:ClearAllPoints();
@@ -1073,38 +1394,6 @@ RP_Find.configButton:ClearAllPoints();
 RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
 RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end);
-
---[[
-local finderTooltipsCheckbox = CreateFrame("Checkbutton", nil, Finder.frame, "ChatConfigCheckButtonTemplate");
-finderTooltipsCheckbox:ClearAllPoints();
-finderTooltipsCheckbox:SetSize(20,20);
-finderTooltipsCheckbox:SetPoint("TOPRIGHT", Finder.frame, "TOPRIGHT", -72, -28);
-
-local function finderTooltipsTooltip()
-  if not RP_Find.db.profile.config.finderTooltips then return end;
-  GameTooltip:ClearLines();
-  GameTooltip:SetOwner(finderTooltipsCheckbox, "ANCHOR_TOP");
-  GameTooltip:AddLine(L["Config Finder Tooltips"]);
-  GameTooltip:AddLine(L["Config Finder Tooltips Tooltip"], 1, 1, 1, true);
-  GameTooltip:Show();
-end;
-
-finderTooltipsCheckbox:SetScript("OnEnter", finderTooltipsTooltip);
-finderTooltipsCheckbox:SetScript("OnLeave", hideTooltip);
-finderTooltipsCheckbox:SetScript("OnShow", 
-  function(self)
-    self:SetChecked(RP_Find.db.profile.config.finderTooltips);
-  end);
-finderTooltipsCheckbox:SetScript("OnClick",
-  function(self)
-    RP_Find.db.profile.config.finderTooltips = self:GetChecked();
-    self:SetChecked(RP_Find.db.profile.config.finderTooltips);
-  end);
-
-local finderTooltipsLabel = Finder.frame:CreateFontString(nil, "OVERLAY", "GameFontNormalGraySmall");
-finderTooltipsLabel:SetText(L["Label Finder Tooltips"]);
-finderTooltipsLabel:SetPoint("LEFT", finderTooltipsCheckbox, "RIGHT", 2, 0);
---]]
 
 _G["SLASH_RP_FIND1"] = SLASH;
 
