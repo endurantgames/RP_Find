@@ -72,7 +72,7 @@ local zoneList =
   1316,  1317,  1318,  1319,  1320,  1321,  1322,  1323,
   1324,  1325,  1326,  1327,  1328,  1329,  1330,  1331,
   1334,  1335,  1336,  1337,  1339,  1347,  1355,  1362,
-  1379,  1396,  1397,  1398,  1399,  1400,  1401,  1402,
+         1396,  1397,  1398,  1399,  1400,  1401,  1402,
   1403,  1404,  1405,  1406,  1408,  1462,  1523,  1525,
   1527,  1530,  1533,  1536,  1543,  1565,  1569,  1577,
   1643,  1740,  1741,  1742,
@@ -123,8 +123,8 @@ local menu =
     [110985 ] = L["Sound Voice Join"       ], [111368 ] = L["Sound Voice In"         ],
     [111367 ] = L["Sound Voice Out"        ],
   },
-  notifySoundOrder = { 139868, 1887, 12867, 12889, 118460, 5274,   38326,  31578, 9378, 
-                       3332,   3175, 8959,  39516, 111370, 110985, 111368, 111367 },
+  notifySoundOrder = { 139868, 18871, 12867, 12889, 118460, 5274,   38326,  31578, 9378, 
+                       3332,   3175, 8959,  39516, 37881, 111370, 110985, 111368, 111367 },
   zone = {},
   zoneOrder = {};
 };
@@ -211,7 +211,7 @@ end;
 function RP_Find:SmartPruneDatabase(interactive)
   if not self.db.profile.config.useSmartPruning then return end;
   self.Finder:Hide();
-  InterfaceOptionsFrame:Hide();
+  -- InterfaceOptionsFrame:Hide();
   local now = time();
   local count = 0;
 
@@ -219,17 +219,21 @@ function RP_Find:SmartPruneDatabase(interactive)
 
   local secs = math.exp(self.db.profile.config.smartPruningThreshold);
   for   playerName, playerData in pairs(self.data.rolePlayers)
-  do    if   now - getTimestamp(playerData) > secs and playerName ~= self.me
-        then -- self:PurgePlayer(name)
+  do    
+        local delta = now - getTimestamp(playerData)
+
+        if  playerName ~= self.me and delta > secs
+        then self:PurgePlayer(playerName)
              count = count + 1; 
         end; 
   end;
 
   UpdateAddOnMemoryUsage();
 
-  if   interactive and count > 0 
-  then self:Notify(string.format(L["Format Smart Pruning Done"], count)); 
-  else self:Notify(L["Notify Smart Pruning Zero"]);
+  if     interactive and count > 0 
+  then   self:Notify(string.format(L["Format Smart Pruning Done"], count)); 
+  elseif interactive
+  then   self:Notify(L["Notify Smart Pruning Zero"]);
   end;
 end;
 
@@ -348,6 +352,32 @@ function RP_Find:CountLFGGroups()
   return count;
 end;
 
+function RP_Find.OnMinimapButtonClick(frame, button, ...)
+  if   button == "RightButton" 
+    or button == "LeftButton" and IsControlKeyDown()
+  then if InterfaceOptionsFrame:IsShown()
+       then InterfaceOptionsFrame:Hide()
+       else RP_Find:OpenOptions();
+       end;
+       RP_Find:HideFinder();
+  else if RP_Find.Finder:IsShown()
+       then   RP_Find:HideFinder();
+       else   RP_Find:ShowFinder();
+       end
+  end;
+end;
+
+function RP_Find.OnMinimapButtonEnter(frame)
+  GameTooltip:ClearLines();
+  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_CURSOR");
+  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_PRESERVE");
+  GameTooltip:AddLine(RP_Find.addOnTitle);
+  GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window");
+  GameTooltip:AddDoubleLine("Right-Click", RP_Find.addOnTitle .. " Options");
+  GameTooltip:Show();
+end;
+
+function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
 RP_Find.PlayerMethods =
 { 
   ["Initialize"] =
@@ -433,9 +463,9 @@ RP_Find.addOnDataBroker =
       iconB   = RP_FIND_FONT_COLOR.b,
       iconA   = 0.5,
       label   = RP_Find.addOnTitle,
-      OnClick = function() RP_Find.OnMinimapButtonClick() end,
-      OnEnter = function() RP_Find.OnMinimapButtonEnter() end,
-      OnLeave = function() RP_Find.OnMinimapButtonLeave() end,
+      OnClick = RP_Find.OnMinimapButtonClick,
+      OnEnter = RP_Find.OnMinimapButtonEnter,
+      OnLeave = RP_Find.OnMinimapButtonLeave,
       text    = RP_Find.addOnTitle,
       type    = "data source",
     }
@@ -454,8 +484,6 @@ RP_Find.defaults =
       alertTRP3Connect = false,
       notifySound      = 37881,
       deleteDBonLogin  = false,
-      tintAlpha        = 2/3,
-      tintHue          = 198,
     },
     minimapbutton      = {}, 
   },
@@ -489,7 +517,7 @@ Finder.col   = { 0.35, 0.25 };
 
 Finder:SetWidth(500);
 Finder:SetHeight(300);
-Finder:SetLayout("Flow");
+Finder:SetLayout("Fill");
 
 Finder:SetCallback("OnClose",
   function(self, event, ...)
@@ -498,49 +526,10 @@ Finder:SetCallback("OnClose",
 
 _G[finderFrameName] = Finder.frame;
 
+Finder.title:SetIgnoreParentAlpha(true);
+Finder.titletext:SetIgnoreParentAlpha(true);
+
 table.insert(UISpecialFrames, finderFrameName);
-
-function Finder:SetTint(r, g, b, a)
-  self.r, self.g, self.b, self.a = 
-    r or self.r, g or self.g, b or self.b, a or self.a;
-end;
-
-function Finder:TintMyRide(r, g, b, a)
-  r, g, b, a = r or self.r, g or self.g, b or self.b, a or self.a;
-  self.regionList = { self.frame:GetRegions() };
-
-  for _, region in ipairs(self.regionList)
-  do  region:SetVertexColor(r, g, b, a);
-  end;
-
-  for _, side in ipairs({"Left", "Right", "Middle"})
-  do for _, button in ipairs({"closeButton", "configButton"})
-     do RP_Find[button][side]:SetDesaturated(true);
-        RP_Find[button][side]:SetVertexColor(r, g, b, a);
-     end;
-  end;
-
-  self.r, self.g, self.b, self.a = r, g, b, a
-end;
-Finder:SetTint(RP_FIND_FONT_COLOR:GetRGBA());
-Finder:SetTint(nil, nil, nil, 2/3);
-
-function Finder:AutoTint()
-  self.addOnColor = LibColor.rgb(self.r, self.g, self.b, self.a);
-
-  self.h, self.s, self.L, self.a = self.addOnColor:hsla();
-  self.h = RP_Find.db.profile.config.tintHue;
-
-  self.addOnColor = LibColor.hsl(
-    RP_Find.db.profile.config.tintHue, 
-    self.s, self.L, self.a
-  );
-  self.addOnColor = self.addOnColor:desaturate_to(1/3);
-  self.addOnColor = self.addOnColor:lighten_to(1/3);
-  self.addOnColor.a = 2/3;
-  self.r, self.g, self.b, self.a = self.addOnColor:rgba();
-  self:TintMyRide();
-end;
 
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
@@ -562,12 +551,14 @@ function Finder:CreateTabGroup()
   local tabGroup = AceGUI:Create("TabGroup");
   tabGroup:SetFullWidth(true);
   tabGroup:SetFullHeight(true);
+  tabGroup:SetLayout("Flow");
 
   if UnitLevel("player") >= 50 then tabGroup:SetTabs(self.TabList);
   else tabGroup:SetTabs(self.TabListSub50);
   end;
 
   function tabGroup:LoadTab(tab)
+    if Finder.timer then RP_Find:CancelTimer(Finder.timer) Finder.timer = nil; end;
     _ = self.current and self.current:ReleaseChildren(); 
     _ = self.scrollFrame and self.scrollFrame:ReleaseChildren();
     _ = self.scrollContainer and self.scrollContainer:ReleaseChildren();
@@ -577,22 +568,16 @@ function Finder:CreateTabGroup()
     scrollContainer:SetFullWidth(true);
     scrollContainer:SetFullHeight(true);
     scrollContainer:SetLayout("Fill");
-
     self.scrollContainer = scrollContainer;
-
-    local scrollFrame = AceGUI:Create("ScrollFrame");
-    scrollFrame:SetFullHeight(true);
-    scrollFrame:SetLayout("Flow");
-
-    self.scrollFrame = scrollFrame;
-
-    local panelFrame = Finder.MakeFunc[tab](Finder);
-    panelFrame:SetFullHeight(true);
-
-    scrollFrame:AddChild(panelFrame);
-    scrollContainer:AddChild(scrollFrame);
     self:AddChild(scrollContainer);
 
+    local scrollFrame = AceGUI:Create("ScrollFrame");
+    scrollFrame:SetLayout("Flow");
+    scrollContainer:AddChild(scrollFrame);
+    self.scrollFrame = scrollFrame;
+    -- scrollFrame:SetFullHeight(true);
+    local panelFrame = Finder.MakeFunc[tab](Finder);
+    scrollFrame:AddChild(panelFrame);
     self.current = panelFrame;
     Finder.currentTab = tab;
     Finder:UpdateTitle();
@@ -615,7 +600,6 @@ function Finder.MakeFunc.Display(self)
 
   local panelFrame = AceGUI:Create("InlineGroup");
         panelFrame:SetFullWidth(true);
-        panelFrame:SetFullHeight(true);
         panelFrame:SetLayout("Flow");
   
   local headers = AceGUI:Create("SimpleGroup");
@@ -683,7 +667,7 @@ function Finder.MakeFunc.Display(self)
   function scrollContainer:Update()
     self:ReleaseChildren();
     local scrollFrame = AceGUI:Create("ScrollFrame");
-          scrollFrame:SetLayout("Flow");
+          scrollFrame:SetLayout("Fill");
           self:AddChild(scrollFrame);
 
     local playerRecordList = RP_Find:GetAllPlayerRecords();
@@ -767,7 +751,6 @@ end;
 function Finder.MakeFunc.LFG(self)
   local panelFrame = AceGUI:Create("SimpleGroup");
   panelFrame:SetFullWidth(true);
-  panelFrame:SetFullHeight(true);
   panelFrame:SetLayout("Flow");
 
   local headline = AceGUI:Create("Heading");
@@ -778,32 +761,43 @@ function Finder.MakeFunc.LFG(self)
 
   local explainSub50 = AceGUI:Create("Label");
   explainSub50:SetFullWidth(true);
-  explainSub50:SetText("These options are disabled because you are lower than level 50.");
+  explainSub50:SetText("These options are disabled because you are lower than level 50. This is a restriction set by Blizzard as of WoW 9.0.");
 
   panelFrame:AddChild(explainSub50);
 
-  local searchFilter = AceGUI:Create("EditBox");
-  searchFilter:SetLabel("Filter (optional)");
-  searchFilter:SetRelativeWidth(2/3);
-  
+  panelFrame.lower = AceGUI:Create("SimpleGroup");
+  panelFrame.lower:SetFullWidth(true);
+  panelFrame.lower:SetLayout("Flow");
+
+  panelFrame:AddChild(panelFrame.lower);
+
+  panelFrame.left = AceGUI:Create("InlineGroup");
+  panelFrame.left:SetRelativeWidth(0.5);
+  panelFrame.left:SetLayout("Flow");
+  panelFrame.left:SetTitle("Search");
+  panelFrame.lower:AddChild(panelFrame.left);
+
+  panelFrame.right = AceGUI:Create("InlineGroup");
+  panelFrame.right:SetLayout("Flow");
+  panelFrame.right:SetRelativeWidth(0.5);
+  panelFrame.right:SetTitle("List Your Group");
+  panelFrame.lower:AddChild(panelFrame.right);
+
   local searchButton = AceGUI:Create("Button");
   searchButton:SetText("Search");
-  searchButton:SetRelativeWidth(1/3);
+  searchButton:SetFullWidth(true);
+  panelFrame.left:AddChild(searchButton);
 
-  panelFrame:AddChild(searchButton);
-  panelFrame:AddChild(searchFilter);
-
-  local divider = AceGUI:Create("Heading");
-  divider:SetFullWidth(true);
-  divider:SetText("Start Your Own");
-
-  panelFrame:AddChild(divider);
+  local searchFilter = AceGUI:Create("EditBox");
+  searchFilter:SetLabel("Filter (optional)");
+  searchFilter:SetFullWidth(true);
+  panelFrame.left:AddChild(searchFilter);
 
   local newGroupTitle = AceGUI:Create("EditBox");
   newGroupTitle:SetLabel("Title");
   newGroupTitle:SetFullWidth(true);
   
-  panelFrame:AddChild(newGroupTitle);
+  panelFrame.right:AddChild(newGroupTitle);
 
   local newGroupDetails = AceGUI:Create("MultiLineEditBox");
   newGroupDetails:SetFullWidth(true);
@@ -811,19 +805,13 @@ function Finder.MakeFunc.LFG(self)
   newGroupDetails:SetNumLines(6);
   newGroupDetails:DisableButton(true);
 
-  panelFrame:AddChild(newGroupDetails);
-
-  local spacer = AceGUI:Create("Label");
-  spacer:SetRelativeWidth(2/3)
-  spacer:SetText(" ");
-  
-  panelFrame:AddChild(spacer);
+  panelFrame.right:AddChild(newGroupDetails);
 
   local listGroupButton = AceGUI:Create("Button");
   listGroupButton:SetText("List Group");
-  listGroupButton:SetRelativeWidth(1/3);
+  listGroupButton:SetFullWidth(true);
 
-  panelFrame:AddChild(listGroupButton);
+  panelFrame.right:AddChild(listGroupButton);
   
   if UnitLevel("player") < 50
   then searchButton:SetDisabled(true);
@@ -834,13 +822,13 @@ function Finder.MakeFunc.LFG(self)
   else explainSub50:SetText();
   end;
 
+  function panelFrame:Update() return end;
   return panelFrame;
 end;
 
 function Finder.MakeFunc.Tools(self)
   local panelFrame = AceGUI:Create("SimpleGroup");
   panelFrame:SetFullWidth(true);
-  panelFrame:SetFullHeight(true);
   panelFrame:SetLayout("Flow");
 
   local headline = AceGUI:Create("Heading");
@@ -946,29 +934,6 @@ function RP_Find:OnInitialize()
             get       = function() return self.db.profile.config.monitorTRP3 end,
             set       = function(info, value) self.db.profile.config.monitorTRP3  = value end,
             width     = "full",
-          },
-          tintHue =
-          { name = "Tint Hue",
-            type = "range",
-            order = 50,
-            min = 0,
-            max = 360,
-            step = 1,
-            get = function() return self.db.profile.config.tintHue end,
-            set = function(info, value) 
-                    self:ShowFinder();
-                    self.Finder.frame:Lower();
-                    self.db.profile.config.tintHue = value
-                    self.Finder:AutoTint()
-                  end,
-            width = "full",
-          },
-          tintReset =
-          { name = "Reset Tint",
-            type = "execute",
-            order = 60,
-            width = 1,
-            func = function() self.db.profile.config.tintHue = 198; self.Finder:AutoTint() end;
           },
         },
       },
@@ -1259,28 +1224,6 @@ function RP_Find:HideFinder()
   self.Finder:Hide();
 end;
 
-function RP_Find.OnMinimapButtonClick(frame, button)
-  print("click!")
-  if     button == "RightButton"
-  then   RP_Find:OpenOptions();
-  elseif RP_Find.Finder:IsShown()
-  then   RP_Find:HideFinder();
-  else   RP_Find:ShowFinder();
-  end;
-end;
-
-function RP_Find.OnMinimapButtonEnter(frame)
-  GameTooltip:ClearLines();
-  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_CURSOR");
-  GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_PRESERVE");
-  GameTooltip:AddLine(RP_Find.addOnTitle);
-  GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window");
-  GameTooltip:AddDoubleLine("Right-Click", RP_Find.addOnTitle .. " Options");
-  GameTooltip:Show();
-end;
-
-function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
-
 function RP_Find:OnEnable()
   self.realm = GetNormalizedRealmName() or GetRealmName():gsub("[%-%s]","");
   self.me    = UnitName("player") .. "-" .. RP_Find.realm;
@@ -1297,7 +1240,6 @@ function RP_Find:OnEnable()
   then self:Notify(L["Notify Login Message"]); 
   end;
 
-  self.Finder:AutoTint();
   self:ShowOrHideMinimapButton();
 end;
 
@@ -1355,7 +1297,7 @@ function RP_Find:AddonMessageReceived(event, prefix, text, channel, sender)
               if self.Finder.currentTab == "Display" then self.Finder:Update(); end;
 
               if   self.db.profile.config.alertTRP3Connect
-              then self:Notify(L["Format Alert TRP3 Connect"], sender);
+              then self:Notify(string.format(L["Format Alert TRP3 Connect"], sender));
               end;
        elseif text:find("^RPB1~C_SCAN~")
        then   self:GetPlayerRecord(sender, nil);
