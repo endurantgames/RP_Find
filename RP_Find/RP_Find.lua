@@ -147,6 +147,25 @@ end;
 
 table.sort(menu.zoneOrder, sortZones)
 
+local function split(str, pat)
+  local t = {};
+  local fpat = "(.-)" .. pat;
+  local last_end = 1;
+  local s, e, cap = str:find(fpat, 1);
+  while s 
+  do    if s ~= 1 or cap ~= ""
+        then table.insert(t, cap)
+        end;
+        last_end = e + 1;
+        s, e, cap = str:find(fpat, last_end);
+  end;
+  if   last_end <= #str
+  then cap = str:sub(last_end);
+       table.insert(t, cap);
+  end;
+  return t;
+end;
+
 local RP_Find = AceAddon:NewAddon(
                   addOnName, 
                   "AceConsole-3.0", "AceEvent-3.0", 
@@ -398,6 +417,13 @@ function RP_Find:CountLFGGroups()
   return count;
 end;
 
+function RP_Find:ScanForAdultContent(text)
+  for _, pattern in pairs(split(L["Adult Content Patterns"], "|"))
+  do  if text:match(pattern) then return true; end;
+  end;
+  return false;
+end;
+
 function RP_Find.OnMinimapButtonClick(frame, button, ...)
   if   button == "RightButton" 
     or button == "LeftButton" and IsControlKeyDown()
@@ -541,6 +567,9 @@ RP_Find.defaults =
       deleteDBonLogin  = false,
       useSmartPruning  = false,
       repeatSmartPruning = false,
+      notifyLFRP         = true,
+      seeAdultAds        = false,
+      ad = {},
     },
     minimapbutton      = {}, 
   },
@@ -825,12 +854,49 @@ function Finder.MakeFunc.Ads(self)
   headline:SetText("Ads");
   panelFrame:AddChild(headline);
 
+  local titleField = AceGUI:Create("EditBox");
+  titleField:SetLabel("Ad Title");
+  titleField:SetText(RP_Find.db.profile.config.ad.title or "");
+  titleField:SetFullWidth(true);
+  titleField:SetCallback("OnEnterPressed",
+    function(self, event, value)
+      RP_Find.db.profile.config.ad.title = value;
+    end);
+  panelFrame:AddChild(titleField);
+
+  local adultToggle = AceGUI:Create("CheckBox");
+
+  local bodyField = AceGUI:Create("MultiLineEditBox");
+  bodyField:SetLabel("Ad Text");
+  bodyField:SetText(RP_Find.db.profile.config.ad.body or "");
+  bodyField:SetFullWidth(true);
+  bodyField:SetNumLines(8);
+  bodyField:SetCallback("OnEnterPressed",
+    function(self, event, value)
+      RP_Find.db.profile.config.ad.body = value;
+     
+      if RP_Find:ScanForAdultContent(value)
+      then RP_Find.db.profile.config.ad.adult = true;
+           adultToggle:SetValue(true);
+      end;
+    end);
+  panelFrame:AddChild(bodyField);
+
+  adultToggle:SetLabel("This is an adult ad.");
+  adultToggle:SetFullWidth(true);
+  adultToggle:SetValue(RP_Find.db.profile.config.ad.adult)
+  adultToggle:SetCallback("OnValueChanged",
+    function(self, event, value)
+      RP_Find.db.profile.config.ad.adult = value;
+    end);
+
+  panelFrame:AddChild(adultToggle);
+
   local sendAdButton = AceGUI:Create("Button");
 
   local function reEnableSendAd()
     if time() - (RP_Find.Finder.lastAdTime or 0) >= 60
-       and trp3MapScanButton
-       and trp3MapScanZone
+       and sendAdButton
     then sendAdButton:SetDisabled(false);
     end;
   end;
@@ -848,6 +914,10 @@ function Finder.MakeFunc.Ads(self)
 
   panelFrame:AddChild(sendAdButton);
 
+  bodyField:SetCallback("OnEnterPressed",
+    function(self, event, value)
+      RP_Find.db.profile.config.ad.body = value;
+    end);
   function panelFrame:Update() return end;
 
   return panelFrame;
@@ -1061,6 +1131,24 @@ function RP_Find:OnInitialize()
             get        = function() return self.db.profile.config.loginMessage end,
             set        = function(info, value) self.db.profile.config.loginMessage  = value end,
             width      = "full",
+          },
+          notifyLFRP =
+          { name = L["Config Notify LFRP"],
+            type = "toggle",
+            order = 28,
+            desc = L["Config Notify LFRP Tooltip"],
+            get = function() return self.db.profile.config.notifyLFRP end,
+            set = function(info, value) self.db.profile.config.notifyLFRP = value end,
+            width = "full",
+          },
+          seeAdultAds =
+          { name = L["Config See Adult Ads"],
+            type = "toggle",
+            order = 29,
+            desc = L["Config See Adult Ads Tooltip"],
+            get = function() return self.db.profile.config.seeAdultAds end,
+            set = function(info, value) self.db.profile.config.seeAdultAds = value end,
+            width = "full",
           },
           monitorMSP =
           { name     = L["Config Monitor MSP"],
@@ -1453,54 +1541,77 @@ function RP_Find:SendAddonMessage(prefix, text)
   AddOn_Chomp.SendAddonMessage(prefix, text, "CHANNEL", channelNum);
 end;
   
+function RP_Find:SendSmartAddonMessage(prefix, data)
+  local channelNum = GetChannelName(addonChannel);
+  AddOn_Chomp.SmartAddonMessage(prefix, data, "CHANNEL", channelNum, { serialize = true});
+end;
+
+RP_Find.AddonMessageReceived = {};
+
+function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, channelname, ...)
+  if     not RP_Find.db.profile.config.monitorTRP3
+  then   return
+  elseif sender == RP_Find.me
+  then   return
+  elseif text:find("^RPB1~TRP3HI")
+  then   RP_Find:GetPlayerRecord(sender, nil);
+         if RP_Find.Finder.currentTab == "Display" then RP_Find.Finder:Update(); end;
+
+         if   RP_Find.db.profile.config.alertTRP3Connect
+         then RP_Find:Notify(string.format(L["Format Alert TRP3 Connect"], sender));
+         end;
+  elseif text:find("^RPB1~C_SCAN~")
+  then   RP_Find:GetPlayerRecord(sender, nil);
+         if   RP_Find.db.profile.config.alertTRP3Scan
+         and  (RP_Find.db.profile.config.alertAllTrp3Scan 
+               or text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
+              )
+         then RP_Find:Notify(
+                string.format(L["Format Alert TRP3 Scan"], sender, 
+                  C_Map.GetMapInfo(tonumber(text:match("~(%d+)$"))).name
+                )
+              );
+         end;
+  elseif text:find("^C_SCAN~%d+%.%d+~%d+%.%d+")
+  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
+         if time() - (RP_Find.Finder.lastScanTime or 0) < 60
+         then playerRecord:Set("ZoneID", RP_Find.Finder.lastScanZone)
+         end;
+  end;
+end;
+
+function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, channelname, ...)
+  if   text:match(addonPrefix.rpfind .. ":AD")
+  then local count = 0;
+       local ad = {};
+       for _, rawData in ipairs(split(text, "|||"))
+       do  local field, value = rawData:match("(.-)=(.+)")
+           if   field 
+           then ad[field] = value:gsub("%^|%^|%^|%^", "|||");
+                count = count + 1;
+           end;
+       end;
+       if count > 0
+       then 
+            print("There are", count, "fields");
+            local playerData = RP_Find:GetPlayerRecord(sender);
+            playerData:Set("ad", ad);
+            if   RP_Find.db.profile.config.notifyLFRP
+            then RP_Find:Notify((ad.name or sender) .. " sent an ad" ..
+                   (ad.title and (": " .. ad.title) or "") .. ".");
+            end;
+       end;
+  end;
+end;
+
 function RP_Find:RegisterAddonChannel()
-  for _, prefix in pairs(addonPrefix)
-  do AddOn_Chomp.RegisterAddonPrefix(prefix, function(...) self:AddonMessageReceived(...) end);
+  for addon, prefix in pairs(addonPrefix)
+  do  AddOn_Chomp.RegisterAddonPrefix(prefix, self.AddonMessageReceived[addon]);
   end;
 
   local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
   if not haveJoinedAddonChannel and channelCount < 10
   then   JoinTemporaryChannel(addonChannel);
-  end;
-end;
-
-function RP_Find:AddonMessageReceived(prefix, text, channelType, sender, channelName, ...)
-  if   self.db.profile.config.monitorTRP3 
-   and prefix == addonPrefix.trp3 
-   and sender ~= self.me
-  then if     text:find("^RPB1~TRP3HI")
-       then   self:GetPlayerRecord(sender, nil);
-              if self.Finder.currentTab == "Display" then self.Finder:Update(); end;
-
-              if   self.db.profile.config.alertTRP3Connect
-              then self:Notify(string.format(L["Format Alert TRP3 Connect"], sender));
-              end;
-       elseif text:find("^RPB1~C_SCAN~")
-       then   self:GetPlayerRecord(sender, nil);
-              if   self.db.profile.config.alertTRP3Scan
-              and  (self.db.profile.config.alertAllTrp3Scan 
-                    or text:find("~" .. C_Map.GetBestMapForUnit("player") .. "$")
-                   )
-              then self:Notify(
-                     string.format(L["Format Alert TRP3 Scan"], sender, 
-                       C_Map.GetMapInfo(tonumber(text:match("~(%d+)$"))).name
-                     )
-                   );
-              end;
-       elseif text:find("^C_SCAN~%d+%.%d+~%d+%.%d+")
-       then   local playerRecord = self:GetPlayerRecord(sender, nil);
-              if time() - (self.Finder.lastScanTime or 0) < 60
-              then playerRecord:Set("ZoneID", self.Finder.lastScanZone)
-              end;
-       end;
-  elseif prefix == addonPrefix.rpfind
-     and sender ~= self.me
-  then   print("message received", sender, text)
-         --[[
-         if text:find("^LFRP1~AD~")
-         then 
-         end;
-         --]]
   end;
 end;
 
@@ -1516,18 +1627,36 @@ function RP_Find:SendTRP3Scan(zoneNum)
   end;
 end;
 
+function RP_Find:CreateAdText()
+  local text = addonPrefix.rpfind .. ":AD";
+
+  local function getName() return msp and msp.my and msp.my.NA or UnitName("player") end;
+  local function getRace() return msp and msp.my and msp.my.RA or UnitRace("player")   end;
+  local function getClass() return msp and msp.my and msp.my.RC or UnitClass("player") end;
+  local function getAddon() return msp and msp.my and msp.my.VA or "" end;
+
+  local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
+
+  add("name", getName())
+  add("race", getRace())
+  add("class", getClass());
+  add("addon", getAddon());
+  add("title", self.db.profile.config.ad.title);
+  add("body", self.db.profile.config.ad.body);
+  add("adult", self.db.profile.config.ad.adult);
+
+  return text;
+end;
+
 function RP_Find:SendLFRPAd()
+  local message = self:CreateAdText();
   if time() - (self.Finder.lastAdTime or 0) < 60
   then self:Notify("You can only send an ad once every 60 seconds.");
-  else self:SendAddonMessage(addonPrefix.rpfind, "This is a test.");
+  else self:SendSmartAddonMessage(addonPrefix.rpfind, message);
        self.Finder.lastAdTime = time();
        self:Notify("Ad send. Good luck!");
   end;
 end;
-
--- RP_Find:RegisterEvent("CHAT_MSG_ADDON",        "AddonMessageReceived");
--- RP_Find:RegisterEvent("BN_CHAT_MSG_ADDON",     "AddonMessageReceived");
--- RP_Find:RegisterEvent("CHAT_MSG_ADDON_LOGGED", "AddonMessageReceived");
 
 -- menu data
 --
