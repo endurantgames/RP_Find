@@ -261,7 +261,7 @@ local function Constructor()
 	current.box:SetFontObject(GameFontHighlightSmall)
 	current:SetPoint("TOP", slider, "BOTTOM")
 	current:SetHeight(14)
-	current:SetWidth(125)
+	current:SetWidth(150)
         current.box:SetAllPoints();
 	current.box:SetJustifyH("CENTER")
 	current:SetBackdrop(ManualBackdrop)
