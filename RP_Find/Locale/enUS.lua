@@ -65,6 +65,7 @@ L["Config TRP3"                        ] = "Total RP 3 Options";
 L["Config Smart Pruning"               ] = "Smart Pruning";
 L["Config See Adult Ads"               ] = "See Adult Ads";
 L["Config See Adult Ads Tooltip"       ] = "Some ads may be inappropriate for a younger audience. Check this box to see any ads marked as such.";
+L["Adult Content Patterns"             ] = "fuck%S*|%S*shit";
 -- L["Config Use Smart Pruning"           ] = "Use Smart Pruning";
 L["Config Use Smart Pruning"           ] = "Use";
 
