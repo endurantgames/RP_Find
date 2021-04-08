@@ -19,5 +19,6 @@
         <Script  file="libdatabroker-1-1\LibDataBroker-1.1.lua"     />
         <Include file="LibDBIcon-1.0\lib.xml"                       />
         <Include file="LibColorManipulation-1.0\lib.xml"            />
+        <Include file="LibRealmInfo\LibRealmInfo.lua"               />
 
 </Ui>

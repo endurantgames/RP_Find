@@ -19,6 +19,7 @@ local AceLocale         = LibStub("AceLocale-3.0");
 local LibDBIcon         = LibStub("LibDBIcon-1.0");
 local LibDataBroker     = LibStub("LibDataBroker-1.1");
 local LibColor          = LibStub("LibColorManipulation-1.0");
+local LibRealmInfo      = LibStub("LibRealmInfo");
 local L                 = AceLocale:GetLocale(addOnName);
 
 local MEMORY_WARN_MB = 1000 * 3;
@@ -127,6 +128,8 @@ local menu =
                        3332,   3175, 8959,  39516, 37881, 111370, 110985, 111368, 111367 },
   zone = {},
   zoneOrder = {};
+  perPage = { [10] = "10", [20] = "20", [30] = "30", [40] = "40", [50] = "50", [75] = "75", [100] = "100" },
+  perPageOrder = { 10, 20, 30, 40, 50, 75, 100 },
 };
 
 for i, mapID in ipairs(zoneList)
@@ -418,8 +421,13 @@ function RP_Find:CountLFGGroups()
 end;
 
 function RP_Find:ScanForAdultContent(text)
-  for _, pattern in pairs(split(L["Adult Content Patterns"], "|"))
-  do  if text:match(pattern) then return true; end;
+  print("text is", text);
+  if not text then return false end;
+  if not self.badWords then self.badWords = split(L["Adult Content Patterns"], "\n"); end;
+  text:gsub("%W+", " "):lower();
+  for _, pattern in pairs(self.badWords)
+  do  print("checking pattern", pattern, pattern:len());
+      if text:match("%s" .. pattern .. "%s") then return true; end;
   end;
   return false;
 end;
@@ -432,7 +440,7 @@ function RP_Find.OnMinimapButtonClick(frame, button, ...)
        else RP_Find:OpenOptions();
        end;
        RP_Find:HideFinder();
-  else if RP_Find.Finder:IsShown()
+  else if     RP_Find.Finder:IsShown()
        then   RP_Find:HideFinder();
        else   RP_Find:ShowFinder();
        end
@@ -442,8 +450,6 @@ end;
 function RP_Find.OnMinimapButtonEnter(frame)
   GameTooltip:ClearLines();
   GameTooltip:SetOwner(frame, "ANCHOR_BOTTOM");
-  -- GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_CURSOR");
-  -- GameTooltip:SetOwner(RP_Find.Finder.frame, "ANCHOR_PRESERVE");
   GameTooltip:AddDoubleLine(RP_Find.addOnTitle, RP_Find.addOnVersion);
   GameTooltip:AddLine(" ");
   GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window", 0, 1, 1, 1, 1, 1);
@@ -459,6 +465,7 @@ function RP_Find.OnMinimapButtonEnter(frame)
 end;
 
 function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
+
 RP_Find.PlayerMethods =
 { 
   ["Initialize"] =
@@ -495,13 +502,95 @@ RP_Find.PlayerMethods =
       return self;
     end,
 
-  ["GetPlayerName"] = function(self) return self.playerName; end,
-
   ["Get"] =
     function(self, field)
       if   self.data.fields[field]
       then return self.data.fields[field].value
       else return nil
+      end;
+    end,
+
+  ["GetMSP"] = 
+    function(self, field) 
+      return self:Get("MSP-" .. field) 
+    end,
+
+  ["GetRP"] = 
+    function(self, field, mspField)
+      return self:Get("rp_" .. field) or self:GetMSP(mspField) or self:Get(field) or ""
+    end,
+
+  ["GetPlayerName"] = 
+    function(self, omitServer) 
+      return omitServer 
+         and self.playerName:gsub("%-.+$", "") 
+          or self.playerName 
+    end,
+
+  ["GetServer"] = 
+    function(self) 
+      if self.serverName then return self.serverName end;
+      local server = self.playerName:match("%-(.+)$"); 
+      _, self.serverName = LibRealmInfo:GetRealmInfo(server);
+      return self.serverName;
+  end;
+
+  ["GetRPName"] = 
+    function(self) 
+      local name = self:GetRP("name", "NA");
+      if name == "" then return self:GetPlayerName(true); else return name end
+    end,
+    
+  ["GetRPNameStripped"] =
+    function(self)
+      local name = self:GetRPName();
+      return name:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r","");
+    end,
+
+  -- we probably aren't going to use all of these
+  ["GetRPClass"      ] = function(self) return self:GetRP("class",       "RC") end,
+  ["GetRPRace"       ] = function(self) return self:GetRP("race",        "RA") end,
+  ["GetRPIcon"       ] = function(self) return self:GetRP("icon",        "IC") end,
+  ["GetRPStatus"     ] = function(self) return self:GetRP("status",      "FC") end,
+  ["GetRPAge"        ] = function(self) return self:GetRP("age",         "AG") end,
+  ["GetRPEyeColor"   ] = function(self) return self:GetRP("eyecolor",    "AE") end,
+  ["GetRPHeight"     ] = function(self) return self:GetRP("height",      "AH") end,
+  ["GetRPWeight"     ] = function(self) return self:GetRP("weight",      "AW") end,
+  ["GetRPInfo"       ] = function(self) return self:GetRP("oocinfo",     "CO") end,
+  ["GetRPCurr"       ] = function(self) return self:GetRP("currently",   "CU") end,
+  ["GetRPStyle"      ] = function(self) return self:GetRP("style",       "FR") end,
+  ["GetRPBirthplace" ] = function(self) return self:GetRP("birthplace",  "HB") end,
+  ["GetRPHome"       ] = function(self) return self:GetRP("home",        "HH") end,
+  ["GetRPMotto"      ] = function(self) return self:GetRP("motto",       "MO") end,
+  ["GetRPHouse"      ] = function(self) return self:GetRP("house",       "NH") end,
+  ["GetRPNickname"   ] = function(self) return self:GetRP("nick",        "NI") end,
+  ["GetRPTitle"      ] = function(self) return self:GetRP("title",       "NT") end,
+  ["GetRPPronouns"   ] = function(self) return self:GetRP("pronouns",    "PN") end,
+  ["GetRPHonorific"  ] = function(self) return self:GetRP("honorific",   "PX") end,
+  ["IsTrial"         ] = function(self) return self:GetRP("trial",       "TR") end,
+  ["GetRPAddon"      ] = function(self) return self:GetRP("addon",       "VA") end,
+
+  ["GetFlags"] = function(self) return "" end,
+
+  ["LabelViewProfile" ] =
+    function(self)
+      return ( _G["AddOn_TotalRP3"] or _G["mrp"] ) and "Profile" or "" 
+    end,
+
+  ["LabelSendPing"] = function(self) return "Ping" end,
+
+  ["LabelSendTell"] = function(self) return "Whisper" end,
+
+  ["LabelReadAd"] = function(self) return "Read Ad" end,
+
+  ["LabelInvite"] = function(self) return "Invite" end,
+
+  ["UnpackMSPData"] =
+    function(self)
+      local  mspData = _G["msp"].char[self.playerName];
+      if not mspData then return end;
+      if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
+      then   for field, value in pairs(mspData.field) do self:Set("MSP-" .. field, value); end;
       end;
     end,
 
@@ -569,41 +658,30 @@ RP_Find.defaults =
       repeatSmartPruning = false,
       notifyLFRP         = true,
       seeAdultAds        = false,
-      ad = {},
+      rowsPerPage        = 20,
+      buttonBarSize      = 24,
     },
     minimapbutton      = {}, 
+    ad = { -- the player's personal ad
+      title = "",
+      body = "",
+      adult = false,
+      sendProfile = true,
+    },
   },
 };
 
-local recordSortField        = "playerName";
-local recordSortFieldReverse = false;
-
-local function sortPlayerRecords(a, b)
-  local function helper(booleanValue)
-    if recordSortFieldReverse
-    then return not booleanValue
-    else return     booleanValue
-    end;
-  end;
-
-  if          recordSortField == "playerName"
-  then return helper( a:GetPlayerName() < b:GetPlayerName() );
-  elseif      recordSortField == "timestamp"
-  then return helper( a:GetTimestamp() < b:GetTimestamp() )
-  else return helper( a:Get(recordSortField) < b:Get(recordSortField) )
-  end;
-
-end;
-
 local Finder = AceGUI:Create("Window");
+Finder.myname = "Finder";
+RP_Find.myname = "RP_Find";
 
 function RP_Find:Update(...) self.Finder:Update(...); end
 
-Finder.col   = { 0.35, 0.25 };
-
-Finder:SetWidth(500);
-Finder:SetHeight(300);
-Finder:SetLayout("Fill");
+local finderWidth = math.min(700, UIParent:GetWidth() * 0.4);
+local finderHeight = math.min(500, UIParent:GetHeight() * 0.5);
+Finder:SetWidth(finderWidth);
+Finder:SetHeight(finderHeight);
+Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
   function(self, event, ...)
@@ -622,18 +700,68 @@ Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
 Finder.content:SetPoint("TOPRIGHT",   Finder.frame, "TOPRIGHT", -20, -30);
 
 Finder.TabList = 
-{ { value = "Display", text = "Database", },
-  { value = "Ads", text = "Ads", },
+{ 
+  { value = "Ads", text = "Your Ad", },
+  { value = "Display", text = "Database", },
   { value = "LFG", text = "Looking for Group" },
   { value = "Tools", text = "Tools", },
 };
 
 Finder.TabListSub50 =
-{ { value = "Display", text = "Database", },
-  { value = "Ads", text = "Ads", },
-  { value = "LFG", text = "LFG (Disabled)" },
-  { value = "Tools", text = "Tools", },
+{ 
+  { value = "Ads",     text = "Your Ad", },
+  { value = "Display", text = "Database", },
+  { value = "LFG",     text = "LFG (Disabled)" },
+  { value = "Tools",   text = "Tools", },
 };
+
+function Finder:CreateButtonBar()
+  local buttonSize = RP_Find.db.profile.config.buttonBarSize;
+
+  local buttonBar = AceGUI:Create("SimpleGroup");
+  buttonBar:SetLayout("Flow");
+  buttonBar:SetFullWidth(true);
+  self:AddChild(buttonBar);
+  buttonBar:ClearAllPoints();
+  buttonBar:SetPoint("BOTTOM", self.frame, "TOP", 0, 0);
+
+  local buttonInfo =
+  { { title = "Scan",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Send Ad",
+      icon = "Interface\\ICONS\\SOR-mail",
+    },
+    { title = "Edit Ad",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Database",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Prune",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Search",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Check LFG",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+    { title = "Send LFG",
+      icon = "Interface\\ICONS\\INV_Misc_QuestionMark",
+    },
+  };
+
+  self.buttons = {}
+
+  for i, info in ipairs(buttonInfo)
+  do  local button = AceGUI:Create("Icon");
+      button:SetImage(info.icon);
+      button:SetImageSize(buttonSize, buttonSize);
+      button:SetWidth(buttonSize + 2);
+      buttonBar:AddChild(button);
+  end;
+end;
 
 function Finder:CreateTabGroup()
   local tabGroup = AceGUI:Create("TabGroup");
@@ -646,10 +774,11 @@ function Finder:CreateTabGroup()
   end;
 
   function tabGroup:LoadTab(tab)
-    if Finder.timer then RP_Find:CancelTimer(Finder.timer) Finder.timer = nil; end;
-    _ = self.current and self.current:ReleaseChildren(); 
-    _ = self.scrollFrame and self.scrollFrame:ReleaseChildren();
-    _ = self.scrollContainer and self.scrollContainer:ReleaseChildren();
+    tab = tab or Finder.currentTab;
+    if   Finder.playerListTimer 
+    then RP_Find:CancelTimer(Finder.playerListTimer) 
+         Finder.playerListTimer = nil; 
+    end;
     self:ReleaseChildren();
 
     local scrollContainer = AceGUI:Create("SimpleGroup");
@@ -663,19 +792,17 @@ function Finder:CreateTabGroup()
     scrollFrame:SetLayout("Flow");
     scrollContainer:AddChild(scrollFrame);
     self.scrollFrame = scrollFrame;
-    -- scrollFrame:SetFullHeight(true);
     local panelFrame = Finder.MakeFunc[tab](Finder);
     scrollFrame:AddChild(panelFrame);
     self.current = panelFrame;
     Finder.currentTab = tab;
-    Finder:UpdateTitle();
 
+    if self:IsShown() then Finder:Update() end;
   end;
 
-  tabGroup:SetCallback("OnGroupSelected",
-    function(self, event, group)
-      self:LoadTab(group);
-    end);
+  tabGroup:SetCallback("OnGroupSelected", function(self, event, group) self:LoadTab(group); end);
+
+  function self:LoadTab(...) tabGroup:LoadTab(...) end; 
 
   self:AddChild(tabGroup);
   self.TabGroup = tabGroup;
@@ -686,10 +813,37 @@ Finder.MakeFunc = {}
 
 function Finder.MakeFunc.Display(self)
 
-  local panelFrame = AceGUI:Create("InlineGroup");
+  local panelFrame = AceGUI:Create("SimpleGroup");
         panelFrame:SetFullWidth(true);
         panelFrame:SetLayout("Flow");
   
+  local searchBar = AceGUI:Create("EditBox");
+        searchBar:SetRelativeWidth(0.38)
+        searchBar.editbox:SetTextColor(0.5, 0.5, 0.5);
+        searchBar:SetText("Search");
+        searchBar.editbox:HookScript("OnEditFocusGained",
+          function(self)
+            self:SetText(Finder.searchText or "")
+            self:SetTextColor(1, 1, 1);
+          end);
+  panelFrame:AddChild(searchBar);
+
+  local space1 = AceGUI:Create("Label"); space1:SetRelativeWidth(0.01); panelFrame:AddChild(space1);
+
+  local filterSelector = AceGUI:Create("Dropdown");
+        filterSelector:SetMultiselect(true);
+        filterSelector:SetRelativeWidth(0.38);
+        filterSelector:SetText("Filters");
+  panelFrame:AddChild(filterSelector);
+
+  local space2 = AceGUI:Create("Label"); space2:SetRelativeWidth(0.01); panelFrame:AddChild(space2);
+
+  local perPageSelector = AceGUI:Create("Dropdown");
+        perPageSelector:SetList(menu.perPage, menu.perPageOrder);
+        perPageSelector:SetText("Per Page");
+        perPageSelector:SetRelativeWidth(0.20);
+  panelFrame:AddChild(perPageSelector);
+
   local headers = AceGUI:Create("SimpleGroup");
         headers:SetLayout("Flow");
         headers:SetFullWidth(true);
@@ -697,6 +851,77 @@ function Finder.MakeFunc.Display(self)
   
   headers.list = {};
   
+  local columns = 
+  { { width    = 0.25,
+      title    = "Name",
+      method   = "GetRPName",
+      sorting  = "GetRPNameStripped",
+      colorize = false,
+    },
+    { width    = 0.18,
+      title    = "Server",
+      method   = "GetServer",
+      colorize = false, 
+    },
+    { width       = 0.15,
+      title       = "Flags",
+      method      = "GetFlags",
+      colorize    = false,
+    },
+    { width       = 0.08,
+      title       = "Tools",
+      method      = "LabelViewProfile",
+      callback    = "CmdViewProfile",
+      colorize    = false,
+      disableSort = true,
+    },
+    { width = 0.09,
+      title = "",
+      method = "LabelSendTell",
+      callback = "CmdSendTell",
+      colorize = false,
+      disableSort = true,
+    },
+    { width       = 0.06,
+      title       = "",
+      method      = "LabelSendPing",
+      callback    = "CmdSendPing",
+      colorize    = false,
+      disableSort = true,
+    },
+    { width = 0.09,
+      title = "",
+      method = "LabelReadAd",
+      callback = "CmdReadAd",
+      colorize = true,
+      disableSort = true,
+    },
+    { width = 0.08,
+      title = "",
+      method = "LabelInvite",
+      callback = "CmdInvite",
+      colorize = false,
+      disableSort = true,
+    },
+  };
+  
+  local recordSortField        = "GetRPNameStripped";
+  local recordSortFieldReverse = false;
+  
+  local function sortPlayerRecords(a, b)
+    local function helper(booleanValue)
+      if recordSortFieldReverse
+      then return not booleanValue
+      else return     booleanValue
+      end;
+    end;
+  
+    if a[recordSortField] and b[recordSortField]
+    then return a[recordSortField](a)  <  b[recordSortField](b)
+    end;
+  
+  end;
+
   local function ListHeader_SetRecordSortField(self, event, button)
     recordSortField = self.recordSortField;
     for headerName, header in pairs(headers.list)
@@ -713,80 +938,81 @@ function Finder.MakeFunc.Display(self)
         else   header:SetText(header.baseText)
         end;
     end;
-    Finder.TitleFunc[tab]();
+    Finder:UpdateTitle();
   end;
-    
+   
   local currentCol = 1;
 
-  local function makeListHeader(baseText, sortField)
+  local function makeListHeader(info)
     local newHeader = AceGUI:Create("InteractiveLabel");
-    newHeader:SetRelativeWidth(Finder.col[currentCol]);
+    newHeader.info = info;
+    newHeader.col = currentCol;
+    newHeader:SetRelativeWidth(info.width);
     currentCol = currentCol + 1;
-    newHeader.baseText = baseText;
-    if     recordSortField == sortField and recordSortFieldReverse
-    then   newHeader:SetText(baseText .. ARROW_UP);
-    elseif recordSortField == sortField
-    then   newHeader:SetText(baseText .. ARROW_DOWN);
-    else   newHeader:SetText(baseText);
+    newHeader.baseText = info.title;
+    if     recordSortField == info.method and recordSortFieldReverse
+    then   newHeader:SetText(info.title .. ARROW_UP);
+    elseif recordSortField == info.method 
+    then   newHeader:SetText(info.title .. ARROW_DOWN);
+    else   newHeader:SetText(info.title);
     end;
+    newHeader:SetFont("Fonts\\ARIALN.TTF", 12);
     newHeader:SetColor(1, 1, 0);
-    newHeader.recordSortField = sortField;
+    newHeader.recordSortField = info.sorting or info.method;
     newHeader:SetCallback("OnClick", ListHeader_SetRecordSortField);
     headers:AddChild(newHeader);
-    headers.list[baseText] = newHeader;
+    headers.list[info.title] = newHeader;
     return newHeader;
-   end;
+  end;
   
-  makeListHeader("Name",      "playerName");
-  makeListHeader("Last Seen", "timestamp" );
-  
-  playerListFrame = AceGUI:Create("SimpleGroup");
-  playerListFrame:SetFullWidth(true);
-  playerListFrame:SetFullHeight(true);
-  playerListFrame:SetLayout("Flow");
+  for i, info in ipairs(columns) do makeListHeader(info); end;
 
-  panelFrame:AddChild(playerListFrame);
+  local function buildLineFromPlayerRecord(playerRecord)
+    local line = AceGUI:Create("SimpleGroup");
+          line:SetFullWidth(true);
+          line:SetLayout("Flow");
+          line.playerName = playerName;
 
-  local scrollContainer = AceGUI:Create("SimpleGroup");
-        scrollContainer:SetFullWidth(true);
-        scrollContainer:SetFullHeight(true);
-        scrollContainer:SetLayout("Fill");
-  
-  function scrollContainer:Update()
+    for i, info in ipairs(columns)
+    do  
+        local field = AceGUI:Create("InteractiveLabel")
+        field:SetRelativeWidth(info.width)
+        field:SetFont("Fonts\\ARIALN.TTF", 12);
+
+        local valueFunc = playerRecord[info.method]
+        field:SetText(valueFunc(playerRecord));
+
+        line:AddChild(field)
+    end;
+
+    return line;
+  end;
+
+  local playerList = AceGUI:Create("SimpleGroup");
+  playerList:SetFullWidth(true);
+  playerList:SetFullHeight(true);
+  playerList:SetLayout("Flow");
+  panelFrame:AddChild(playerList);
+
+  function playerList:Update()
     self:ReleaseChildren();
-    local scrollFrame = AceGUI:Create("ScrollFrame");
-          scrollFrame:SetLayout("Fill");
-          self:AddChild(scrollFrame);
 
     local playerRecordList = RP_Find:GetAllPlayerRecords();
     table.sort(playerRecordList, sortPlayerRecords);
   
     for _, playerRecord in ipairs(playerRecordList)
-    do  local line = AceGUI:Create("SimpleGroup");
-              line:SetFullWidth(true);
-              line:SetLayout("Flow");
-              line.playerName = playerName;
-    
-        local nameField = AceGUI:Create("Label");
-              nameField:SetFontObject(GameFontNormalSmall);
-              nameField:SetText(playerRecord:GetPlayerName():gsub("-" .. RP_Find.realm, ""));
-              nameField:SetRelativeWidth(Finder.col[1]);
-    
-        local lastSeenField = AceGUI:Create("Label");
-              lastSeenField:SetFontObject(GameFontNormalSmall);
-              lastSeenField:SetText(playerRecord:GetHumanReadableTimestamp());
-              lastSeenField:SetRelativeWidth(Finder.col[2]);
-    
-        line:AddChild(nameField);
-        line:AddChild(lastSeenField);
-        scrollFrame:AddChild(line);
+    -- do  scrollFrame:AddChild(buildLineFromPlayerRecord(playerRecord));
+    do  playerList:AddChild(buildLineFromPlayerRecord(playerRecord));
     end;
-    return scrollFrame;
+
+    if not Finder.playerListTimer
+    then Finder.playerListTimer = RP_Find:ScheduleRepeatingTimer("Update", 10); 
+    end;
+
   end;
 
-  function panelFrame:Update(...) scrollContainer:Update(...); end;
+  function panelFrame:Update(...) playerList:Update(...) end;
 
-  if self:IsShown() then self.timer = RP_Find:ScheduleRepeatingTimer("Update", 10); end;
   return panelFrame;
 end;
 
@@ -804,29 +1030,12 @@ function Finder.TitleFunc.LFG(self, ...)
   end;
 end;
 
-function Finder.TitleFunc.Ads(self, ...)
-  self:SetTitle(RP_Find.addOnTitle .. "- Ads"); 
-end;
-
-function Finder.TitleFunc.Tools(self, ...)
-  self:SetTitle(L["Format Finder Title Tools"]);
-end;
-
-function Finder.UpdateFunc.Display(self, ...)
-  self.TabGroup.current:Update();
-end;
-
-function Finder.UpdateFunc.LFG(self, ...)
-  self.TabGroup.current:Update();
-end;
-
-function Finder.UpdateFunc.Tools(self, ...)
-  self.TabGroup.current:Update();
-end;
-
-function Finder.UpdateFunc.Ads(self, ...)
-  self.TabGroup.current:Update();
-end;
+function Finder.TitleFunc.Ads(self, ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
+function Finder.TitleFunc.Tools(self, ...) self:SetTitle(L["Format Finder Title Tools"]); end;
+function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.LFG(self, ...) self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Tools(self, ...) self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Ads(self, ...) self.TabGroup.current:Update(); end;
 
 function Finder:UpdateTitle(event, ...)
   local title = self.TitleFunc[self.currentTab]
@@ -836,6 +1045,7 @@ end;
 function Finder:UpdateContent(event, ...)
   local update = self.UpdateFunc[self.currentTab]
   if update then update(self) end;
+  self:DoLayout();
 end;
 
 function Finder:Update(event, ...)
@@ -854,43 +1064,74 @@ function Finder.MakeFunc.Ads(self)
   headline:SetText("Ads");
   panelFrame:AddChild(headline);
 
+  local adultToggle = AceGUI:Create("CheckBox");
+
   local titleField = AceGUI:Create("EditBox");
   titleField:SetLabel("Ad Title");
-  titleField:SetText(RP_Find.db.profile.config.ad.title or "");
+  titleField:SetText(RP_Find.db.profile.ad.title or "");
   titleField:SetFullWidth(true);
   titleField:SetCallback("OnEnterPressed",
     function(self, event, value)
-      RP_Find.db.profile.config.ad.title = value;
+      RP_Find.db.profile.ad.title = value;
+      if RP_Find:ScanForAdultContent(value)
+      then RP_Find.db.profile.ad.adult = true
+           adultToggle:SetValue(true);
+      end;
     end);
+  function titleField:ResetValue()
+     RP_Find.db.profile.ad.title = self.defaults.profile.ad.title;
+     self:SetValue(self.defaults.profile.ad.title);
+  end;
   panelFrame:AddChild(titleField);
-
-  local adultToggle = AceGUI:Create("CheckBox");
 
   local bodyField = AceGUI:Create("MultiLineEditBox");
   bodyField:SetLabel("Ad Text");
-  bodyField:SetText(RP_Find.db.profile.config.ad.body or "");
+  bodyField:SetText(RP_Find.db.profile.ad.body);
   bodyField:SetFullWidth(true);
   bodyField:SetNumLines(8);
   bodyField:SetCallback("OnEnterPressed",
     function(self, event, value)
-      RP_Find.db.profile.config.ad.body = value;
+      RP_Find.db.profile.ad.body = value;
      
-      if RP_Find:ScanForAdultContent(value)
-      then RP_Find.db.profile.config.ad.adult = true;
+      if   RP_Find:ScanForAdultContent(value)
+      then RP_Find.db.profile.ad.adult = true;
            adultToggle:SetValue(true);
       end;
     end);
+  function bodyField:ResetValue()
+     RP_Find.db.profile.ad.body = self.defaults.profile.ad.body;
+     self:SetValue(self.defaults.profile.ad.body);
+  end;
   panelFrame:AddChild(bodyField);
 
   adultToggle:SetLabel("This is an adult ad.");
   adultToggle:SetFullWidth(true);
-  adultToggle:SetValue(RP_Find.db.profile.config.ad.adult)
+  adultToggle:SetValue(RP_Find.db.profile.ad.adult)
   adultToggle:SetCallback("OnValueChanged",
     function(self, event, value)
-      RP_Find.db.profile.config.ad.adult = value;
+      RP_Find.db.profile.ad.adult = value;
     end);
+  function adultToggle:ResetValue()
+     RP_Find.db.profile.ad.adult = self.defaults.profile.ad.adult;
+     self:SetValue(self.defaults.profile.ad.adult);
+  end;
 
   panelFrame:AddChild(adultToggle);
+
+  local attachProfileToggle = AceGUI:Create("CheckBox");
+  attachProfileToggle:SetLabel("Attach Your Profile")
+  attachProfileToggle:SetFullWidth(true);
+  attachProfileToggle:SetValue(RP_Find.db.profile.ad.attachProfile)
+  attachProfileToggle:SetCallback("OnValueChanged",
+    function(self, event, value)
+      RP_Find.db.profile.ad.attachProfile = value;
+    end);
+  function attachProfileToggle:ResetValue()
+     RP_Find.db.profile.ad.attachProfile = self.defaults.profile.ad.adult;
+     self:SetValue(self.defaults.profile.ad.attachProfile);
+  end;
+
+  panelFrame:AddChild(attachProfileToggle);
 
   local sendAdButton = AceGUI:Create("Button");
 
@@ -902,6 +1143,19 @@ function Finder.MakeFunc.Ads(self)
   end;
 
   reEnableSendAd();
+
+  local clearAdButton = AceGUI:Create("Button");
+  clearAdButton:SetText("Clear Ad");
+  clearAdButton:SetRelativeWidth(0.25);
+  clearAdButton:SetCallback("OnClick",
+    function(Self, event, ...)
+      titleField:ResetValue();
+      bodyField:ResetValue();
+      adultToggle:ResetValue();
+      attachProfileToggle:ResetValue();
+      RP_Find:Notify("Your ad has been cleared.");
+    end);
+
 
   sendAdButton:SetText("Send Ad");
   sendAdButton:SetRelativeWidth(0.25);
@@ -916,7 +1170,7 @@ function Finder.MakeFunc.Ads(self)
 
   bodyField:SetCallback("OnEnterPressed",
     function(self, event, value)
-      RP_Find.db.profile.config.ad.body = value;
+      RP_Find.db.profile.ad.body = value;
     end);
   function panelFrame:Update() return end;
 
@@ -999,6 +1253,7 @@ function Finder.MakeFunc.LFG(self)
 
   function panelFrame:Update() return end;
   return panelFrame;
+
 end;
 
 function Finder.MakeFunc.Tools(self)
@@ -1066,10 +1321,7 @@ function Finder.MakeFunc.Tools(self)
   return panelFrame;
 end;
 
-Finder:CreateTabGroup();
-Finder.TabGroup:LoadTab(Finder.TabList[1].value);
 Finder:Hide();
-
 RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
@@ -1501,6 +1753,11 @@ function RP_Find:OnEnable()
   end;
 
   self:ShowOrHideMinimapButton();
+
+  self.Finder:CreateButtonBar();
+  self.Finder:CreateTabGroup();
+
+  self.Finder:LoadTab("Ads");
 end;
 
 function RP_Find:RegisterPlayer(playerName, server)
@@ -1512,7 +1769,8 @@ function RP_Find:RegisterMspReceived()
   tinsert(msp.callback.received, 
     function(playerName) 
       if   self.db.profile.config.monitorMSP and playerName ~= self.me
-      then self:GetPlayerRecord(playerName, server);
+      then local playerRecord = self:GetPlayerRecord(playerName, server);
+           playerRecord:UnpackMSPData();
            if   self.Finder.currentTab == "Display"
            then self.Finder:Update();
            end;
@@ -1641,9 +1899,14 @@ function RP_Find:CreateAdText()
   add("race", getRace())
   add("class", getClass());
   add("addon", getAddon());
-  add("title", self.db.profile.config.ad.title);
-  add("body", self.db.profile.config.ad.body);
-  add("adult", self.db.profile.config.ad.adult);
+  add("title", self.db.profile.ad.title);
+  add("body", self.db.profile.ad.body);
+  add("adult", self.db.profile.ad.adult);
+  if   self.db.profile.ad.attachProfile and msp and msp.my
+  then for field, value in pairs(msp.my)
+       do  add("MSP-" .. field, value)
+       end;
+  end;
 
   return text;
 end;
