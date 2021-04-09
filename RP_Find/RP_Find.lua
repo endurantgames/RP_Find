@@ -44,41 +44,10 @@ local col = {
 };
 
 local zoneList =
-{ 1,     7,     10,    14,    15,    17,    18,    21,
-  22,    23,    25,    26,    27,    32,    36,    37,
-  42,    47,    48,    49,    50,    51,    52,    56,
-  57,    62,    63,    64,    65,    66,    69,    70,
-  71,    76,    77,    78,    80,    81,    83,    84,
-  85,    87,    88,    89,    90,    94,    95,    97,
-  100,   102,   103,   104,   105,   106,   107,   108,
-  109,   110,   111,   114,   115,   116,   117,   118,
-  119,   120,   121,   122,   123,   127,   170,   174,
-  194,   198,   199,   201,   202,   203,   204,   205,
-  207,   210,   217,   224,   241,   244,   245,   249,
-  276,   371,   376,   379,   388,   390,   418,   422,
-  425,   433,   460,   461,   462,   463,   465,   467,
-  468,   469,   504,   507,   525,   534,   535,   539,
-  542,   543,   550,   554,   588,   630,   634,   641,
-  646,   650,   680,   739,   790,   830,   862,   863,
-  864,   882,   885,   895,   896,   942,   997,   998,
-  1010,  1022,  1032,  1033,  1034,  1035,  1036,  1037,
-  1039,  1041,  1158,  1161,  1165,  1169,  1170,  1187,
-  1188,  1189,  1190,  1191,  1192,  1193,  1194,  1195,
-  1196,  1197,  1198,  1244,  1245,  1246,  1247,  1248,
-  1249,  1250,  1251,  1252,  1253,  1254,  1255,  1256,
-  1257,  1258,  1259,  1260,  1261,  1262,  1263,  1264,
-  1265,  1266,  1267,  1268,  1269,  1270,  1271,  1272,
-  1273,  1274,  1275,  1276,  1277,  1305,  1306,  1307,
-  1308,  1309,  1310,  1311,  1312,  1313,  1314,  1315,
-  1316,  1317,  1318,  1319,  1320,  1321,  1322,  1323,
-  1324,  1325,  1326,  1327,  1328,  1329,  1330,  1331,
-  1334,  1335,  1336,  1337,  1339,  1347,  1355,  1362,
-         1396,  1397,  1398,  1399,  1400,  1401,  1402,
-  1403,  1404,  1405,  1406,  1408,  1462,  1523,  1525,
-  1527,  1530,  1533,  1536,  1543,  1565,  1569,  1577,
-  1643,  1740,  1741,  1742,
-};
-local zoneEquiv = {};
+{ 1, 7, 10, 18, 21, 22, 23, 27, 37, 47, 49, 52, 57, 64, 71, 76, 80, 83, 84, 85, 87,
+88, 89, 90, 94, 103, 110, 111, 199, 202, 210, 217, 224, 390, 1161, 1259, 1271, 1462,
+1670, };
+
 local zoneBacklink = {};
 
 local function getZoneFromMapID(mapID)
@@ -138,17 +107,16 @@ do  local info = C_Map.GetMapInfo(mapID);
     then menu.zone[mapID] = info.name;
          table.insert(menu.zoneOrder, mapID);
          zoneBacklink[info.name] = mapID;
-    else zoneEquiv[mapID] = zoneBacklink[info.name]
     end;
 end;
 
-local function sortZones(a, b)
-  local nameA = menu.zone[a];
-  local nameB = menu.zone[b];
-  return nameA < nameB;
-end;
+-- we can't just pre-define an order because it's going to vary from language to language
+--
+local function sortSounds(a, b) return menu.notifySound[a] < menu.notifySound[b]; end;
+local function sortZones( a, b) return menu.zone[a       ] < menu.zone[b       ]; end;
 
 table.sort(menu.zoneOrder, sortZones)
+table.sort(menu.notifySound, sortSounds);
 
 local function split(str, pat)
   local t = {};
@@ -169,9 +137,7 @@ local function split(str, pat)
   return t;
 end;
 
-local RP_Find = AceAddon:NewAddon(
-                  addOnName, 
-                  "AceConsole-3.0", "AceEvent-3.0", 
+local RP_Find = AceAddon:NewAddon(addOnName, "AceConsole-3.0", "AceEvent-3.0", 
                   "AceTimer-3.0" , "LibToast-1.0");
 
 RP_Find.addOnName    = addOnName;
@@ -179,6 +145,8 @@ RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
 RP_Find.addOnIcon    = "Interface\\ICONS\\inv_misc_tolbaradsearchlight";
 RP_Find.addOnToast   = "RP_Find_notify";
+RP_Find.timers       = {};
+RP_Find.last         = {};
 
 local popup =
   { deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
@@ -231,17 +199,17 @@ function RP_Find:PurgePlayer(name)
 end;
 
 function RP_Find:StartOrStopPruningTimer()
-  if     self.pruningTimer and self.db.profile.config.repeatSmartPruning 
+  if     self.timers.pruning and self.db.profile.config.repeatSmartPruning 
   then 
-  elseif self.pruningTimer
-  then   self:CancelTimer(self.pruningTimer);
-         self.pruningTimer = nil;
+  elseif self.timers.pruning
+  then   self:CancelTimer(self.timers.pruning);
+         self.timers.pruning = nil;
   elseif self.db.profile.config.repeatSmartPruning -- and not self.pruningTimer
-  then   self.pruningTimer = 
+  then   self.timers.pruning = 
            self:ScheduleRepeatingTimer(
              "SmartPruneDatabase", 
              15 * SECONDS_PER_MIN );
-  else   -- not self.pruningTimer and not repeatSmartPruning 
+  else   -- not self.timers.pruning and not repeatSmartPruning 
   end;
 end;
 
@@ -358,12 +326,7 @@ end;
 function RP_Find:GetPlayerRecord(playerName, server)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
-
-  if   self.playerRecords[playerName]
-  then return self.playerRecords[playerName]
-  else return self:NewPlayerRecord(playerName)
-  end;
-
+  return self.playerRecords[playerName] or self:NewPlayerRecord(playerName);
 end;
 
 function RP_Find:GetAllPlayerRecords() 
@@ -421,13 +384,11 @@ function RP_Find:CountLFGGroups()
 end;
 
 function RP_Find:ScanForAdultContent(text)
-  print("text is", text);
   if not text then return false end;
   if not self.badWords then self.badWords = split(L["Adult Content Patterns"], "\n"); end;
   text:gsub("%W+", " "):lower();
   for _, pattern in pairs(self.badWords)
-  do  print("checking pattern", pattern, pattern:len());
-      if text:match("%s" .. pattern .. "%s") then return true; end;
+  do  if text:match("%s" .. pattern .. "%s") then return true; end;
   end;
   return false;
 end;
@@ -465,6 +426,21 @@ function RP_Find.OnMinimapButtonEnter(frame)
 end;
 
 function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
+
+function RP_Find:SendWhisper(playerName, message, position)
+  local delta = time() - (self.last.sendWhisper or 0) 
+  if   delta <= 5 * SECONDS_PER_MIN
+  then self:Notify("Sorry, you can only send one whisper through " .. self.addOnTitle ..
+        " every 5 minutes. Please wait another " .. 5 * SECONDS_PER_MIN - delta .. " seconds.");
+  else local messageStart = "/tell " .. playerName .. " " .. (message or "");
+       if   ChatEdit_GetActiveWindow()
+       then ChatEdit_GetActiveWindow():ClearFocus();
+       end;
+       ChatFrame_OpenChat(messageStart, nil, position)
+       self.last.sendWhisper = time();
+       self:Update();
+  end;
+end;
 
 RP_Find.PlayerMethods =
 { 
@@ -574,16 +550,30 @@ RP_Find.PlayerMethods =
 
   ["LabelViewProfile" ] =
     function(self)
-      return ( _G["AddOn_TotalRP3"] or _G["mrp"] ) and "Profile" or "" 
+      return "Profile", _G["AddOn_TotalRP3"] ~= nil and _G["mrp"] ~= nil
     end,
 
-  ["LabelSendPing"] = function(self) return "Ping" end,
+  ["LabelSendPing"] = 
+    function(self) 
+      return "Ping", time() - (RP_Find.last.pingPlayer or 0) < 1 * SECONDS_PER_MIN 
+    end,
 
-  ["LabelSendTell"] = function(self) return "Whisper" end,
+  ["LabelSendTell"] = 
+    function(self) 
+      return "Whisper", time() - (RP_Find.last.sendWhisper or 0) < 5 * SECONDS_PER_MIN
+    end,
 
-  ["LabelReadAd"] = function(self) return "Read Ad" end,
+  ["CmdSendTell"] = 
+    function(self, event, ...) 
+      RP_Find:SendWhisper(self.playerName, "((  ))", 3) 
+    end,
 
-  ["LabelInvite"] = function(self) return "Invite" end,
+  ["LabelReadAd"]   = function(self) return "Read Ad", self:Get("ad") == nil end,
+
+  ["LabelInvite"]   = 
+    function(self) 
+      return "Invite", time() - (RP_Find.last.sendInvite or 0) < 5 * SECONDS_PER_MIN
+    end,
 
   ["UnpackMSPData"] =
     function(self)
@@ -685,7 +675,7 @@ Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
   function(self, event, ...)
-    if self.timer then RP_Find:CancelTimer(self.timer) self.timer = nil; end;
+    -- if self.timer then RP_Find:CancelTimer(self.timer) self.timer = nil; end;
   end);
 
 _G[finderFrameName] = Finder.frame;
@@ -775,22 +765,22 @@ function Finder:CreateTabGroup()
 
   function tabGroup:LoadTab(tab)
     tab = tab or Finder.currentTab;
-    if   Finder.playerListTimer 
-    then RP_Find:CancelTimer(Finder.playerListTimer) 
-         Finder.playerListTimer = nil; 
+    if   RP_Find.timers.playerList 
+    then RP_Find:CancelTimer(RP_Find.timers.playerList) 
+         RP_Find.timers.playerList = nil; 
     end;
     self:ReleaseChildren();
 
     local scrollContainer = AceGUI:Create("SimpleGroup");
-    scrollContainer:SetFullWidth(true);
-    scrollContainer:SetFullHeight(true);
-    scrollContainer:SetLayout("Fill");
+          scrollContainer:SetFullWidth(true);
+          scrollContainer:SetFullHeight(true);
+          scrollContainer:SetLayout("Fill");
     self.scrollContainer = scrollContainer;
     self:AddChild(scrollContainer);
 
     local scrollFrame = AceGUI:Create("ScrollFrame");
-    scrollFrame:SetLayout("Flow");
-    scrollContainer:AddChild(scrollFrame);
+          scrollFrame:SetLayout("Flow");
+          scrollContainer:AddChild(scrollFrame);
     self.scrollFrame = scrollFrame;
     local panelFrame = Finder.MakeFunc[tab](Finder);
     scrollFrame:AddChild(panelFrame);
@@ -878,8 +868,8 @@ function Finder.MakeFunc.Display(self)
     { width = 0.09,
       title = "",
       method = "LabelSendTell",
-      callback = "CmdSendTell",
-      colorize = false,
+      callback    = "CmdSendTell",
+      colorize    = false,
       disableSort = true,
     },
     { width       = 0.06,
@@ -980,7 +970,19 @@ function Finder.MakeFunc.Display(self)
         field:SetFont("Fonts\\ARIALN.TTF", 12);
 
         local valueFunc = playerRecord[info.method]
-        field:SetText(valueFunc(playerRecord));
+        local text, disabled = valueFunc(playerRecord);
+
+        field:SetText(text);
+        field:SetDisabled(disabled);
+
+        if   info.callback and RP_Find.PlayerMethods[info.callback]
+        then 
+             field:SetCallback("OnClick", 
+               function(self, ...) 
+                 local callback = playerRecord[info.callback]; 
+                 callback(playerRecord, ...); 
+                end);
+        end;
 
         line:AddChild(field)
     end;
@@ -1001,12 +1003,11 @@ function Finder.MakeFunc.Display(self)
     table.sort(playerRecordList, sortPlayerRecords);
   
     for _, playerRecord in ipairs(playerRecordList)
-    -- do  scrollFrame:AddChild(buildLineFromPlayerRecord(playerRecord));
     do  playerList:AddChild(buildLineFromPlayerRecord(playerRecord));
     end;
 
-    if not Finder.playerListTimer
-    then Finder.playerListTimer = RP_Find:ScheduleRepeatingTimer("Update", 10); 
+    if not RP_Find.timers.playerList
+    then RP_Find.timers.playerList = RP_Find:ScheduleRepeatingTimer("Update", 10); 
     end;
 
   end;
@@ -1421,17 +1422,6 @@ function RP_Find:OnInitialize()
             set       = function(info, value) self.db.profile.config.monitorTRP3  = value end,
             width     = "full",
           },
-          --[[
-        },
-      },
-
-      notifyOptions =
-      { type = "group",
-        name = L["Config Notify"],
-        order = 2,
-        args = 
-        {
-          --]]
           notifyOptions =
           { type = "group",
             inline = true,
@@ -1851,7 +1841,6 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
        end;
        if count > 0
        then 
-            print("There are", count, "fields");
             local playerData = RP_Find:GetPlayerRecord(sender);
             playerData:Set("ad", ad);
             if   RP_Find.db.profile.config.notifyLFRP
