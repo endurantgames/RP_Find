@@ -64,6 +64,11 @@ L["Config Show Icon"                   ] = "Show Icon";
 L["Config TRP3"                        ] = "Total RP 3 Options";
 L["Config Smart Pruning"               ] = "Smart Pruning";
 L["Config See Adult Ads"               ] = "See Adult Ads";
+L["Display View Profile Tooltip"] = "Click to open the player's profile in your RP addon.";
+L["Display Send Tell Tooltip"] = "Click to open the chat window to send an OOC message to this player.";
+L["Display Send Ping Tooltip"] = "Click to send a silent request to the player's RP addon, asking to refresh their profile.";
+L["Display Read Ad Tooltip"] = "Click to view the player's LFRP ad.";
+L["Display Send Invite Tooltip"] = "Click to invite the player to join your party or raid.";
 L["Config See Adult Ads Tooltip"       ] = "Some ads may be inappropriate for a younger audience. Check this box to see any ads marked as such.";
 L["Adult Content Patterns"             ] = "fuck%S*|%S*shit";
 -- L["Config Use Smart Pruning"           ] = "Use Smart Pruning";
@@ -122,6 +127,49 @@ L["Sound Voice Out"                    ] = "Voice Out";
 L["Version Info"                       ] = "You're running " .. addOnTitle .. " version " .. col.blue(addOnVersion) .. " (" .. addOnDate .. ").\n\n";
 L["Warning High Memory GB"             ] = "\n\n" .. col.red("Warning:") .. " This is an " .. col.red("extremely") .. " high amount of memory. You should choose one of the options here to adjust your memory usage.";
 L["Warning High Memory MB"             ] = "\n\n" .. col.yellow("Warning:") .. " This is a high amount, and you should consider using one of the options here to adjust your memory usage.";
+
+--[[
+  
+  NSFW: This space deliberately kept blank
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--]]
 
 L["Adult Content Patterns"] = 
 [===[

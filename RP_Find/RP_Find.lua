@@ -43,6 +43,13 @@ local col = {
   addon  = function(str) return     RP_FIND_FONT_COLOR:WrapTextInColorCode(str) end,
 };
 
+
+local addon = {};
+for i = 1, GetNumAddOns()
+do local name, _, _, enabled = GetAddOnInfo(i);
+   if name then addon[name] = enabled; end;
+end;
+
 local zoneList =
 { 1, 7, 10, 18, 21, 22, 23, 27, 37, 47, 49, 52, 57, 64, 71, 76, 80, 83, 84, 85, 87,
 88, 89, 90, 94, 103, 110, 111, 199, 202, 210, 217, 224, 390, 1161, 1259, 1271, 1462,
@@ -148,6 +155,7 @@ local RP_Find = AceAddon:NewAddon(addOnName, "AceConsole-3.0", "AceEvent-3.0",
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
+RP_Find.addOnDesc    = GetAddOnMetadata(addOnName, "Notes");
 RP_Find.addOnIcon    = "Interface\\ICONS\\inv_misc_tolbaradsearchlight";
 RP_Find.addOnToast   = "RP_Find_notify";
 RP_Find.timers       = {};
@@ -497,7 +505,7 @@ RP_Find.PlayerMethods =
     end,
 
   ["GetRP"] = 
-    function(self, field, mspField)
+    function(self, field, mspField, trp3Field)
       return self:Get("rp_" .. field) or self:GetMSP(mspField) or self:Get(field) or ""
     end,
 
@@ -527,6 +535,7 @@ RP_Find.PlayerMethods =
       local name = self:GetRPName();
       return name:gsub("|c%x%x%x%x%x%x%x%x",""):gsub("|r","");
     end,
+
 
   -- we probably aren't going to use all of these
   ["GetRPClass"      ] = function(self) return self:GetRP("class",       "RC") end,
@@ -571,23 +580,48 @@ RP_Find.PlayerMethods =
 
   ["LabelViewProfile" ] =
     function(self)
-      return "Profile", _G["AddOn_TotalRP3"] ~= nil and _G["mrp"] ~= nil
+      return "Profile", not addon.MyRolePlay and not addon.totalRP3
     end,
 
   ["CmdViewProfile"] =
     function(self)
-      RP_Find.adFrame:SetPlayerRecord(self);
-      RP_Find.adFrame:Show();
+      if     addon.MyRolePlay
+      then   SlashCmdList["MYROLEPLAY"]("open " .. self.playerName);
+             RP_Find.Finder:Hide();
+      elseif addon.totalRP3
+      then   SlashCmdList["TOTALRP3"]("open " .. self.playerName);
+             RP_Find.Finder:Hide();
+      else   RP_Find:Notify("Unable to open profile for " .. self.playerName);
+      end;
     end,
 
   ["LabelSendPing"] = 
     function(self) 
-      return "Ping", time() - (RP_Find.last.pingPlayer or 0) < 1 * SECONDS_PER_MIN 
+      return "Ping", 
+        not msp and time() - (RP_Find.last.pingPlayer or 0) < 1 * SECONDS_PER_MIN
+    end,
+
+  ["CmdSendPing"] =
+    function(self)
+      local pingSent = false;
+      if addon.totalRP3
+      then TRP3_API.r.sendMSPQuery(self.playerName);
+           TRP3_API.r.sendQuery(self.playerName);
+           pingSent = true;
+      elseif msp
+      then msp:Request(self.playerName, RP_Find.mspFields);
+           pingSent = true;
+      end;
+      if   pingSent 
+      then RP_Find:Notify("Ping sent to", self.playerName) 
+           RP_Find.last.pingPlayer = time();
+      end;
     end,
 
   ["LabelSendTell"] = 
     function(self) 
-      return "Whisper", time() - (RP_Find.last.sendWhisper or 0) < 5 * SECONDS_PER_MIN
+      return "Whisper", 
+        time() - (RP_Find.last.sendWhisper or 0) < 5 * SECONDS_PER_MIN
     end,
 
   ["CmdSendTell"] = 
@@ -595,11 +629,25 @@ RP_Find.PlayerMethods =
       RP_Find:SendWhisper(self.playerName, "((  ))", 3) 
     end,
 
-  ["LabelReadAd"]   = function(self) return "Read Ad", self:Get("ad") == nil end,
+  ["LabelReadAd"]   = 
+    function(self) 
+      local ad = self:Get("ad");
+      return "Read Ad", 
+        not ad 
+        or self.playerName == RP_Find.me
+        or (ad.adult and not RP_Find.db.profile.config.seeAdultAds)
+    end,
 
   ["LabelInvite"]   = 
     function(self) 
-      return "Invite", time() - (RP_Find.last.sendInvite or 0) < 5 * SECONDS_PER_MIN
+      return "Invite", 
+        time() - (RP_Find.last.sendInvite or 0) < 5 * SECONDS_PER_MIN
+    end,
+
+  ["CmdReadAd"] =
+    function(self)
+      RP_Find.adFrame:SetPlayerRecord(self);
+      RP_Find.adFrame:Show();
     end,
 
   ["UnpackMSPData"] =
@@ -609,6 +657,49 @@ RP_Find.PlayerMethods =
       if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
       then   for field, value in pairs(mspData.field) do self:Set("MSP-" .. field, value); end;
       end;
+      RP_Find:Update();
+    end,
+
+  ["UnpackTRP3Data"] =
+    function(self)
+      local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
+
+      local char = profile.character or {};
+      local ristics = profile.characteristics or {};
+      local miscRistics = {}
+
+      if ristics.MI
+      then for i, item in ipairs(ristics.MI)
+           do miscRistics[item.NA:lower()] = item.VA;
+           end;
+      end;
+
+      -- as with :GetRP, we're probably not going to use all of these
+      --
+      self:Set("rp_name",       ristics.FN);
+      self:Set("rp_class",      ristics.CL);
+      self:Set("rp_race",       ristics.RA);
+      self:Set("rp_icon",       ristics.IC);
+      self:Set("rp_status",     char.RP)
+      self:Set("rp_age",        ristics.AG);
+      self:Set("rp_eyecolor",   ristics.EC);
+      self:Set("rp_height",     ristics.HE);
+      self:Set("rp_weight",     ristics.WE);
+      self:Set("rp_oocinfo",    char.CO);
+      self:Set("rp_currently",  char.CU);
+      self:Set("rp_style",      char.RP);
+      self:Set("rp_birthplace", ristics.BP);
+      self:Set("rp_home",       ristics.RE);
+      self:Set("rp_motto",      miscRistics.motto);
+      self:Set("rp_house",      miscRistics["house name"]);
+      self:Set("rp_nick",       miscRistics.nickname);
+      self:Set("rp_title",      ristics.FT);
+      self:Set("rp_pronouns",   miscRistics.pronouns);
+      self:Set("rp_honorific",  ristics.TI);
+      self:Set("rp_rstatus",    ristics.RS);
+      self:Set("have_trp3Data", true);
+
+      RP_Find:Update();
     end,
 
   ["GetTimestamp"] =
@@ -683,7 +774,6 @@ RP_Find.defaults =
       title = "",
       body = "",
       adult = false,
-      sendProfile = true,
     },
   },
 };
@@ -902,41 +992,52 @@ function Finder.MakeFunc.Display(self)
     },
     { width       = 0.15,
       title       = "Flags",
+      flags       = true,
       method      = "GetFlags",
       colorize    = false,
     },
     { width       = 0.08,
       title       = "Tools",
+      ttTitle     = "Open Profile",
       method      = "LabelViewProfile",
       callback    = "CmdViewProfile",
       colorize    = false,
+      tooltip     = L["Display View Profile Tooltip"],
       disableSort = true,
     },
     { width = 0.09,
       title = "",
+      ttTitle = "Send Whisper to Player",
       method = "LabelSendTell",
       callback    = "CmdSendTell",
       colorize    = false,
       disableSort = true,
+      tooltip = L["Display Send Tell Tooltip"],
     },
     { width       = 0.06,
       title       = "",
+      ttTitle = "Ping Player",
       method      = "LabelSendPing",
       callback    = "CmdSendPing",
+      tooltip = L["Display Send Ping Tooltip"],
       colorize    = false,
       disableSort = true,
     },
     { width = 0.09,
       title = "",
+      ttTitle = "Read LFRP Ad",
       method = "LabelReadAd",
       callback = "CmdReadAd",
+      tooltip = L["Display Read Ad Tooltip"],
       colorize = true,
       disableSort = true,
     },
     { width = 0.08,
       title = "",
+      ttTitle = "Invite Player",
       method = "LabelInvite",
       callback = "CmdInvite",
+      tooltip = L["Display Send Invite Tooltip"],
       colorize = false,
       disableSort = true,
     },
@@ -1022,6 +1123,17 @@ function Finder.MakeFunc.Display(self)
         field:SetText(text);
         field:SetDisabled(disabled);
 
+        if info.tooltip
+        then field:SetCallback("OnEnter",
+            function(self, ...)
+              GameTooltip:ClearLines();
+              GameTooltip:SetOwner(self.frame, "ANCHOR_BOTTOMRIGHT");
+              GameTooltip:AddLine(info.ttTitle or info.title)
+              GameTooltip:AddLine(info.tooltip, 1, 1, 1, true);
+              GameTooltip:Show();
+            end);
+            field:SetCallback("OnLeave", function(self, ...) GameTooltip:Hide() end);
+        end;
         if   info.callback and RP_Find.PlayerMethods[info.callback]
         then 
              field:SetCallback("OnClick", 
@@ -1172,79 +1284,24 @@ function Finder.MakeFunc.Ads(self)
   
   local headline = AceGUI:Create("Heading");
   headline:SetFullWidth(true);
-  headline:SetText("Ads");
+  headline:SetText("Your Ad");
   panelFrame:AddChild(headline);
 
-  local adultToggle = AceGUI:Create("CheckBox");
+  local sendAdButton    = AceGUI:Create("Button");
+  local clearAdButton   = AceGUI:Create("Button");
+  local previewAdButton = AceGUI:Create("Button");
+  local adultToggle     = AceGUI:Create("CheckBox");
+  local titleField      = AceGUI:Create("EditBox");
+  local bodyField       = AceGUI:Create("MultiLineEditBox");
 
-  local titleField = AceGUI:Create("EditBox");
-  titleField:SetLabel("Ad Title");
-  titleField:SetText(RP_Find.db.profile.ad.title or "");
-  titleField:SetFullWidth(true);
-  titleField:SetCallback("OnEnterPressed",
-    function(self, event, value)
-      RP_Find.db.profile.ad.title = value;
-      if RP_Find:ScanForAdultContent(value)
-      then RP_Find.db.profile.ad.adult = true
-           adultToggle:SetValue(true);
-      end;
-    end);
-  function titleField:ResetValue()
-     RP_Find.db.profile.ad.title = self.defaults.profile.ad.title;
-     self:SetValue(self.defaults.profile.ad.title);
+  local function showPreview(self, event, button)
+    local myRecord = RP_Find:LoadSelfRecord();
+    myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
+    myRecord:Set("ad_body", RP_Find.db.profile.ad.body);
+    myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);
+    RP_Find.adFrame:SetPlayerRecord(myRecord);
+    RP_Find.adFrame:Show();
   end;
-  panelFrame:AddChild(titleField);
-
-  local bodyField = AceGUI:Create("MultiLineEditBox");
-  bodyField:SetLabel("Ad Text");
-  bodyField:SetText(RP_Find.db.profile.ad.body);
-  bodyField:SetFullWidth(true);
-  bodyField:SetNumLines(8);
-  bodyField:SetCallback("OnEnterPressed",
-    function(self, event, value)
-      RP_Find.db.profile.ad.body = value;
-     
-      if   RP_Find:ScanForAdultContent(value)
-      then RP_Find.db.profile.ad.adult = true;
-           adultToggle:SetValue(true);
-      end;
-    end);
-  function bodyField:ResetValue()
-     RP_Find.db.profile.ad.body = self.defaults.profile.ad.body;
-     self:SetValue(self.defaults.profile.ad.body);
-  end;
-  panelFrame:AddChild(bodyField);
-
-  adultToggle:SetLabel("This is an adult ad.");
-  adultToggle:SetFullWidth(true);
-  adultToggle:SetValue(RP_Find.db.profile.ad.adult)
-  adultToggle:SetCallback("OnValueChanged",
-    function(self, event, value)
-      RP_Find.db.profile.ad.adult = value;
-    end);
-  function adultToggle:ResetValue()
-     RP_Find.db.profile.ad.adult = self.defaults.profile.ad.adult;
-     self:SetValue(self.defaults.profile.ad.adult);
-  end;
-
-  panelFrame:AddChild(adultToggle);
-
-  local attachProfileToggle = AceGUI:Create("CheckBox");
-  attachProfileToggle:SetLabel("Attach Your Profile")
-  attachProfileToggle:SetFullWidth(true);
-  attachProfileToggle:SetValue(RP_Find.db.profile.ad.attachProfile)
-  attachProfileToggle:SetCallback("OnValueChanged",
-    function(self, event, value)
-      RP_Find.db.profile.ad.attachProfile = value;
-    end);
-  function attachProfileToggle:ResetValue()
-     RP_Find.db.profile.ad.attachProfile = self.defaults.profile.ad.adult;
-     self:SetValue(self.defaults.profile.ad.attachProfile);
-  end;
-
-  panelFrame:AddChild(attachProfileToggle);
-
-  local sendAdButton = AceGUI:Create("Button");
 
   local function reEnableSendAd()
     if time() - (RP_Find.Finder.lastAdTime or 0) >= 60
@@ -1255,21 +1312,35 @@ function Finder.MakeFunc.Ads(self)
 
   reEnableSendAd();
 
-  local clearAdButton = AceGUI:Create("Button");
   clearAdButton:SetText("Clear Ad");
-  clearAdButton:SetRelativeWidth(0.25);
+  clearAdButton:SetRelativeWidth(0.20);
   clearAdButton:SetCallback("OnClick",
     function(Self, event, ...)
       titleField:ResetValue();
       bodyField:ResetValue();
       adultToggle:ResetValue();
-      attachProfileToggle:ResetValue();
+      if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
       RP_Find:Notify("Your ad has been cleared.");
     end);
 
+  panelFrame:AddChild(clearAdButton);
+
+  local spacer1 = AceGUI:Create("Label");
+  spacer1:SetRelativeWidth(0.01);
+  panelFrame:AddChild(spacer1);
+
+  previewAdButton:SetText("Preview Ad");
+  previewAdButton:SetRelativeWidth(0.20);
+  previewAdButton:SetCallback("OnClick", showPreview);
+    
+  panelFrame:AddChild(previewAdButton);
+
+  local spacer2 = AceGUI:Create("Label");
+  spacer2:SetRelativeWidth(0.01);
+  panelFrame:AddChild(spacer2);
 
   sendAdButton:SetText("Send Ad");
-  sendAdButton:SetRelativeWidth(0.25);
+  sendAdButton:SetRelativeWidth(0.20);
   sendAdButton:SetCallback("OnClick", 
     function(self, event, ...) 
       self:SetDisabled(true);
@@ -1279,10 +1350,67 @@ function Finder.MakeFunc.Ads(self)
 
   panelFrame:AddChild(sendAdButton);
 
-  bodyField:SetCallback("OnEnterPressed",
+  titleField:SetLabel("Ad Title");
+  titleField:SetText(RP_Find.db.profile.ad.title);
+  titleField:SetRelativeWidth(0.72);
+  titleField:DisableButton(true);
+  titleField:SetMaxLetters(128);
+  titleField:SetCallback("OnTextChanged",
+    function(self, event, value)
+      RP_Find.db.profile.ad.title = value;
+      if RP_Find:ScanForAdultContent(value)
+      then RP_Find.db.profile.ad.adult = true
+           adultToggle:SetValue(true);
+      end;
+      if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
+    end);
+  function titleField:ResetValue()
+     RP_Find.db.profile.ad.title = RP_Find.defaults.profile.ad.title;
+     self:SetText(RP_Find.defaults.profile.ad.title);
+  end;
+  panelFrame:AddChild(titleField);
+
+  local spacer3 = AceGUI:Create("Label");
+  spacer3:SetRelativeWidth(0.02);
+  panelFrame:AddChild(spacer3);
+
+  adultToggle:SetLabel("This is an adult ad");
+  adultToggle:SetRelativeWidth(0.25);
+  adultToggle:SetValue(RP_Find.db.profile.ad.adult)
+  adultToggle:SetCallback("OnValueChanged",
+    function(self, event, value)
+      RP_Find.db.profile.ad.adult = value;
+    end);
+  function adultToggle:ResetValue()
+     RP_Find.db.profile.ad.adult = RP_Find.defaults.profile.ad.adult;
+     self:SetValue(RP_Find.defaults.profile.ad.adult);
+  end;
+
+  panelFrame:AddChild(adultToggle);
+
+  bodyField:SetLabel("Ad Text");
+  bodyField:SetText(RP_Find.db.profile.ad.body);
+  bodyField:SetFullWidth(true);
+  bodyField:DisableButton(true);
+  bodyField:SetNumLines(12);
+  bodyField:SetMaxLetters(1024);
+  bodyField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.body = value;
+     
+      if   RP_Find:ScanForAdultContent(value)
+      then RP_Find.db.profile.ad.adult = true;
+           adultToggle:SetValue(true);
+      end;
+
+      if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
     end);
+  function bodyField:ResetValue()
+     RP_Find.db.profile.ad.body = RP_Find.defaults.profile.ad.body;
+     self:SetText(RP_Find.defaults.profile.ad.body);
+  end;
+  panelFrame:AddChild(bodyField);
+
   function panelFrame:Update() return end;
 
   return panelFrame;
@@ -1437,6 +1565,9 @@ RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
   self.my = self:GetPlayerRecord(self.me, self.realm); 
+  if msp and self.msp then self.my:UnpackMSPData(); end;
+  if addon.totalRP3 then self.my:UnpackTRP3Data(); end;
+  return self.my;
 end;
 
 local function Spacer(info)
@@ -1859,9 +1990,14 @@ function adFrame:Reset()
   for _, string in ipairs(self.valuePool) do string:Hide(); end;
 end;
 
-function adFrame:SetSubtitle(text) self.subtitle:SetText(text); end;
+function adFrame:SetSubtitle(text, default) 
+  if default and (text == "" or not text)
+  then self.subtitle:SetText(default); 
+  else self.subtitle:SetText(text);
+  end;
+end;
 
-function adFrame:AddField(field, value)
+function adFrame:AddField(field, value, default)
   if self.fieldY > 300 then return end;
   local fieldString, valueString;
   self.fieldNum = self.fieldNum + 1;
@@ -1891,7 +2027,11 @@ function adFrame:AddField(field, value)
   valueString:SetWidth(self.valueWidth);
 
   fieldString:SetText(field);
-  valueString:SetText(value);
+
+  if   default and (value == "" or not value)
+  then valueString:SetText(default)
+  else valueString:SetText(value);
+  end;
 
   self.fieldY = self.fieldY 
                 + math.max(fieldString:GetHeight(), valueString:GetHeight())
@@ -1899,27 +2039,27 @@ function adFrame:AddField(field, value)
 
 end;
 
-function adFrame:SetBodyText(text) 
+function adFrame:SetBodyText(text, default) 
   self.body:ClearAllPoints();
   self.body:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY)
   self.body:SetPoint("BOTTOMRIGHT", -20, 16)
-  self.body:SetText(text) 
+  if default and (text == "" or not text)
+  then self.body:SetText(default)
+  else self.body:SetText(text) 
+  end;
 end;
 
 function adFrame:SetPlayerRecord(playerRecord)
   self:Reset();
+
   self:SetPortraitToAsset(playerRecord:GetIcon());
   self:SetTitle(playerRecord:GetRPName());
-  local ad = playerRecord:Get("ad");
-  if not ad
-  then   self:SetSubtitle("--");
-         self:SetBodyText("No ad recorded.");
-  else   self:SetSubtitle(ad.title);
-         self:AddField("Race", playerRecord:GetRPRace());
-         self:AddField("Class", playerRecord:GetRPClass());
-         self:AddField("Pronouns", playerRecord:GetRPPronouns());
-         self:SetBodyText(ad.body)
-  end;
+
+  self:SetSubtitle(playerRecord:Get("ad_title"), "Title Needed");
+  self:AddField("Race", playerRecord:GetRPRace(), "Not set");
+  self:AddField("Class", playerRecord:GetRPClass(), "Not set");
+  self:AddField("Pronouns", playerRecord:GetRPPronouns(), "Not set");
+  self:SetBodyText(playerRecord:Get("ad_body"), "Ad Text Needed");
 end;
 
 -- data broker
@@ -1951,6 +2091,7 @@ function RP_Find:OnEnable()
   self:SmartPruneDatabase(false); -- false = not interactive
 
   self:RegisterMspReceived();
+  self:RegisterTRP3Received();
   self:RegisterAddonChannel();
 
   if   self.db.profile.config.loginMessage 
@@ -1967,6 +2108,42 @@ end;
 
 function RP_Find:RegisterPlayer(playerName, server)
   local  playerRecord = self:GetPlayerRecord(playerName, server);
+end;
+
+if addon.totalRP3
+then TRP3_API.module.registerModule(
+    { ["name"       ] = RP_Find.addOnTitle,
+      ["description"] = RP_Find.addOnDesc,
+      ["version"    ] = RP_Find.addOnVersion,
+      ["id"         ] = RP_Find.addOnName,
+      ["autoEnable" ] = true,
+    });
+end;
+
+function RP_Find:RegisterTRP3Received()
+  if not addon.totalRP3 then return end;
+
+  TRP3_API.Events.registerCallback(
+    TRP3_API.events.REGISTER_DATA_UPDATED,
+    function(unitID, profile, dataType)
+      if unitID
+      then local playerRecord = RP_Find:GetPlayerRecord(unitID);
+           playerRecord:UnpackTRP3Data();
+      end;
+    end
+  );
+
+  TRP3_API.Events.registerCallback(
+    TRP3_API.events.REGISTER_PROFILES_LOADED,
+    function(profileStructure)
+      self.my:UnpackTRP3Data();
+    end);
+
+  TRP3_API.Events.registerCallback(
+    TRP3_API.events.REGISTER_PROFILE_DELETED,
+    function(profileStructure)
+      self.my:UnpackTRP3Data()
+    end);
 end;
 
 function RP_Find:RegisterMspReceived()
@@ -2056,9 +2233,17 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
        end;
        if count > 0
        then 
-            local playerData = RP_Find:GetPlayerRecord(sender);
-            playerData:Set("ad", ad);
-            if   RP_Find.db.profile.config.notifyLFRP
+            local playerRecord = RP_Find:GetPlayerRecord(sender);
+            playerRecord:Set("ad", true);
+            for field, value in pairs(ad)
+            do if field:match("^rp_") or field:match("^MSP-")
+               then  playerRecord:Set(field, value)
+               else playerRecord:Set("ad_" .. field, value)
+               end;
+            end;
+
+            if   RP_Find.db.profile.config.notifyLFRP and
+                 (not ad.adult or RP_Find.db.profile.config.seeAdultAds)
             then RP_Find:Notify((ad.name or sender) .. " sent an ad" ..
                    (ad.title and (": " .. ad.title) or "") .. ".");
             end;
@@ -2092,25 +2277,19 @@ end;
 function RP_Find:CreateAdText()
   local text = addonPrefix.rpfind .. ":AD";
 
-  local function getName() return msp and msp.my and msp.my.NA or UnitName("player") end;
-  local function getRace() return msp and msp.my and msp.my.RA or UnitRace("player")   end;
-  local function getClass() return msp and msp.my and msp.my.RC or UnitClass("player") end;
-  local function getAddon() return msp and msp.my and msp.my.VA or "" end;
-
   local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
 
-  add("name", getName())
-  add("race", getRace())
-  add("class", getClass());
-  add("addon", getAddon());
-  add("title", self.db.profile.ad.title);
-  add("body", self.db.profile.ad.body);
-  add("adult", self.db.profile.ad.adult);
-  if   self.db.profile.ad.attachProfile and msp and msp.my
-  then for field, value in pairs(msp.my)
-       do  add("MSP-" .. field, value)
-       end;
-  end;
+  add("rp_name",      self.my:GetRPName())
+  add("rp_race",      self.my:GetRPRace())
+  add("rp_class",     self.my:GetRPClass());
+  add("rp_title",     self.my:GetRPTitle());
+  add("rp_honorific", self.my:GetRPHonorific());
+  add("rp_pronouns",  self.my:GetRPPronouns());
+  add("rp_age",       self.my:GetRPAge());
+
+  add("title",        self.db.profile.ad.title);
+  add("body",         self.db.profile.ad.body);
+  add("adult",        self.db.profile.ad.adult);
 
   return text;
 end;
