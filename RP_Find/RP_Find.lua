@@ -97,9 +97,14 @@ local menu =
                        3332,   3175, 8959,  39516, 37881, 111370, 110985, 111368, 111367 },
   zone = {},
   zoneOrder = {};
-  perPage = { [10] = "10", [20] = "20", [30] = "30", [40] = "40", [50] = "50", [75] = "75", [100] = "100" },
-  perPageOrder = { 10, 20, 30, 40, 50, 75, 100 },
+  perPage = {},
+  perPageOrder = {},
 };
+
+for i = 10, 50, 5 
+do menu.perPage[tostring(i)] = tostring(i); 
+   table.insert(menu.perPageOrder, tostring(i)) 
+end;
 
 for i, mapID in ipairs(zoneList)
 do  local info = C_Map.GetMapInfo(mapID);
@@ -546,11 +551,33 @@ RP_Find.PlayerMethods =
   ["IsTrial"         ] = function(self) return self:GetRP("trial",       "TR") end,
   ["GetRPAddon"      ] = function(self) return self:GetRP("addon",       "VA") end,
 
+  ["GetIcon"] =
+    function(self)
+      local rpIcon = self:GetRPIcon();
+      if rpIcon ~= "" then return "Interface\\ICONS\\" .. rpIcon; end;
+
+      local gameRace = self:GetRP("gameRace", "GR");
+      local gameSex = self:GetRP("gameSex", "GS");
+
+      local genderHash = { ["2"] = "Male", ["3"] = "Female", };
+
+      if   not genderHash[gameSex] or gameRace == ""
+      then return "Interface\\CHARACTERFRAME\\TempPortrait";
+      else return "Interface\\CHARACTERFRAME\\" .. "TemporaryPortrait-" .. genderHash[gameSex] .. "-" .. gameRace;
+      end;
+    end,
+
   ["GetFlags"] = function(self) return "" end,
 
   ["LabelViewProfile" ] =
     function(self)
       return "Profile", _G["AddOn_TotalRP3"] ~= nil and _G["mrp"] ~= nil
+    end,
+
+  ["CmdViewProfile"] =
+    function(self)
+      RP_Find.adFrame:SetPlayerRecord(self);
+      RP_Find.adFrame:Show();
     end,
 
   ["LabelSendPing"] = 
@@ -675,13 +702,22 @@ Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
   function(self, event, ...)
-    -- if self.timer then RP_Find:CancelTimer(self.timer) self.timer = nil; end;
+    local cancelTimers = { "playerList" };
+    for _, t in ipairs(cancelTimers)
+    do local timer = RP_Find.timers[t];
+       if   timer 
+       then RP_Find:CancelTimer(timer);
+            RP_Find.timers[t] = nil;
+       end;
+    end;
   end);
 
 _G[finderFrameName] = Finder.frame;
 
-Finder.title:SetIgnoreParentAlpha(true);
-Finder.titletext:SetIgnoreParentAlpha(true);
+Finder.frame:SetMinResize(600, 300);
+
+-- Finder.title:SetIgnoreParentAlpha(true);
+-- Finder.titletext:SetIgnoreParentAlpha(true);
 
 table.insert(UISpecialFrames, finderFrameName);
 
@@ -691,17 +727,17 @@ Finder.content:SetPoint("TOPRIGHT",   Finder.frame, "TOPRIGHT", -20, -30);
 
 Finder.TabList = 
 { 
-  { value = "Ads", text = "Your Ad", },
   { value = "Display", text = "Database", },
-  { value = "LFG", text = "Looking for Group" },
+  { value = "Ads", text = "Your Ad", },
+  -- { value = "LFG", text = "Looking for Group" },
   { value = "Tools", text = "Tools", },
 };
 
 Finder.TabListSub50 =
 { 
-  { value = "Ads",     text = "Your Ad", },
   { value = "Display", text = "Database", },
-  { value = "LFG",     text = "LFG (Disabled)" },
+  { value = "Ads",     text = "Your Ad", },
+  -- { value = "LFG",     text = "LFG (Disabled)" },
   { value = "Tools",   text = "Tools", },
 };
 
@@ -830,8 +866,19 @@ function Finder.MakeFunc.Display(self)
 
   local perPageSelector = AceGUI:Create("Dropdown");
         perPageSelector:SetList(menu.perPage, menu.perPageOrder);
-        perPageSelector:SetText("Per Page");
+        perPageSelector:SetText(RP_Find.db.profile.config.rowsPerPage .. " Per Page");
         perPageSelector:SetRelativeWidth(0.20);
+        perPageSelector:SetCallback("OnValueChanged",
+          function(self, event, value)
+            local old = RP_Find.db.profile.config.rowsPerPage;
+
+            local start = (Finder.pos or 0) * old + 1;
+            Finder.pos = math.floor(start / value);
+
+            RP_Find.db.profile.config.rowsPerPage = value;
+            RP_Find:Update();
+
+          end);
   panelFrame:AddChild(perPageSelector);
 
   local headers = AceGUI:Create("SimpleGroup");
@@ -999,20 +1046,83 @@ function Finder.MakeFunc.Display(self)
   function playerList:Update()
     self:ReleaseChildren();
 
+    local function buildNavbar(count, pos)
+      if count == 0 then return end;
+
+      local function buildNavbutton(num)
+        local btn = AceGUI:Create("InteractiveLabel");
+        btn:SetText(tostring(num + 1))
+        btn.num = num;
+        btn:SetWidth(20);
+        btn:SetFontObject(GameFontColor);
+        btn:SetColor(GREEN_FONT_COLOR:GetRGBA())
+        btn:SetCallback("OnClick",
+          function(self, event, button)
+            Finder.pos = self.num;
+            RP_Find:Update()
+          end);
+        return btn;
+      end;
+
+      local navbar = AceGUI:Create("InlineGroup");
+            navbar:SetFullWidth(true);
+            navbar:SetLayout("Flow");
+
+      local labelGroup = AceGUI:Create("SimpleGroup");
+      labelGroup:SetRelativeWidth(0.1);
+      labelGroup:SetLayout("Flow");
+      navbar:AddChild(labelGroup);
+
+      local label = AceGUI:Create("Label");
+      label:SetText("Page");
+      label:SetFullWidth(true);
+      label:SetFontObject(GameFontNormal);
+      labelGroup:AddChild(label);
+
+      local buttonGroup = AceGUI:Create("SimpleGroup");
+      buttonGroup:SetLayout("Flow");
+      buttonGroup:SetRelativeWidth(0.9);
+      navbar:AddChild(buttonGroup);
+
+      for i = 0, count, 1
+      do  local btn = buildNavbutton(i);
+          if i == pos then btn:SetDisabled(true); end;
+          buttonGroup:AddChild(btn);
+      end;
+
+      self:AddChild(navbar);
+    end;
+
     local playerRecordList = RP_Find:GetAllPlayerRecords();
     table.sort(playerRecordList, sortPlayerRecords);
   
-    for _, playerRecord in ipairs(playerRecordList)
-    do  playerList:AddChild(buildLineFromPlayerRecord(playerRecord));
+    Finder.pos = Finder.pos or 0;
+
+    local stop;
+    local total     = #playerRecordList;
+    local size      = RP_Find.db.profile.config.rowsPerPage or 15;
+    local shift     = Finder.pos * size;
+    local div = math.floor(total/size);
+    local mod = total % size;
+
+    if mod == 0          then div  = div - 1;  mod = size; end;
+    if div == Finder.pos then stop = mod else stop = size; end;
+
+    for i = 1, stop, 1
+    do  local index = i + shift;
+        local playerRecord = playerRecordList[index];
+        playerList:AddChild(buildLineFromPlayerRecord(playerRecord));
     end;
 
     if not RP_Find.timers.playerList
-    then RP_Find.timers.playerList = RP_Find:ScheduleRepeatingTimer("Update", 10); 
+    then   RP_Find.timers.playerList = RP_Find:ScheduleRepeatingTimer("Update", 10); 
     end;
+
+    buildNavbar(div, Finder.pos);
 
   end;
 
-  function panelFrame:Update(...) playerList:Update(...) end;
+  function panelFrame:Update(...) playerList:Update(...) Finder:DoLayout(); end;
 
   return panelFrame;
 end;
@@ -1707,6 +1817,111 @@ function RP_Find:OnInitialize()
 
 end;
 
+-- Ad Display
+--
+local adFrame = CreateFrame("Frame", "RP_Find_AdDisplayFrame", UIParent, "PortraitFrameTemplate");
+adFrame:SetMovable(true);
+adFrame:EnableMouse(true);
+adFrame:RegisterForDrag("LeftButton");
+adFrame:SetScript("OnDragStart", adFrame.StartMoving);
+adFrame:SetScript("OnDragStop", adFrame.StopMovingOrSizing);
+
+adFrame:SetPoint("RIGHT", Finder.frame, "LEFT", 0, 0);
+table.insert(UISpecialFrames, "RP_Find_AdDisplayFrame");
+adFrame:Hide();
+
+RP_Find.adFrame = adFrame;
+
+adFrame.subtitle = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
+adFrame.subtitle:SetWordWrap(false);
+adFrame.subtitle:SetJustifyV("TOP");
+adFrame.subtitle:SetJustifyH("CENTER");
+adFrame.subtitle:SetPoint("TOPLEFT", 70, -32);
+adFrame.subtitle:SetWidth(200);
+
+adFrame.body = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+adFrame.body:SetWordWrap(true);
+adFrame.body:SetJustifyV("TOP");
+adFrame.body:SetJustifyH("LEFT");
+
+function adFrame:Reset()
+  self.fieldMaxY = 300;
+  self.fieldX = 15;
+  self.fieldY = 70;
+  self.fieldWidth = 75;
+  self.valueWidth = 220;
+  self.vPadding = 10;
+  self.hPadding = 10;
+  self.fieldNum = 0;
+  self.fieldPool = self.fieldPool or {};
+  self.valuePool = self.valuePool or {};
+  for _, string in ipairs(self.fieldPool) do string:Hide(); end;
+  for _, string in ipairs(self.valuePool) do string:Hide(); end;
+end;
+
+function adFrame:SetSubtitle(text) self.subtitle:SetText(text); end;
+
+function adFrame:AddField(field, value)
+  if self.fieldY > 300 then return end;
+  local fieldString, valueString;
+  self.fieldNum = self.fieldNum + 1;
+  if self.fieldNum > #self.fieldPool
+  then fieldString = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+       table.insert(self.fieldPool, fieldString);
+       valueString = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+       table.insert(self.valuePool, valueString);
+  else fieldString = table.remove(self.fieldPool);
+       valueString = table.remove(self.valuePool);
+  end;
+
+  fieldString:Show();
+  valueString:Show();
+
+  fieldString:ClearAllPoints();
+  valueString:ClearAllPoints();
+
+  fieldString:SetJustifyH("LEFT");
+  fieldString:SetJustifyV("TOP");
+  valueString:SetJustifyH("LEFT");
+  valueString:SetJustifyV("TOP");
+
+  fieldString:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY);
+  fieldString:SetWidth(self.fieldWidth);
+  valueString:SetPoint("TOPLEFT", self.fieldX + self.fieldWidth + self.hPadding, 0 - self.fieldY);
+  valueString:SetWidth(self.valueWidth);
+
+  fieldString:SetText(field);
+  valueString:SetText(value);
+
+  self.fieldY = self.fieldY 
+                + math.max(fieldString:GetHeight(), valueString:GetHeight())
+                + self.vPadding;
+
+end;
+
+function adFrame:SetBodyText(text) 
+  self.body:ClearAllPoints();
+  self.body:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY)
+  self.body:SetPoint("BOTTOMRIGHT", -20, 16)
+  self.body:SetText(text) 
+end;
+
+function adFrame:SetPlayerRecord(playerRecord)
+  self:Reset();
+  self:SetPortraitToAsset(playerRecord:GetIcon());
+  self:SetTitle(playerRecord:GetRPName());
+  local ad = playerRecord:Get("ad");
+  if not ad
+  then   self:SetSubtitle("--");
+         self:SetBodyText("No ad recorded.");
+  else   self:SetSubtitle(ad.title);
+         self:AddField("Race", playerRecord:GetRPRace());
+         self:AddField("Class", playerRecord:GetRPClass());
+         self:AddField("Pronouns", playerRecord:GetRPPronouns());
+         self:SetBodyText(ad.body)
+  end;
+end;
+
 -- data broker
 --
 
@@ -1744,10 +1959,10 @@ function RP_Find:OnEnable()
 
   self:ShowOrHideMinimapButton();
 
-  self.Finder:CreateButtonBar();
+  -- self.Finder:CreateButtonBar();
   self.Finder:CreateTabGroup();
 
-  self.Finder:LoadTab("Ads");
+  self.Finder:LoadTab("Display");
 end;
 
 function RP_Find:RegisterPlayer(playerName, server)
