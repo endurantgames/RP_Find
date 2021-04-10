@@ -5,7 +5,7 @@
 ## Notes: Locate other roleplayers on RP servers
 ## SavedVariables: RP_Find_ConfigDB, RP_FindDB
 ## DefaultState: disabled
-## OptionalDeps: RP_Tags, RP_Identity, totalRP3, MyRolePlay
+## OptionalDeps: RP_Tags, RP_Identity, totalRP3, MyRolePlay, XRP
 ## X-URL: http://spindrift.games/rpfind
 ## X-VersionDate: 2021-04-02
 

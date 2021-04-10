@@ -13,19 +13,20 @@ or can be run without any of those.
   - [ ] Search and display
   - [ ] Post
 - [ ] Ads
-  - [ ] Improve editor interface
-  - [ ] Ad viewer
+  - [x] Improve editor interface
+  - [x] Ad viewer
+  - [ ] Debug why title keeps clearing
 - [ ] Controls for IC/OOC (if known)
 - [ ] Database viewer:
-  - [ ] View ad (see above)
-  - [ ] Send ping
-  - [ ] View profile (for trp3, mrp, xrp)
+  - [x] View ad (see above)
+  - [x] Send ping
+  - [x] View profile (for trp3, mrp, xrp)
   - [x] Send whisper
   - [ ] Send invite
   - [ ] Color-coding
   - [ ] Filters
   - [ ] Search
-  - [ ] Rows per page
+  - [x] Rows per page
   - [ ] View data instead of playerRecords
   - [ ] Tooltips
   - [ ] Flags (brainstorming)
