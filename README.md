@@ -25,7 +25,7 @@ or can be run without any of those.
   - [ ] Send invite
   - [ ] Color-coding
   - [ ] Filters
-  - [ ] Search
+  - [x] Search
   - [x] Rows per page
   - [ ] View data instead of playerRecords
   - [ ] Tooltips
