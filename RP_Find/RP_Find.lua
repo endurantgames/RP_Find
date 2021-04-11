@@ -684,17 +684,19 @@ RP_Find.PlayerMethods =
   ["CmdSendPing"] =
     function(self)
       RP_Find:SendPing(self.playerName, true); -- true == interactive
+      RP_Find:Update("Display");
     end,
 
   ["LabelSendTell"] = 
     function(self) 
       return "Whisper", 
-        time() - (RP_Find.last.sendWhisper or 0) < 5 * SECONDS_PER_MIN
+        time() - (RP_Find.last.sendWhisper or 0) < 1 * SECONDS_PER_MIN
     end,
 
   ["CmdSendTell"] = 
     function(self, event, ...) 
       RP_Find:SendWhisper(self.playerName, "((  ))", 3) 
+      RP_Find:Update("Display");
     end,
 
   ["HaveLFRPAd"] = 
@@ -726,9 +728,16 @@ RP_Find.PlayerMethods =
   ["LabelInvite"]   = 
     function(self) 
       return "Invite", 
-        time() - (RP_Find.last.sendInvite or 0) < 5 * SECONDS_PER_MIN
+        time() - (RP_Find.last.sendInvite or 0) < 1 * SECONDS_PER_MIN
     end,
 
+  ["CmdInvite"] =
+    function(self)
+      C_PartyInfo.InviteUnit(self.playerName)
+      RP_Find.last.sendInvite = time();
+      RP_Find:Update("Display");
+    end,
+      
   ["CmdReadAd"] =
     function(self)
       RP_Find.adFrame:SetPlayerRecord(self);
@@ -747,6 +756,7 @@ RP_Find.PlayerMethods =
 
   ["UnpackMSPData"] =
     function(self)
+      if not RP_Find:HasRPClient() then return nil end;
       local  mspData = _G["msp"].char[self.playerName];
       if not mspData then return end;
       if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
@@ -760,6 +770,7 @@ RP_Find.PlayerMethods =
 
   ["UnpackTRP3Data"] =
     function(self)
+      if not RP_Find:HasRPClient("totalRP3") then return end;
       local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
 
       local char = profile.character or {};
@@ -854,22 +865,22 @@ RP_Find.addOnDataBroker =
 RP_Find.defaults =
 { profile =
   { config =
-    { notifyMethod     = "toast",
-      loginMessage     = false,
-      finderTooltips   = true,
-      autoSendPing     = false,
-      monitorMSP       = true,
-      monitorTRP3      = true,
-      alertTRP3Scan    = false,
-      alertAllTRP3Scan = false,
-      alertTRP3Connect = false,
-      notifySound      = 37881,
-      deleteDBonLogin  = false,
-      useSmartPruning  = false,
+    { notifyMethod       = "toast",
+      loginMessage       = false,
+      finderTooltips     = true,
+      autoSendPing       = false,
+      monitorMSP         = true,
+      monitorTRP3        = true,
+      alertTRP3Scan      = false,
+      alertAllTRP3Scan   = false,
+      alertTRP3Connect   = false,
+      notifySound        = 37881,
+      deleteDBonLogin    = false,
+      useSmartPruning    = false,
       repeatSmartPruning = false,
       notifyLFRP         = true,
       seeAdultAds        = false,
-      rowsPerPage        = 20,
+      rowsPerPage        = 10,
       buttonBarSize      = 24,
     },
     minimapbutton      = {}, 
@@ -1599,6 +1610,8 @@ function Finder.MakeFunc.Ads(self)
 
   local function showPreview(self, event, button)
     local myRecord = RP_Find:LoadSelfRecord();
+    myRecord:UnpackMSPData();
+    myRecord:UnpackTRP3Data();
     myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
     myRecord:Set("ad_body", RP_Find.db.profile.ad.body);
     myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);

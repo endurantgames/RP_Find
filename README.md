@@ -12,10 +12,10 @@ or can be run without any of those.
 - [ ] LFG
   - [ ] Search and display
   - [ ] Post
-- [ ] Ads
+- [x] Ads
   - [x] Improve editor interface
   - [x] Ad viewer
-  - [ ] Debug why title keeps clearing
+  - [x] Debug why title keeps clearing
 - [ ] Controls for IC/OOC (if known)
 - [ ] Database viewer:
   - [x] View ad (see above)
@@ -24,7 +24,7 @@ or can be run without any of those.
   - [x] Send whisper
   - [ ] Send invite
   - [ ] Color-coding
-  - [ ] Filters
+  - [x] Filters
   - [x] Search
   - [x] Rows per page
   - [ ] View data instead of playerRecords
