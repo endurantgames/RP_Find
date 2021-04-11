@@ -149,8 +149,13 @@ local function split(str, pat)
   return t;
 end;
 
-local RP_Find = AceAddon:NewAddon(addOnName, "AceConsole-3.0", "AceEvent-3.0", 
-                  "AceTimer-3.0" , "LibToast-1.0");
+local RP_Find = AceAddon:NewAddon(
+  addOnName, 
+  "AceConsole-3.0", 
+  "AceEvent-3.0", 
+  "AceTimer-3.0" , 
+  "LibToast-1.0"
+);
 
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
@@ -341,8 +346,13 @@ function RP_Find:NewPlayerRecord(playerName, server, playerData)
   playerRecord.playerName = playerName;
   playerRecord:Initialize();
 
-  if playerData then for field, value in pairs(playerData) do playerRecord:Set(field, value) end; end;
-  if not playerRecord:Get("First Seen") then playerRecord:Set("First Seen", nil) end;
+  if playerData then for field, value in pairs(playerData) 
+  do playerRecord:Set(field, value) end; 
+  end;
+
+  if not playerRecord:Get("First Seen") 
+  then playerRecord:Set("First Seen", nil, true) 
+  end;
 
   self.playerRecords[playerName] = playerRecord;
   return playerRecord;
@@ -435,12 +445,19 @@ function RP_Find:CountLFGGroups()
 end;
 
 function RP_Find:ScanForAdultContent(text)
-  if not text then return false end;
-  if not self.badWords then self.badWords = split(L["Adult Content Patterns"], "\n"); end;
-  text:gsub("%W+", " "):lower();
-  for _, pattern in pairs(self.badWords)
-  do  if text:match("%s" .. pattern .. "%s") then return true; end;
+  if   not text then return false end;
+  if   not self.badWords 
+  then self.badWords = split(L["Adult Content Patterns"], "\n");
   end;
+
+  text:gsub("%W+", " "):lower();
+  text = " " .. text .. " ";
+
+  for _, pattern in pairs(self.badWords)
+  do  local isMatch = text:find("%s" .. pattern .. "%s")
+      if isMatch then return true; end;
+  end;
+
   return false;
 end;
 
@@ -489,7 +506,7 @@ function RP_Find:SendWhisper(playerName, message, position)
        end;
        ChatFrame_OpenChat(messageStart, nil, position)
        self.last.sendWhisper = time();
-       self:Update();
+       self:Update("Display");
   end;
 end;
 
@@ -517,41 +534,68 @@ RP_Find.PlayerMethods =
     function(self)
       RP_Find.data.rolePlayers[self.playerName] 
         = RP_Find.data.rolePlayers[self.playerName] or {};
-      self.data           = RP_Find.data.rolePlayers[self.playerName];
-      self.data.fields    = self.data.fields or {};
-      self.data.last      = self.data.last or {};
-      self.data.last.when = time();
-      self.type           = PLAYER_RECORD;
+      self.data            = RP_Find.data.rolePlayers[self.playerName];
+      self.data.fields     = self.data.fields or {};
+      self.data.last       = self.data.last or {};
+      self.data.last.when  = time();
+      self.cache           = {};
+      self.cache.fields    = {};
+      self.cache.last      = {};
+      self.cache.last.when = time();
+      self.type            = PLAYER_RECORD;
       return self;
     end,
 
   ["Set"] =
-    function(self, field, value)
-      self.data.fields[field]       = self.data.fields[field] or {};
-      self.data.fields[field].value = value;
-      self.data.fields[field].when  = time();
-      self.data.last.when           = time();
-      return self;
-    end,
+    function(self, field, value, permanent)
+      self.cache.fields[field]       = self.cache.fields[field] or {};
+      self.cache.fields[field].value = value;
+      self.cache.fields[field].when  = time();
+      self.cache.last.when           = time();
 
-  ["SetTimestamp"] =
-    function(self, field, timeStamp)
-      timeStamp = timeStamp or time();
-      if not field
-      then   self.data.last.when = timeStamp
-      elseif self.data.fields[field]
-      then   self.data.fields[field].when = timeStamp;
-      elseif type(field) == "string"
-      then   self:Set(field, nil, { when = timeStamp });
+      if   permanent
+      then self.data.fields[field]       = self.data.fields[field] or {};
+           self.data.fields[field].value = value;
+           self.data.fields[field].when  = time();
+           self.data.last.when           = time();
       end;
       return self;
     end,
 
+  ["SetTimestamp"] =
+    function(self, field, timeStamp, permanent)
+      timeStamp = timeStamp or time();
+
+      if not field
+      then   self.cache.last.when = timeStamp
+      elseif self.cache.fields[field]
+      then   self.cache.fields[field].when = timeStamp;
+      elseif type(field) == "string"
+      then   self:Set(field, nil, { when = timeStamp });
+      end;
+
+      if permanent
+      then 
+        if not field
+        then   self.data.last.when = timeStamp
+        elseif self.data.fields[field]
+        then   self.data.fields[field].when = timeStamp;
+        elseif type(field) == "string"
+        then   self:Set(field, nil, { when = timeStamp }, true);
+        end;
+      end;
+
+      return self;
+
+    end,
+
   ["Get"] =
     function(self, field)
-      if   self.data.fields[field]
-      then return self.data.fields[field].value
-      else return nil
+      if            self.cache.fields[field] ~= nil
+      then   return self.cache.fields[field].value
+      elseif        self.data.fields[field]
+      then   return self.data.fields[field].value
+      else   return nil
       end;
     end,
 
@@ -562,7 +606,10 @@ RP_Find.PlayerMethods =
 
   ["GetRP"] = 
     function(self, field, mspField)
-      return self:Get("rp_" .. field) or self:GetMSP(mspField) or self:Get(field) or ""
+      return self:Get("rp_" .. field) 
+          or self:GetMSP(mspField)    
+          or self:Get(field) 
+          or ""
     end,
 
   ["GetPlayerName"] = 
@@ -726,10 +773,12 @@ RP_Find.PlayerMethods =
       local  mspData = _G["msp"].char[self.playerName];
       if not mspData then return end;
       if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
-      then   for field, value in pairs(mspData.field) do self:Set("MSP-" .. field, value); end;
+      then   for field, value in pairs(mspData.field) 
+             do self:Set("MSP-" .. field, value); 
+             end;
       end;
       self:Set("have_mspData");
-      RP_Find:Update();
+      RP_Find:Update("Display");
     end,
 
   ["UnpackTRP3Data"] =
@@ -771,15 +820,19 @@ RP_Find.PlayerMethods =
       self:Set("rp_rstatus",    ristics.RS);
       self:Set("have_trp3Data", true);
 
-      RP_Find:Update();
+      RP_Find:Update("Display");
     end,
 
   ["GetTimestamp"] =
-    function(self, field)
-      if     not field 
+    function(self, field, permanent)
+      if     not field and permanent
       then   return self.data.last.when or time()
-      elseif self.data.fields[field] 
+      elseif not field
+      then   return self.cache.last.when or time()
+      elseif self.data.fields[field]  and permanent
       then   return self.data.fields[field].when or time()
+      elseif self.cache.fields[field]
+      then   return self.cache.fields[field].when or time()
       else   return time()
       end;
     end,
@@ -880,6 +933,23 @@ _G[finderFrameName] = Finder.frame;
 Finder.frame:SetMinResize(600, 300);
 
 table.insert(UISpecialFrames, finderFrameName);
+
+function Finder:DisableUpdates(value) self.updatesDisabled = value; end;
+
+local function dontBreakOnResize()
+  Finder:DisableUpdates(true);
+  Finder:PauseLayout();
+end;
+
+local function restoreOnResize() 
+  Finder:DisableUpdates(false);
+  Finder:ResumeLayout();
+  Finder:Update();
+end;
+
+hooksecurefunc(Finder.frame, "StartSizing", dontBreakOnResize);
+hooksecurefunc(Finder.frame, "StopMovingOrSizing", restoreOnResize);
+
 
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
@@ -1084,7 +1154,7 @@ function Finder.MakeFunc.Display(self)
         searchBar:SetCallback("OnTextChanged",
           function(self, event, text)
             searchPattern = text;
-            Finder:Update(); 
+            Finder:Update("Display"); 
           end)
         searchBar:SetCallback("OnEnter",
           function(self, event)
@@ -1126,7 +1196,7 @@ function Finder.MakeFunc.Display(self)
     then   filterSelector:SetText(count .. " Filter");
     else   filterSelector:SetText(count .. " Filters");
     end;
-    Finder:Update();
+    Finder:Update("Display");
   end;
 
   setActiveFilters();
@@ -1176,7 +1246,7 @@ function Finder.MakeFunc.Display(self)
             Finder.pos = math.floor(start / value);
 
             RP_Find.db.profile.config.rowsPerPage = value;
-            RP_Find:Update();
+            RP_Find:Update("Display");
 
           end);
   panelFrame:AddChild(perPageSelector);
@@ -1286,7 +1356,7 @@ function Finder.MakeFunc.Display(self)
         else   header:SetText(header.baseText)
         end;
     end;
-    Finder:UpdateTitle();
+    Finder:UpdateTitle("Display");
   end;
    
   local currentCol = 1;
@@ -1381,7 +1451,7 @@ function Finder.MakeFunc.Display(self)
         btn:SetCallback("OnClick",
           function(self, event, button)
             Finder.pos = self.num;
-            RP_Find:Update()
+            RP_Find:Update("Display")
           end);
         return btn;
       end;
@@ -1478,28 +1548,38 @@ function Finder.TitleFunc.LFG(self, ...)
   end;
 end;
 
-function Finder.TitleFunc.Ads(self, ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
-function Finder.TitleFunc.Tools(self, ...) self:SetTitle(L["Format Finder Title Tools"]); end;
+function Finder.TitleFunc.Ads(self, ...) 
+  self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); 
+end;
+function Finder.TitleFunc.Tools(self, ...) 
+  self:SetTitle(L["Format Finder Title Tools"]); 
+end;
+
 function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(); end;
-function Finder.UpdateFunc.LFG(self, ...) self.TabGroup.current:Update(); end;
-function Finder.UpdateFunc.Tools(self, ...) self.TabGroup.current:Update(); end;
-function Finder.UpdateFunc.Ads(self, ...) self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.LFG(self, ...)     self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Tools(self, ...)   self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Ads(self, ...)     self.TabGroup.current:Update(); end;
 
 function Finder:UpdateTitle(event, ...)
+  if self.updatesDisabled then return end;
   local title = self.TitleFunc[self.currentTab]
   if title then title(self) end;
 end;
 
 function Finder:UpdateContent(event, ...)
+  if self.updatesDisabled then return end;
   local update = self.UpdateFunc[self.currentTab]
   if update then update(self) end;
   self:DoLayout();
 end;
 
-function Finder:Update(event, ...)
+function Finder:Update(tab)
+  if self.updatesDisabled then return end;
   if not self:IsShown() then return end; -- only update if we're shown
-  self:UpdateContent();
-  self:UpdateTitle();
+  if not tab or self.currentTab == tab
+  then self:UpdateContent();
+       self:UpdateTitle();
+  end;
 end;
 
 function Finder.MakeFunc.Ads(self)
@@ -1507,17 +1587,21 @@ function Finder.MakeFunc.Ads(self)
   panelFrame:SetFullWidth(true);
   panelFrame:SetLayout("Flow");
   
-  local headline = AceGUI:Create("Heading");
-  headline:SetFullWidth(true);
-  headline:SetText("Your Ad");
-  panelFrame:AddChild(headline);
-
   local sendAdButton    = AceGUI:Create("Button");
   local clearAdButton   = AceGUI:Create("Button");
   local previewAdButton = AceGUI:Create("Button");
   local adultToggle     = AceGUI:Create("CheckBox");
   local titleField      = AceGUI:Create("EditBox");
   local bodyField       = AceGUI:Create("MultiLineEditBox");
+  local spacer1 = AceGUI:Create("Label");
+  local spacer2 = AceGUI:Create("Label");
+  local spacer3 = AceGUI:Create("Label");
+  -- local spacer4 = AceGUI:Create("Label");
+
+  spacer1:SetRelativeWidth(0.01);
+  spacer2:SetRelativeWidth(0.01);
+  spacer3:SetRelativeWidth(0.02);
+  -- spacer4:SetRelativeWidth(0.30);
 
   local function showPreview(self, event, button)
     local myRecord = RP_Find:LoadSelfRecord();
@@ -1554,26 +1638,14 @@ function Finder.MakeFunc.Ads(self)
       adultToggle:ResetValue();
       if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
       RP_Find:Notify("Your ad has been cleared.");
-      panelFrame:Update();
+      panelFrame:Update("Ads");
     end);
-
-  panelFrame:AddChild(clearAdButton);
-
-  local spacer1 = AceGUI:Create("Label");
-  spacer1:SetRelativeWidth(0.01);
-  panelFrame:AddChild(spacer1);
 
   previewAdButton:SetText("Preview Ad");
   previewAdButton:SetRelativeWidth(0.20);
   previewAdButton:SetDisabled(isAdIncomplete());
   previewAdButton:SetCallback("OnClick", showPreview);
     
-  panelFrame:AddChild(previewAdButton);
-
-  local spacer2 = AceGUI:Create("Label");
-  spacer2:SetRelativeWidth(0.01);
-  panelFrame:AddChild(spacer2);
-
   sendAdButton:SetText("Send Ad");
   sendAdButton:SetRelativeWidth(0.20);
   sendAdButton:SetCallback("OnClick", 
@@ -1584,7 +1656,6 @@ function Finder.MakeFunc.Ads(self)
       RP_Find:SendLFRPAd(...) 
     end);
 
-  panelFrame:AddChild(sendAdButton);
 
   titleField:SetLabel("Ad Title");
   titleField:SetText(RP_Find.db.profile.ad.title);
@@ -1594,22 +1665,14 @@ function Finder.MakeFunc.Ads(self)
   titleField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.title = value;
-      if   RP_Find:ScanForAdultContent(value)
-      then RP_Find.db.profile.ad.adult = true
-           adultToggle:SetValue(true);
-      end;
       if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
-      panelFrame:Update();
+      panelFrame:Update("Ads");
     end);
   function titleField:ResetValue()
      RP_Find.db.profile.ad.title = RP_Find.defaults.profile.ad.title;
      self:SetText(RP_Find.defaults.profile.ad.title);
   end;
-  panelFrame:AddChild(titleField);
 
-  local spacer3 = AceGUI:Create("Label");
-  spacer3:SetRelativeWidth(0.02);
-  panelFrame:AddChild(spacer3);
 
   adultToggle:SetLabel("This is an adult ad");
   adultToggle:SetRelativeWidth(0.25);
@@ -1617,43 +1680,59 @@ function Finder.MakeFunc.Ads(self)
   adultToggle:SetCallback("OnValueChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.adult = value;
+      panelFrame:Update("Ads");
     end);
   function adultToggle:ResetValue()
      RP_Find.db.profile.ad.adult = RP_Find.defaults.profile.ad.adult;
      self:SetValue(RP_Find.defaults.profile.ad.adult);
   end;
 
-  panelFrame:AddChild(adultToggle);
-
-  bodyField:SetLabel("Ad Text");
-  bodyField:SetText(RP_Find.db.profile.ad.body);
-  bodyField:SetFullWidth(true);
   bodyField:DisableButton(true);
   bodyField:SetNumLines(12);
   bodyField:SetMaxLetters(1024);
   bodyField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.body = value;
-     
-      if   RP_Find:ScanForAdultContent(value)
-      then RP_Find.db.profile.ad.adult = true;
-           adultToggle:SetValue(true);
-      end;
-
       if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
-      panelFrame:Update();
+      panelFrame:Update("Ads");
     end);
   function bodyField:ResetValue()
      RP_Find.db.profile.ad.body = RP_Find.defaults.profile.ad.body;
      self:SetText(RP_Find.defaults.profile.ad.body);
   end;
-  panelFrame:AddChild(bodyField);
+
+  bodyField:SetLabel("Ad Text");
+  bodyField:SetText(RP_Find.db.profile.ad.body);
+  bodyField:SetFullWidth(true);
 
   function panelFrame:Update() 
     clearAdButton:SetDisabled(isAdIncomplete());
-    previewAdButton:SetDisabled(isAdIncompete());
+    previewAdButton:SetDisabled(isAdIncomplete());
     enableOrDisableSendAd();
+    if   not RP_Find.db.profile.ad.adult and 
+         (RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.title)
+          or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body)
+          )
+    then RP_Find.db.profile.ad.adult = true;
+         adultToggle:SetValue(true);
+    end;
   end;
+
+  -- this order determines what order they're shown in
+  --
+  panelFrame:AddChild(titleField);
+  panelFrame:AddChild(spacer3);
+  panelFrame:AddChild(adultToggle);
+
+  panelFrame:AddChild(bodyField);
+
+  -- panelFrame:AddChild(spacer4);
+
+  panelFrame:AddChild(clearAdButton);
+  panelFrame:AddChild(spacer1);
+  panelFrame:AddChild(previewAdButton);
+  panelFrame:AddChild(spacer2);
+  panelFrame:AddChild(sendAdButton);
 
   return panelFrame;
 end;
@@ -2405,9 +2484,7 @@ function RP_Find:RegisterMspReceived()
       if   self.db.profile.config.monitorMSP and playerName ~= self.me
       then local playerRecord = self:GetPlayerRecord(playerName, server);
            playerRecord:UnpackMSPData();
-           if   self.Finder.currentTab == "Display"
-           then self.Finder:Update();
-           end;
+           self.Finder:Update("Display");
       end;
     end);
 end;
@@ -2453,7 +2530,7 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
               playerRecord:UnpackTRP3Data();
          end;
          
-         if RP_Find.Finder.currentTab == "Display" then RP_Find.Finder:Update(); end;
+         RP_Find.Finder:Update("Display");
 
          if   RP_Find.db.profile.config.alertTRP3Connect
          then RP_Find:Notify(string.format(L["Format Alert TRP3 Connect"], sender));

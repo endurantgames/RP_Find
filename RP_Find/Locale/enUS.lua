@@ -71,7 +71,6 @@ L["Display Send Ping Tooltip"] = "Click to send a silent request to the player's
 L["Display Read Ad Tooltip"] = "Click to view the player's LFRP ad.";
 L["Display Send Invite Tooltip"] = "Click to invite the player to join your party or raid.";
 L["Config See Adult Ads Tooltip"       ] = "Some ads may be inappropriate for a younger audience. Check this box to see any ads marked as such.";
-L["Adult Content Patterns"             ] = "fuck%S*|%S*shit";
 L["Config Use Smart Pruning"           ] = "Use";
 L["Config Use Smart Pruning Tooltip"   ] = "Smart pruning is one way to keep the database size managable. You can choosse the " .. col.blue("Smart Pruning Threshold") .. " to fine-tune memory management.";
 L["Config Smart Pruning Threshold"     ] = "Smart Pruning Threshold";
