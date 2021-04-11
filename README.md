@@ -22,7 +22,7 @@ or can be run without any of those.
   - [x] Send ping
   - [x] View profile (for trp3, mrp, xrp)
   - [x] Send whisper
-  - [ ] Send invite
+  - [x] Send invite
   - [ ] Color-coding
   - [x] Filters
   - [x] Search
