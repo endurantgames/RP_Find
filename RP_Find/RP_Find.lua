@@ -27,7 +27,7 @@ local MEMORY_WARN_GB = 1000 * 1000;
 local PLAYER_RECORD  = "RP_Find Player Record";
 local ARROW_UP       = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
 local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
-local SLASH          = "/rpfind";
+local SLASH          = "/rpfind|/lfrp";
 local configDB       = "RP_Find_ConfigDB";
 local finderDB       = "RP_FindDB";
 local finderFrameName = "RP_Find_Finder_Frame";
@@ -56,36 +56,6 @@ local zoneList =
 1670, };
 
 local zoneBacklink = {};
-
-local function getZoneFromMapID(mapID)
-
-  local function passThrough(mapID, info) return mapID, nil end;
-  local function checkParent(mapID, info) 
-    if   info.parentMapId ~= 0 
-    then return nil, info.parentMapId 
-    else return mapID, nil 
-    end 
-  end;
-
-  local hash =
-  { [Enum.UIMapType.Cosmic]    = passThrough,
-    [Enum.UIMapType.World]     = passThrough,
-    [Enum.UIMapType.Continent] = passThrough,
-    [Enum.UIMapType.Zone]      = passThrough,
-    [Enum.UIMapType.Micro]     = checkParent,
-    [Enum.UIMapType.Dungeon]   = checkParent,
-    [Enum.UIMapType.Orphan]    = checkParent,
-  };
-
-  local zone, info
-
-  while not zone do 
-    info = C_Map.GetMapInfo(mapID);
-    zone, mapID = hash[info.mapType](mapID, info);
-  end;
-
-  return zone, info;
-end;
 
 local menu =
 { notifySound =
@@ -727,7 +697,11 @@ RP_Find.PlayerMethods =
       RP_Find:SendWhisper(self.playerName, "((  ))", 3) 
     end,
 
-  ["HaveLFRPAd"] = function(self) return self:Get("ad") ~= "" end,
+  ["HaveLFRPAd"] = 
+    function(self) 
+      local ad = self:Get("ad");
+      return ad and ad ~= "";
+    end,
 
   ["GetLFRPAd"] = 
     function(self)
@@ -765,8 +739,11 @@ RP_Find.PlayerMethods =
 
   ["HaveMSPData"] = function(self) return self:Get("have_mspData") end,
 
-  ["HasRPProfile"] = 
-    function(Self) return self:HaveTRP3Data() or self:HaveMSPData() end,
+  ["HaveRPProfile"] = 
+    function(self) 
+      return self:HaveTRP3Data() 
+      or self:HaveMSPData() 
+    end,
 
   ["UnpackMSPData"] =
     function(self)
@@ -950,7 +927,6 @@ end;
 hooksecurefunc(Finder.frame, "StartSizing", dontBreakOnResize);
 hooksecurefunc(Finder.frame, "StopMovingOrSizing", restoreOnResize);
 
-
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
 Finder.content:SetPoint("TOPRIGHT",   Finder.frame, "TOPRIGHT", -20, -30);
@@ -1069,6 +1045,7 @@ Finder.MakeFunc = {}
 
 Finder.filterList =
 { 
+  --[[
   ["OnThisServer"] =
     { func = 
         function(playerRecord)
@@ -1088,14 +1065,15 @@ Finder.filterList =
       enabled = false,
     },
 
-  ["HasRPProfile"] =
+  ["HaveRPProfile"] =
     { func =
         function(playerRecord)
-          return playerRecord:HasRPProfile()
+          return playerRecord:HaveRPProfile()
         end,
       title = "RP Profile Loaded",
       enabled = false,
     },
+  --]] 
 
   ["ContactInLastHour"] =
     { func =
@@ -1106,6 +1084,7 @@ Finder.filterList =
       enabled = false,
     },
 
+  --[[
   ["ContactInLastDay"] =
     { func =
         function(playerRecord)
@@ -1125,16 +1104,28 @@ Finder.filterList =
       enabled = false,
     },
 
-  ["SentMapScanInLastDay"] =
+  --]]
+  ["SentMapScan"] =
     { func =
         function(playerRecord)
-          return
-            time - playerRecord:GetTimestamp() < 1 * SECONDS_PER_DAY
+          local didMapScan = playerRecord:Get("mapScan");
+          return didMapScan and didMapScan ~= "";
         end,
-      title = "Map Scan in Last Day",
+      title = "Did a Map Scan Recently",
       enabled = false,
     },
 
+  ["HaveAd"] =
+    { func = function(playerRecord) return playerRecord:HaveLFRPAd() end,
+      title = "Sent an LFRP Ad",
+      enabled = false,
+    },
+
+  ["HaveRPProfile"] =
+    { func = function(playerRecord) return playerRecord:HaveRPProfile() end,
+      title = "Roleplaying Profile Received",
+      enabled = false,
+    },
 };
 
 function Finder.MakeFunc.Display(self)
@@ -1168,7 +1159,9 @@ function Finder.MakeFunc.Display(self)
 
   panelFrame:AddChild(searchBar);
 
-  local space1 = AceGUI:Create("Label"); space1:SetRelativeWidth(0.01); panelFrame:AddChild(space1);
+  local space1 = AceGUI:Create("Label"); 
+  space1:SetRelativeWidth(0.01); 
+  panelFrame:AddChild(space1);
 
   local filterSelector = AceGUI:Create("Dropdown");
         filterSelector:SetMultiselect(true);
@@ -1190,13 +1183,13 @@ function Finder.MakeFunc.Display(self)
              activeFilters[filterID] = nil;
         end;
     end;
+
     if     count == 0 
     then   filterSelector:SetText("Filters");
     elseif count == 1
     then   filterSelector:SetText(count .. " Filter");
     else   filterSelector:SetText(count .. " Filters");
     end;
-    Finder:Update("Display");
   end;
 
   setActiveFilters();
@@ -1205,6 +1198,7 @@ function Finder.MakeFunc.Display(self)
     function(self, event, key, checked)
       Finder.filterList[key].enabled = checked;
       setActiveFilters();
+      Finder:Update("Display");
     end);
 
   filterSelector:SetCallback("OnEnter",
@@ -1527,8 +1521,8 @@ function Finder.MakeFunc.Display(self)
   end;
 
   function panelFrame:Update(...) 
+    setActiveFilters();
     playerList_Update(playerList, ...) 
-    Finder:DoLayout(); 
   end;
 
   return panelFrame;
@@ -1827,11 +1821,15 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScan:SetTitle("TRP3 Map Scan");
   panelFrame:AddChild(trp3MapScan);
 
-  local zoneID, zoneInfo = 
-    getZoneFromMapID(
-      RP_Find.Finder.scanZone or
-      C_Map.GetBestMapForUnit("player")
-    );
+  local zoneID = C_Map.GetBestMapForUnit("player")
+ 
+  if   not menu.zone[zoneID] and UnitFactionGroup("player") == "Alliance"
+  then zoneID = 84
+  elseif not menu.zone[zoneID]
+  then zoneID = 85;
+  end;
+
+  local zoneInfo = C_Map.GetMapInfo(zoneID);
 
   local trp3MapScanZone = AceGUI:Create("Dropdown");
   trp3MapScanZone:SetLabel("Zone to Scan");
@@ -2672,7 +2670,9 @@ RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
 RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end);
 
-_G["SLASH_RP_FIND1"] = SLASH;
+for i, slash in ipairs(split(SLASH, "|"))
+do _G["SLASH_RP_FIND" .. i] = slash;
+end;
 
 function RP_Find:OpenOptions()
   InterfaceOptionsFrame:Show();
