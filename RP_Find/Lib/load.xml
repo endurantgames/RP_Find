@@ -17,6 +17,7 @@
         <Include file="AceTimer-3.0\AceTimer-3.0.xml"               />
         <Include file="AceEvent-3.0\AceEvent-3.0.xml"               />
         <Script  file="libdatabroker-1-1\LibDataBroker-1.1.lua"     />
+        <Include file="LibToast-1.0\lib.xml"                        />
         <Include file="LibDBIcon-1.0\lib.xml"                       />
         <Include file="LibColorManipulation-1.0\lib.xml"            />
         <Include file="LibRealmInfo\LibRealmInfo.lua"               />

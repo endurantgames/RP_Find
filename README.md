@@ -8,39 +8,39 @@ or can be run without any of those.
 
 ## To Do:
 
-- [ ] Localization strings
-- [ ] LFG
-  - [ ] Search and display
-  - [ ] Post
+- [x] Localization strings
 - [x] Ads
   - [x] Improve editor interface
   - [x] Ad viewer
   - [x] Debug why title keeps clearing
-- [ ] Controls for IC/OOC (if known)
 - [ ] Database viewer:
   - [x] View ad (see above)
   - [x] Send ping
   - [x] View profile (for trp3, mrp, xrp)
   - [x] Send whisper
   - [x] Send invite
-  - [ ] Color-coding
+  - [/] Color-coding
   - [x] Filters
   - [x] Search
   - [x] Rows per page
-  - [ ] View data instead of playerRecords
-  - [ ] Tooltips
+  - [ ] View data instead of playerRecords (is this even a good idea?)
+  - [/] Tooltips
   - [ ] Flags (brainstorming)
-    - [ ] Online (likely)
-    - [ ] Sent ping
-    - [ ] Have MRP/TRP3
+    - [x] Have MRP/TRP3
+    - [x] is IC
+    - [ ] Online recently (likely)
+    - [ ] Sent scan ping
     - [ ] Sent ad
     - [ ] Friend of player
-    - [ ] Favorites
-    - [ ] Always notify when log on
+    - [ ] in same zone (likely)
 - [ ] Tools:
   - [x] Send map ping request
-  - [ ] Other tools?
-    - [ ] Location analysis? (e.g., "three players in (subregion)")
-- [ ] Options
-  - [ ] TTL configuration, relates to color-coding
+  - [ ] Find hotspots
+    - [ ] Create list
+    - [ ] Ad code
+- [ ] LFG
+  - [ ] Search and display
+  - [ ] Post
 - [ ] Beta testing
+  - [ ] Advertise/recruit
+  - [ ] Get feedback
