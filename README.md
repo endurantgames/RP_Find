@@ -19,12 +19,12 @@ or can be run without any of those.
   - [x] View profile (for trp3, mrp, xrp)
   - [x] Send whisper
   - [x] Send invite
-  - [/] Color-coding
+  - [x] Color-coding
   - [x] Filters
   - [x] Search
   - [x] Rows per page
   - [ ] View data instead of playerRecords (is this even a good idea?)
-  - [/] Tooltips
+  - [x] Tooltips
   - [ ] Flags (brainstorming)
     - [x] Have MRP/TRP3
     - [x] is IC
