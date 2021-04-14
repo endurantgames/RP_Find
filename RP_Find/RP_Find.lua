@@ -1333,12 +1333,30 @@ RP_Find.myname = "RP_Find";
 
 function RP_Find:Update(...) self.Finder:Update(...); end
 
-local finderWidth  = math.min(700, UIParent:GetWidth()  * 0.4);
-local finderHeight = math.min(500, UIParent:GetHeight() * 0.5);
-Finder.frame:SetMinResize(650, 300);
+function Finder:SetDimensions()
+  if   RP_Find.db.profile.config.finderLeft
+  and  RP_Find.db.profile.config.finderBottom
+  then self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
+         RP_Find.db.profile.config.finderLeft,
+         RP_Find.db.profile.config.finderBottom)
+  else self:SetPoint("CENTER", UIParent, "CENTER");
+  end;
 
-Finder:SetWidth(finderWidth);
-Finder:SetHeight(finderHeight);
+  if   RP_Find.db.profile.config.finderWidth
+  and   RP_Find.db.profile.config.finderHeight
+  then self:SetWidth(RP_Find.db.profile.config.finderWidth);
+       self:SetHeight(RP_Find.db.profile.config.finderHeight);
+  else self:SetWidth(700);
+       self:SetHeight(500);
+  end;
+  self.frame:SetMinResize(650, 300);
+end;
+
+-- local finderWidth  = math.min(700, UIParent:GetWidth()  * 0.4);
+-- local finderHeight = math.min(500, UIParent:GetHeight() * 0.5);
+-- Finder:SetWidth(finderWidth);
+-- Finder:SetHeight(finderHeight);
+--
 Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
@@ -1364,6 +1382,13 @@ local function dontBreakOnResize()
 end;
 
 local function restoreOnResize() 
+  if   RP_Find and RP_Find.db
+  then RP_Find.db.profile.config.finderLeft,
+       RP_Find.db.profile.config.finderBottom,
+       RP_Find.db.profile.config.finderWidth,
+       RP_Find.db.profile.config.finderHeight =
+         Finder.frame:GetRect();
+  end;
   Finder:DisableUpdates(false);
   Finder:ResumeLayout();
   Finder:Update();
@@ -2296,7 +2321,10 @@ function Finder.MakeFunc.Ads(self)
       bodyField:ResetValue();
       adultToggle:ResetValue();
 
-      if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
+      if   RP_Find.adFrame:IsShown() 
+           and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+      then showPreview(previewButton); 
+      end;
 
       RP_Find:Notify(L["Notify Ad Cleared"]);
       panelFrame:Update("Ads");
@@ -2316,14 +2344,17 @@ function Finder.MakeFunc.Ads(self)
 
   titleField:SetLabel(L["Field Ad Title"]);
   titleField:SetText(RP_Find.db.profile.ad.title);
-  titleField:SetRelativeWidth(0.72);
+  titleField:SetRelativeWidth(0.67);
   titleField:DisableButton(true);
   titleField:SetMaxLetters(128);
   titleField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.title = value;
 
-      if RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
+      if   RP_Find.adFrame:IsShown() 
+           and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+      then showPreview(previewButton); 
+      end;
 
       panelFrame:Update("Ads");
     end);
@@ -2334,7 +2365,7 @@ function Finder.MakeFunc.Ads(self)
   end;
 
   adultToggle:SetLabel(L["Field Adult Ad"]);
-  adultToggle:SetRelativeWidth(0.25);
+  adultToggle:SetRelativeWidth(0.30);
   adultToggle:SetValue(RP_Find.db.profile.ad.adult)
   adultToggle:SetCallback("OnValueChanged",
     function(self, event, value)
@@ -2353,7 +2384,11 @@ function Finder.MakeFunc.Ads(self)
     function(self, event, value)
       RP_Find.db.profile.ad.body = value;
 
-      if   RP_Find.adFrame:IsShown() then showPreview(previewButton); end;
+      if   RP_Find.adFrame:IsShown() 
+           and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+      then showPreview(previewButton); 
+      end;
+
 
       panelFrame:Update("Ads");
     end);
@@ -3079,6 +3114,8 @@ function adFrame:Reset()
   for _, string in ipairs(self.valuePool) do string:Hide(); end;
 end;
 
+function adFrame:GetPlayerName() return self.playerName; end;
+
 function adFrame:SetSubtitle(text, default) 
   if default and (text == "" or not text)
   then self.subtitle:SetText(default); 
@@ -3095,8 +3132,8 @@ function adFrame:AddField(field, value, default)
        table.insert(self.fieldPool, fieldString);
        valueString = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
        table.insert(self.valuePool, valueString);
-  else fieldString = table.remove(self.fieldPool);
-       valueString = table.remove(self.valuePool);
+  else fieldString = self.fieldPool[self.fieldNum];
+       valueString = self.valuePool[self.fieldNum];
   end;
 
   fieldString:Show();
@@ -3140,6 +3177,8 @@ end;
 
 function adFrame:SetPlayerRecord(playerRecord)
   self:Reset();
+
+  self.playerName = playerRecord:GetPlayerName();
 
   self:SetPortraitToAsset(playerRecord:GetIcon());
   self:SetTitle(playerRecord:GetRPName());
@@ -3203,6 +3242,7 @@ function RP_Find:OnEnable()
   end;
 
   self:ShowOrHideMinimapButton();
+  self.Finder:SetDimensions();
   self.Finder:CreateButtonBar();
   self.Finder:CreateTabGroup();
   self.enableOrDisableSendAd();
