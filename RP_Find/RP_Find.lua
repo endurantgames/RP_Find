@@ -328,7 +328,7 @@ RP_Find.timers       = {};
 RP_Find.addonList = addon;
 
 function RP_Find:GetLast(name)        return self.db.global.last[name]            end;
-function RP_Find:ClearLast(name);     self.db.global.last[name] = nil;            end;
+function RP_Find:ClearLast(name)      self.db.global.last[name] = nil;            end;
 function RP_Find:SetLast(name, value) self.db.global.last[name] = value or time() end;
 function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
                                           or self:GetLast(name)                   end;
@@ -696,7 +696,7 @@ RP_Find.OnMinimapButtonLeave = hideTooltip;
 -- function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
 
 function RP_Find:SendWhisper(playerName, message, position)
-  local delta = time() - (self.last.sendWhisper or 0) 
+  local delta = time() - (self:Last("sendWhisper") or 0) 
   if   delta <= 5 * SECONDS_PER_MIN
   then self:Notify(string.format(L["Format Send Whisper Failed"], 5, 5 * SECONDS_PER_MIN - delta));
   --[[
@@ -708,7 +708,7 @@ function RP_Find:SendWhisper(playerName, message, position)
        then ChatEdit_GetActiveWindow():ClearFocus();
        end;
        ChatFrame_OpenChat(messageStart, nil, position)
-       self.last.sendWhisper = time();
+       self:SetLast("sendWhisper");
        self:Update("Display");
   end;
 end;
@@ -728,7 +728,7 @@ function RP_Find:SendPing(player, interactive)
 
   if   pingSent and interactive
   then RP_Find:Notify(string.format(L["Format Ping Sent"], playerName));
-       RP_Find.last.pingPlayer = time();
+       RP_Find:SetLast("pingPlayer");
   end;
 end;
 
@@ -1115,7 +1115,7 @@ RP_Find.PlayerMethods =
     function(self) 
       return L["Label Ping"], 
         not RP_Find:HasRPClient() or
-        time() - (RP_Find.last.pingPlayer or 0) < SECONDS_PER_MIN
+        time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendPing"] =
@@ -1127,7 +1127,7 @@ RP_Find.PlayerMethods =
   ["LabelSendTell"] = 
     function(self) 
       return L["Label Whisper"], 
-        time() - (RP_Find.last.sendWhisper or 0) < SECONDS_PER_MIN
+        time() - (RP_Find:Last("sendWhisper") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendTell"] = 
@@ -1167,13 +1167,13 @@ RP_Find.PlayerMethods =
   ["LabelInvite"]   = 
     function(self) 
       return L["Label Invite"], 
-        time() - (RP_Find.last.sendInvite or 0) < SECONDS_PER_MIN
+        time() - (RP_Find:Last("sendInvite") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdInvite"] =
     function(self)
       C_PartyInfo.InviteUnit(self.playerName)
-      RP_Find.last.sendInvite = time();
+      RP_Find:SetLast("sendInvite");
       RP_Find:Update("Display");
     end,
 
@@ -1322,12 +1322,14 @@ RP_Find.defaults =
       infoColumnTags     = "[rp:gender] [rp:race] [rp:class]",
       showColorBar       = true,
     },
-    minimapbutton        = {}, 
     ad                   = 
     { title              = "",
       body               = "",
       adult              = false,
+      autoSend           = false,
     },
+    minimapbutton        = {}, 
+    finder               = {},
   },
   global                 =
   { last                 = {}
@@ -1341,18 +1343,18 @@ RP_Find.myname = "RP_Find";
 function RP_Find:Update(...) self.Finder:Update(...); end
 
 function Finder:SetDimensions()
-  if   RP_Find.db.profile.config.finderLeft
-  and  RP_Find.db.profile.config.finderBottom
+  if   RP_Find.db.profile.finder.left
+  and  RP_Find.db.profile.finder.bottom
   then self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
-         RP_Find.db.profile.config.finderLeft,
-         RP_Find.db.profile.config.finderBottom)
+         RP_Find.db.profile.finder.left,
+         RP_Find.db.profile.finder.bottom)
   else self:SetPoint("CENTER", UIParent, "CENTER");
   end;
 
-  if   RP_Find.db.profile.config.finderWidth
-  and   RP_Find.db.profile.config.finderHeight
-  then self:SetWidth(RP_Find.db.profile.config.finderWidth);
-       self:SetHeight(RP_Find.db.profile.config.finderHeight);
+  if   RP_Find.db.profile.finder.width
+  and   RP_Find.db.profile.finder.height
+  then self:SetWidth(RP_Find.db.profile.finder.width);
+       self:SetHeight(RP_Find.db.profile.finder.height);
   else self:SetWidth(700);
        self:SetHeight(500);
   end;
@@ -1390,10 +1392,10 @@ end;
 
 local function restoreOnResize() 
   if   RP_Find and RP_Find.db
-  then RP_Find.db.profile.config.finderLeft,
-       RP_Find.db.profile.config.finderBottom,
-       RP_Find.db.profile.config.finderWidth,
-       RP_Find.db.profile.config.finderHeight =
+  then RP_Find.db.profile.finder.left,
+       RP_Find.db.profile.finder.bottom,
+       RP_Find.db.profile.finder.width,
+       RP_Find.db.profile.finder.height =
          Finder.frame:GetRect();
   end;
   Finder:DisableUpdates(false);
@@ -2550,7 +2552,7 @@ function Finder.MakeFunc.Ads(self)
 end;
 
 function RP_Find.enableOrDisableSendAd()
-  self:SendMessage("RP_FIND_SEND_AD_STATUS_CHANGE");
+  RP_Find:SendMessage("RP_FIND_SEND_AD_STATUS_CHANGE");
 end;
 
 function Finder.MakeFunc.LFG(self)
@@ -3622,6 +3624,7 @@ function RP_Find:ComposeAd()
 
   local trial = self.my:GetRPTrial();
   if trial == "" then trial = IsTrialAccount() and "1" or "0" end;
+
   add("MSP-TR", trial);
 
   add("title",        self.db.profile.ad.title);
@@ -3682,6 +3685,7 @@ local function makeColorBar()
       RP_Find.db.profile.config.showColorBar = value;
       colorBar:SetShown(value)
     end);
+
   checkbox:HookScript("OnEnter",
     function(self)
       showTooltip(self, 
