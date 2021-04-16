@@ -24,6 +24,8 @@ local L                 = AceLocale:GetLocale(addOnName);
 
 local MEMORY_WARN_MB = 6;
 local MEMORY_WARN_GB = 1;
+local MIN_BUTTON_BAR_SIZE = 8;
+local MAX_BUTTON_BAR_SIZE = 64;
 local PLAYER_RECORD  = "RP_Find Player Record";
 local ARROW_UP       = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
 local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
@@ -63,9 +65,12 @@ local IC = -- icons
   tools     = "Interface\\ICONS\\inv_engineering_90_toolbox_green",
   database  = "Interface\\ICONS\\Inv_misc_platnumdisks",
   prune     = "Interface\\ICONS\\inv_pet_broom",
-  scan      = "Interface\\ICONS\\inv_misc_spyglass_02",
+  scan      = "Interface\\ICONS\\ability_hunter_snipertraining",
+  scanResults = "Interface\\ICONS\\ability_hunter_snipershot",
   checkLFG  = "Interface\\ICONS\\inv_misc_grouplooking",
   sendLFG   = "Interface\\ICONS\\Inv_misc_groupneedmore",
+  autosendStart = "Interface\\Icons\\inv_engineering_90_gizmo",
+  autosendStop = "Interface\\Icons\\inv_mechagon_spareparts",
 };
 local textIC = -- icons for text
 { rpProfile  = "",
@@ -409,8 +414,15 @@ StaticPopupDialogs[popup.deleteDBNow] =
 }
 
 function RP_Find:PurgePlayer(name)
-  self.data.rolePlayers[name] = nil;
-  self.playerRecords[name]    = nil;
+  if name 
+  then self.data.rolePlayers[name]  = nil;
+       self.playerRecords[name]     = nil;
+  end;
+end;
+
+function RP_Find:SoftlyPurgePlayer(name)
+  if name then self.playerRecords[name] = nil;
+  end
 end;
 
 function RP_Find:StartOrStopPruningTimer()
@@ -618,9 +630,7 @@ function RP_Find:GetAllPlayerRecords(filters, searchPattern)
 end;
 
 function RP_Find:GetAllPlayerData()
-  local list = {};
-  for _, data in pairs(self.data.rolePlayers) do table.insert(list, data) end;
-  return list;
+  return self.data.rolePlayers;
 end;
 
 function RP_Find:GetMemoryUsage(fmt) -- returns value, units, message, bytes
@@ -772,10 +782,37 @@ function RP_Find:SendPing(player, interactive)
          pingSent = "msp";
   end;
 
-  if   pingSent and interactive
-  then RP_Find:Notify(string.format(L["Format Ping Sent"], playerName));
-       RP_Find:SetLast("pingPlayer");
+  if     pingSent and not self.timers.sendPing
+  then   self.timers.sendPing = self:ScheduleTimer("CheckPingResult", SECONDS_PER_MIN, playerName)
   end;
+
+  if     pingSent and interactive
+  then   RP_Find:Notify(string.format(L["Format Ping Sent"], playerName));
+         RP_Find:SetLast("pingPlayer");
+  end;
+end;
+
+function RP_Find:CheckPingResult(playerName)
+  local playerRecord = self:GetPlayerRecord(playerName);
+  if not playerRecord then self:SoftlyPurgePlayer(playerName); return; end;
+  if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
+  then print("purging", playerName)
+       self:SoftlyPurgePlayer(playerName); return;
+  else print(playerName, "survived the purge");
+  end;
+  self.timers.sendPing = nil;
+  RP_Find:Update("Display");
+end;
+
+function RP_Find:CheckAllPings()
+  self:Notify("checking all pings now");
+  for _, playerRecord in ipairs(self:GetAllPlayerRecords())
+  do  if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
+      then self:PurgePlayer(playerRecord:GetPlayerName())
+      end;
+  end;
+  self.timers.sendPing = nil;
+  RP_Find:Update("Display");
 end;
 
 RP_Find.PlayerMethods =
@@ -1073,11 +1110,9 @@ RP_Find.PlayerMethods =
             local subzone = self:GetSubzoneName()
             if subzone == ""
             then return self:GetZoneName()
-            else return self:GetZoneName() .. " (" ..
-                        subzone, ")"
+            else return self:GetZoneName() .. " (" ..  subzone .. ")"
             end
           end,
-
           
       };
 
@@ -1148,7 +1183,7 @@ RP_Find.PlayerMethods =
   ["CmdViewProfile"] =
     function(self)
       if     addon.MyRolePlay
-      then   SlashCmdList["MYROLEPLAY"]("open " .. self.playerName);
+      then   SlashCmdList["MYROLEPLAY"]("show " .. self.playerName);
              RP_Find.Finder:Hide();
       elseif addon.totalRP3
       then   SlashCmdList["TOTALRP3"]("open " .. self.playerName);
@@ -1480,11 +1515,44 @@ function Finder:CreateButtonBar()
 
   local buttonBar = AceGUI:Create("SimpleGroup");
   buttonBar:SetLayout("Flow");
-  buttonBar:SetFullWidth(true);
+  buttonBar:SetRelativeWidth(0.5);
   self:AddChild(buttonBar);
 
   local buttonInfo =
   { 
+    { title   = L["Button Toolbar Database"],
+      icon    = IC.database,
+      id      = "database",
+      tooltip = L["Button Toolbar Database Tooltip"],
+      func    = function(self, event, button) 
+                  Finder:LoadTab("Display"); 
+                end,
+      enable  = function() return Finder.currentTab ~= "Display" end,
+    },
+
+    { title   = L["Button Toolbar Read Ads"],
+      icon    = IC.readAds,
+      id      = "readAds",
+      tooltip = L["Button Toolbar Read Ads Tooltip"],
+      func    = function(self, even, button)
+                  for filterID, filterInfo in pairs(Finder.filterList)
+                  do  filterInfo.enabled = (filterID == "HaveAd");
+                  end;
+                  Finder:LoadTab("Display");
+                end,
+       enable = function() return true end,
+    },
+
+    { title   = L["Button Toolbar Prune"],
+      icon    = IC.prune,
+      id      = "prune",
+      tooltip = L["Button Toolbar Prune Tooltip"],
+      func    = function(self, event, button) 
+                  RP_Find:SmartPruneDatabase(true); 
+                end,
+      enable = function() return RP_Find.db.profile.config.useSmartPruning end,
+    },
+
     { title   = L["Button Toolbar Edit Ad"],
       icon    = IC.editAd,
       id      = "editAd",
@@ -1492,6 +1560,7 @@ function Finder:CreateButtonBar()
       func    = function(self, event, button) 
                   Finder:LoadTab("Ads"); 
                 end,
+      enable  = function() return Finder.currentTab ~= "Ads" end,
     },
 
     { title   = L["Button Toolbar Preview Ad"],
@@ -1505,6 +1574,7 @@ function Finder:CreateButtonBar()
                        RP_Find:ShowPreview();
                   end;
                 end,
+       enable = function() return true end,
     },
 
     { title   = L["Button Toolbar Send Ad"],
@@ -1514,28 +1584,41 @@ function Finder:CreateButtonBar()
       func    = function(self, event, button) 
                   RP_Find:SendLFRPAd(true);  -- true = interactive
                 end,
+      enable  = function() return not RP_Find:ShouldSendAdBeDisabled() end,
     },
 
-
-    { title   = L["Button Toolbar Read Ads"],
-      icon    = IC.readAds,
-      id      = "readAds",
-      tooltip = L["Button Toolbar Read Ads Tooltip"],
-      func    = function(self, even, button)
-                  for filterID, filterInfo in pairs(Finder.filterList)
-                  do  filterInfo.enabled = (filterID == "HaveAd");
-                  end;
-                  Finder:LoadTab("Display");
-                end,
+    { title = L["Button Toolbar Autosend Start"],
+      icon = IC.autosendStart,
+      id = "autosendStart",
+      tooltip = L["Button Toolbar Autosend Start Tooltip"],
+      func = function(self, event, button)
+               RP_Find.db.profile.ad.autoSend = true;
+               RP_Find:Notify("Starting autosend.");
+               RP_Find:StartOrStopAutoSend();
+             end,
+      enable = function() return not RP_Find:ShouldSendAdBeDisabled() end,
     },
 
-    { title   = L["Button Toolbar Database"],
-      icon    = IC.database,
-      id      = "database",
-      tooltip = L["Button Toolbar Database Tooltip"],
+    { title = L["Button Toolbar Autosend Stop"],
+      icon = IC.autosendStop,
+      id = "autosendStop",
+      tooltip = L["Button Toolbar Autosend Stop Tooltip"],
+      func = function(self, event, button)
+               RP_Find.db.profile.ad.autoSend = false;
+               RP_Find:Notify("Autosend stopped.");
+               RP_Find:StartOrStopAutoSend();
+             end,
+      enable = function() return RP_Find.timers.autoSend end,
+    },
+
+    { title   = L["Button Toolbar Tools"],
+      icon    = IC.tools,
+      id      = "tools",
+      tooltip = L["Button Toolbar Tools Tooltip"],
       func    = function(self, event, button) 
-                  Finder:LoadTab("Display"); 
+                  Finder:LoadTab("Tools"); 
                 end,
+      enable = function() return Finder.currentTab ~= "Tools"; end,
     },
 
     { title   = L["Button Toolbar Scan"],
@@ -1549,23 +1632,25 @@ function Finder:CreateButtonBar()
                     or C_Map.GetBestMapForUnit("player")
                   )
                 end,
-    },
-
-    { title   = L["Button Toolbar Prune"],
-      icon    = IC.prune,
-      id      = "prune",
-      tooltip = L["Button Toolbar Prune Tooltip"],
-      func    = function(self, event, button) 
-                  RP_Find:SmartPruneDatabase(true); 
+      enable = function() 
+                 return RP_Find.db.profile.config.monitorTRP3 
+                    and time() - (RP_Find:Last("mapScan") or 0) > SECONDS_PER_MIN
                 end,
     },
 
-    { title   = L["Button Toolbar Tools"],
-      icon    = IC.tools,
-      id      = "tools",
-      tooltip = L["Button Toolbar Tools Tooltip"],
-      func    = function(self, event, button) 
-                  Finder:LoadTab("Tools"); 
+    { title = L["Button Toolbar Scan Results"],
+      icon = IC.scanResults,
+      id = "scanResults",
+      tooltip = L["Button Toolbar Scan Results Tooltip"],
+      func = function()
+               for filterID, filterInfo in pairs(Finder.filterList)
+               do  filterInfo.enabled = (filterID == "MatchesLastMapScan");
+               end;
+               Finder:LoadTab("Display");
+             end,
+      enable = function() 
+                 return RP_Find.db.profile.config.monitorTRP3 
+                    and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
                 end,
     },
 
@@ -1575,6 +1660,7 @@ function Finder:CreateButtonBar()
       func = function(self, event, button)
              end,
       tooltip = L["Button Toolbar Check LFG Tooltip"],
+      enable = function() return UnitLevel("player") >= 50 end,
     },
 
     { title = L["Button Toolbar Send LFG"],
@@ -1582,6 +1668,7 @@ function Finder:CreateButtonBar()
       func = function(self, event, button)
              end,
       tooltip = L["Button Toolbar Send LFG Tooltip"],
+      enable = function() return UnitLevel("player") >= 50 end,
     },
     --]]
   };
@@ -1607,10 +1694,28 @@ function Finder:CreateButtonBar()
       local spacer = AceGUI:Create("Label");
       spacer:SetText(" ");
       spacer:SetWidth(2); -- an absolute value not relative
+
       buttonBar:AddChild(button);
       buttonBar:AddChild(spacer);
+      button:SetDisabled(not info.enable());
+      button.info = info;
       self.buttons[info.id] = button;
   end;
+
+  local function updateButtonBar()
+    for id, button in pairs(self.buttons)
+    do  button:SetDisabled(not button.info.enable());
+    end;
+  end;
+
+  RP_Find:RegisterMessage("RP_FIND_CHANGE_AD",             updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_SEND_AD",               updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_SEND_AD_STATUS_CHANGE", updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_START",        updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_STOP",         updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_TAB_CHANGE",            updateButtonBar);
+  RP_Find:RegisterMessage("RP_FIND_MAP_SCAN_SENT",         updateButtonBar);
+
 end;
 
 function Finder:CreateTabGroup()
@@ -1646,6 +1751,8 @@ function Finder:CreateTabGroup()
     scrollFrame:AddChild(panelFrame);
     self.current = panelFrame;
     Finder.currentTab = tab;
+
+    RP_Find:SendMessage("RP_FIND_TAB_CHANGE");
 
     if self:IsShown() then Finder:Update() end;
   end;
@@ -1728,7 +1835,7 @@ Finder.filterList =
         function(playerRecord)
           local  zoneID = playerRecord:Get("zoneID")
           return zoneID and RP_Find:Last("mapScanZone")
-             and time() - RP_Find:Last("mapScan") < SECONDS_PER_HOUR
+             and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
              and zoneID == RP_Find:Last("mapScanZone")
         end,
       title  = L["Filter Match Map Scan"],
@@ -2329,7 +2436,7 @@ function RP_Find:IsAdIncomplete()
 end;
 
 function RP_Find:ShouldSendAdBeDisabled()
-  return time() - self:Last("sendAd") < 1 * SECONDS_PER_MIN
+  return time() - (self:Last("sendAd") or 0) < 1 * SECONDS_PER_MIN
       or self.timers.autoSend
       or self.db.profile.autoSend
       or self:IsAdIncomplete();
@@ -2361,9 +2468,20 @@ function Finder.MakeFunc.Ads(self)
   spacer5:SetRelativeWidth(0.01);
 
   local function showPreview(self, event, button)
+    if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+    then RP_Find.adFrame:Hide(); return
+    end;
+
     local myRecord = RP_Find:LoadSelfRecord();
     myRecord:UnpackMSPData();
     myRecord:UnpackTRP3Data();
+
+    local race = myRecord:GetRPRace();
+    if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
+
+    local class = myRecord:GetRPClass();
+    if class == "" then class, _, _ = UnitClass("player"); myRecord:Set("MSP-RC", class); end;
+
     myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
     myRecord:Set("ad_body",  RP_Find.db.profile.ad.body);
     myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);
@@ -2374,7 +2492,7 @@ function Finder.MakeFunc.Ads(self)
   RP_Find.ShowPreview = showPreview;
 
   clearAdButton:SetText(L["Button Clear Ad"]);
-  clearAdButton:SetRelativeWidth(0.20);
+  clearAdButton:SetRelativeWidth(0.19);
   clearAdButton:SetCallback("OnClick",
     function(Self, event, ...)
       titleField:ResetValue();
@@ -2400,7 +2518,7 @@ function Finder.MakeFunc.Ads(self)
   clearAdButton:SetCallback("OnLeave", hideTooltip);
 
   previewAdButton:SetText(L["Button Preview Ad"]);
-  previewAdButton:SetRelativeWidth(0.20);
+  previewAdButton:SetRelativeWidth(0.19);
   previewAdButton:SetCallback("OnClick", showPreview);
 
   previewAdButton:SetCallback("OnEnter",
@@ -2408,10 +2526,10 @@ function Finder.MakeFunc.Ads(self)
       showTooltip(self, { title = L["Button Preview Ad"], lines = { "Preview your ad." } });
     end);
 
-  previewAdButton:SetCallback("OnLeave", hidePreview);
+  previewAdButton:SetCallback("OnLeave", hideTooltip);
     
   sendAdButton:SetText(L["Button Send Ad"]);
-  sendAdButton:SetRelativeWidth(0.20);
+  sendAdButton:SetRelativeWidth(0.19);
   sendAdButton:SetCallback("OnClick", 
     function(self, event, ...) 
       RP_Find:SendLFRPAd(true) -- true = interactive
@@ -2432,10 +2550,11 @@ function Finder.MakeFunc.Ads(self)
   sendAdButton:SetCallback("OnLeave", hideTooltip);
 
   autoSendStartButton:SetText("Autosend Ad");
-  autoSendStartButton:SetRelativeWidth(0.20);
+  autoSendStartButton:SetRelativeWidth(0.19);
   autoSendStartButton:SetCallback("OnClick",
     function(self, event, button)
       RP_Find.db.profile.ad.autoSend = true;
+      RP_Find:Notify("Starting autosend.");
       RP_Find:StartOrStopAutoSend();
     end);
   autoSendStartButton:SetCallback("OnEnter",
@@ -2444,11 +2563,12 @@ function Finder.MakeFunc.Ads(self)
     end);
   autoSendStartButton:SetCallback("OnLeave", hideTooltip)
 
-  autoSendStopButton:SetText("Cancel Autosend");
-  autoSendStopButton:SetRelativeWidth(0.20);
+  autoSendStopButton:SetText("Stop Autosend");
+  autoSendStopButton:SetRelativeWidth(0.19);
   autoSendStopButton:SetCallback("OnClick",
     function(self, event, button)
       RP_Find.db.profile.ad.autoSend = false;
+      RP_Find:Notify("Autosend cancelled.");
       RP_Find:StartOrStopAutoSend();
     end);
   autoSendStopButton:SetCallback("OnEnter",
@@ -2459,7 +2579,7 @@ function Finder.MakeFunc.Ads(self)
 
   titleField:SetLabel(L["Field Ad Title"]);
   titleField:SetText(RP_Find.db.profile.ad.title);
-  titleField:SetRelativeWidth(0.67);
+  titleField:SetRelativeWidth(0.60);
   titleField:DisableButton(true);
   titleField:SetMaxLetters(128);
   titleField:SetCallback("OnTextChanged",
@@ -2481,7 +2601,7 @@ function Finder.MakeFunc.Ads(self)
   titleField:SetCallback("OnLeave", hideTooltip);
 
   adultToggle:SetLabel(L["Field Adult Ad"]);
-  adultToggle:SetRelativeWidth(0.30);
+  adultToggle:SetRelativeWidth(0.38);
   adultToggle:SetValue(RP_Find.db.profile.ad.adult)
   adultToggle:SetCallback("OnValueChanged",
     function(self, event, value)
@@ -2501,7 +2621,7 @@ function Finder.MakeFunc.Ads(self)
   adultToggle:SetCallback("OnLeave", hideTooltip);
 
   bodyField:DisableButton(true);
-  bodyField:SetNumLines(12);
+  bodyField:SetNumLines(10);
   bodyField:SetMaxLetters(1024);
   bodyField:SetCallback("OnTextChanged",
     function(self, event, value)
@@ -2509,6 +2629,7 @@ function Finder.MakeFunc.Ads(self)
       RP_Find:SendMessage("RP_FIND_CHANGE_AD");
       panelFrame:Update("Ads");
     end);
+
   function bodyField:ResetValue()
      RP_Find.db.profile.ad.body = RP_Find.defaults.profile.ad.body;
      self:SetText(RP_Find.defaults.profile.ad.body);
@@ -2540,16 +2661,20 @@ function Finder.MakeFunc.Ads(self)
       _ = bodyField and bodyField:SetDisabled(false);
       _ = titleField and titleField:SetDisabled(false);
       _ = adultToggle and adultToggle:SetDisabled(false);
-      _ = sendAdButton and sendAdButton:SetDisabled(self:ShouldSendAdBeDisabled());
+      _ = sendAdButton and sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
       _ = clearAdButton and clearAdButton:SetDisabled(false);
       _ = autoSendStopButton and autoSendStopButton:SetDisabled(true);
-      _ = autoSendStartButton and autoSendStartButton:SetDisabled(false);
+      _ = autoSendStartButton and autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
     end);
 
   local function sendAdStatusChange()
+    bodyField:SetDisabled(RP_Find.timers.autoSend);
+    titleField:SetDisabled(RP_Find.timers.autoSend);
+    adultToggle:SetDisabled(RP_Find.timers.autoSend);
+    clearAdButton:SetDisabled(RP_Find.timers.autoSend);
     sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
     autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-    autoSendStopButton:SetDisabled(RP_Find.timers.autoSend)
+    autoSendStopButton:SetDisabled(not RP_Find.timers.autoSend);
   end;
 
   RP_Find:RegisterMessage("RP_FIND_SEND_AD",               sendAdStatusChange);
@@ -2568,6 +2693,7 @@ function Finder.MakeFunc.Ads(self)
     end);
 
   function panelFrame:Update() 
+    sendAdStatusChange();
 
     -- clearAdButton:SetDisabled(isAdIncomplete());
     -- previewAdButton:SetDisabled(isAdIncomplete());
@@ -2593,7 +2719,7 @@ function Finder.MakeFunc.Ads(self)
   panelFrame:AddChild(spacer3);
   panelFrame:AddChild(sendAdButton);
   panelFrame:AddChild(spacer4);
-  panelFrame:AddChild(startAutoStartButton);
+  panelFrame:AddChild(autoSendStartButton);
   panelFrame:AddChild(spacer5);
   panelFrame:AddChild(autoSendStopButton);
 
@@ -2725,7 +2851,7 @@ function Finder.MakeFunc.Tools(self)
     end;
 
     if   RP_Find:Last("mapScanZone")
-         and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
+         and time() - (RP_Find:Last("mapScan") or 0) < 5 * SECONDS_PER_MIN
          and trp3MapScanResultsButton
     then trp3MapScanResultsButton:SetDisabled(false)
     else trp3MapScanResultsButton:SetDisabled( true)
@@ -2737,16 +2863,33 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScanZone:SetList(menu.zone, menu.zoneOrder);
   trp3MapScanZone:SetValue(zoneID);
   trp3MapScanZone:SetText(zoneInfo.name);
+  trp3MapScanZone:SetCallback("OnEnter",
+    function(self, event, ...)
+      showTooltip(self, { title = L["Field Zone to Scan"], 
+        lines = { "Select a zone that you want to a TRP3 map scan request to." } });
+    end)
+  trp3MapScanZone:SetCallback("OnLeave", hideTooltip);
   trp3MapScanZone:SetCallback("OnValueChanged",
     function(self, event, value, checked)
+      trp3MapScanResultsButton:SetDisabled(true);
       RP_Find.Finder.scanZone = value;
     end);
 
-  spacer:SetRelativeWidth(0.05);
-  spacer:SetText(" ");
+  spacer:SetRelativeWidth(0.01);
 
   trp3MapScanButton:SetRelativeWidth(0.20);
   trp3MapScanButton:SetText(L["Button Scan Now"]);
+  trp3MapScanButton:SetCallback("OnEnter",
+    function(self, event, ...)
+      local zoneInfo = C_Map.GetMapInfo(RP_Find.Finder.scanZone);
+      showTooltip(self, { title = L["Button Scan Now"],
+        lines = { "This will send a (silent) map scan request to all players in " ..
+                  zoneInfo.name .. " who use TRP3.",
+                  " ", 
+                  "Players whose TRP3 addons respond to the map scan request will be added to your database." },
+        });
+    end);
+  trp3MapScanButton:SetCallback("OnLeave", hideTooltip);
   trp3MapScanButton:SetCallback("OnClick",
     function(self, event, button)
       RP_Find:SendTRP3Scan(RP_Find.Finder.scanZone)
@@ -2754,11 +2897,18 @@ function Finder.MakeFunc.Tools(self)
       updateTrp3MapScan()
     end);
 
-  spacer2:SetRelativeWidth(0.05);
-  spacer2:SetText(" ");
+  spacer2:SetRelativeWidth(0.01);
 
   trp3MapScanResultsButton:SetRelativeWidth(0.20);
   trp3MapScanResultsButton:SetText(L["Button Scan Results"]);
+  trp3MapScanResultsButton:SetCallback("OnEnter",
+    function(self, event, ...)
+      showTooltip(self, { title = L["Button Scan Results"], 
+         lines = { "Click this button to switch to the database tab.",
+                   " ",
+                   "Your filter will be set to show players who responded to your last map scan." } });
+    end);
+  trp3MapScanResultsButton:SetCallback("OnLeave", hideTooltip);
   trp3MapScanResultsButton:SetCallback("OnClick",
     function(self, event, button)
       for filterID, filterInfo in pairs(Finder.filterList)
@@ -2773,9 +2923,96 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScan:AddChild(spacer2);
   trp3MapScan:AddChild(trp3MapScanResultsButton);
 
-  function panelFrame:Update() updateTrp3MapScan(); end;
+  local massPing = AceGUI:Create("InlineGroup");
+  massPing:SetFullWidth(true);
+  massPing:SetTitle("Mass Ping Tool");
+  panelFrame:AddChild(massPing);
+
+  local pingAllButton = AceGUI:Create("Button");
+  pingAllButton:SetText("Ping All");
+  pingAllButton:SetRelativeWidth(0.20);
+  pingAllButton:SetCallback("OnEnter",
+    function(self, event, ...)
+      showTooltip(self, { title = "Ping All", 
+        lines = { "This tool will send a ping request to all players in your database.",
+                  " ",
+                  "Players who don't autorespond within a minute will be removed from your database.",
+                  " ",
+                  "You have to wait 60 minutes before sending a new mass ping." } });
+    end);
+  pingAllButton:SetCallback("OnLeave", hideTooltip);
+  pingAllButton:SetCallback("OnClick",
+    function(self, event, button)
+      self:SetDisabled(true);
+      RP_Find:Notify("Pings sent to all loaded players; anyone who doesn't respond within a minute will be removed from your database.");
+      RP_Find:PingAll();
+    end);
+
+  local function updatePingAllButton()
+    if time() - (RP_Find:Last("pingAll") or 0) > SECONDS_PER_HOUR
+    then pingAllButton:SetDisabled(false)
+    else pingAllButton:SetDisabled(true)
+    end;
+  end;
+
+  massPing:AddChild(pingAllButton);
+  RP_Find:RegisterMessage("RP_FIND_PING_ALL", updatePingAllButton);
+
+  --[[
+  local loadAllButton = AceGUI:Create("Button");
+  loadAllButton:SetText("Load All");
+  loadAllButton:SetRelativeWidth(0.20);
+  loadAllButton:SetCallback("OnClick",
+    function(self, event, button)
+      self:SetDisabled(true);
+      RP_Find:LoadAll();
+    end);
+
+  local function updateLoadAllButton()
+    if time() - (RP_Find:Last("loadAll") or 0) > SECONDS_PER_HOUR
+    then loadAllButton:SetDisabled(false)
+    else loadAllButton:SetDisabled(true)
+    end;
+  end;
+
+  panelFrame:AddChild(loadAllButton);
+
+  RP_Find:RegisterMessage("RP_FIND_LOAD_ALL", updateLoadAllButton);
+  --]]
+
+  function panelFrame:Update() 
+    updateTrp3MapScan(); 
+    updatePingAllButton();
+  end;
 
   return panelFrame;
+end;
+
+function RP_Find:PingAll()
+  if   time() - ( self:Last("pingAll") or 0) > SECONDS_PER_HOUR
+  then 
+  self:SetLast("pingAll");
+       if self.timers.sendPing
+       then self:CancelTimer(self.timers.sendPing);
+       end;
+       self.timers.sendPing = self:ScheduleTimer("CheckAllPings", SECONDS_PER_MIN);
+       for _, playerRecord in ipairs(self:GetAllPlayerRecords())
+       do  self:SendPing(playerRecord:GetPlayerName())
+       end;
+       RP_Find:SendMessage("RP_FIND_PING_ALL");
+  end;
+end;
+
+function RP_Find:LoadAll()
+  self:SetLast("loadAll");
+  self:SetLast("pingAll");
+  local count = 0;
+  for playerName, playerData in pairs(self:GetAllPlayerData())
+  do self:SendPing(playerName)
+     count = count + 1;
+  end;
+  print("sent pings to", count, "players");
+  RP_Find:SendMessage("RP_FIND_PING_ALL");
 end;
 
 Finder:Hide();
@@ -2914,8 +3151,8 @@ function RP_Find:OnInitialize()
             order          = source_order(),
             desc           = L["Config Button Bar Size Tooltip"],
             width          = 2.1,
-            min            = 10,
-            max            = 40,
+            min            = MIN_BUTTON_BAR_SIZE,
+            max            = MAX_BUTTON_BAR_SIZE,
             step           = 2,
             get            = function() return self.db.profile.config.buttonBarSize end,
             set            = function(info, value) 
@@ -3415,9 +3652,10 @@ function RP_Find:StartOrStopAutoSend()
    and   self.timers.autoSend
   then   -- all is running as it should be
   elseif self.db.profile.ad.autoSend
-  then   self.timers.autoSend = 
-           self:ScheduleRepeatingTimer("SendLFRPAd",
-             SECONDS_PER_HOUR);
+  then   self:SendLFRPAd();
+         self.timers.autoSend = 
+           self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_MIN);
+             -- SECONDS_PER_HOUR);
          self:SendMessage("RP_FIND_AUTOSEND_START");
   elseif self.timers.autoSend
   then   self:CancelTimer(self.timers.autoSend) 
@@ -3684,6 +3922,7 @@ function RP_Find:SendTRP3Scan(zoneNum)
        self:SetLast("mapScan");
        self:SetLast("mapScanZone", zoneNum);
        self.Finder:Update("Tools");
+       self:SendMessage("RP_FIND_MAP_SCAN_SENT");
        self:Notify(L["Notify TRP3 Scan Sent"]);
   end;
 end;
@@ -3729,7 +3968,7 @@ end;
 function RP_Find:SendLFRPAd(interactive)
   local message = self:ComposeAd();
   if   time() - (self:Last("sendAd") or 0) < 60
-  then self:Notify(string.format(L["Format Send Ad Failed"], 60));
+  then if interactive then self:Notify(string.format(L["Format Send Ad Failed"], 60)); end;
   else self:SendSmartAddonMessage(addonPrefix.rpfind, message);
        self:SetLast("sendAd");
        if interactive then self:Notify(L["Notify Send Ad"]); end;
