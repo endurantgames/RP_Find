@@ -796,16 +796,13 @@ function RP_Find:CheckPingResult(playerName)
   local playerRecord = self:GetPlayerRecord(playerName);
   if not playerRecord then self:SoftlyPurgePlayer(playerName); return; end;
   if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
-  then print("purging", playerName)
-       self:SoftlyPurgePlayer(playerName); return;
-  else print(playerName, "survived the purge");
+  then self:SoftlyPurgePlayer(playerName); return;
   end;
   self.timers.sendPing = nil;
   RP_Find:Update("Display");
 end;
 
 function RP_Find:CheckAllPings()
-  self:Notify("checking all pings now");
   for _, playerRecord in ipairs(self:GetAllPlayerRecords())
   do  if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
       then self:PurgePlayer(playerRecord:GetPlayerName())
@@ -2682,14 +2679,14 @@ function Finder.MakeFunc.Ads(self)
 
   RP_Find:RegisterMessage("RP_FIND_CHANGE_AD",
     function(self, message)
-      local adult = self:ScanForAdultContent(self.db.profile.ad.text)
-                    or self:ScanForAdultContent(self.db.profile.ad.body);
+      local adult = RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.text)
+                    or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body);
       if adult
-      then self.db.profile.ad.adult = true;
+      then RP_Find.db.profile.ad.adult = true;
            adultToggle:SetValue(true);
       end;
-      sendAdButton:SetDisabled(self:ShouldSendAdBeDisabled());
-      autoSendStartButton:SetDisabled(self:ShouldSendAdBeDisabled());
+      sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
+      autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
     end);
 
   function panelFrame:Update() 
@@ -3011,7 +3008,6 @@ function RP_Find:LoadAll()
   do self:SendPing(playerName)
      count = count + 1;
   end;
-  print("sent pings to", count, "players");
   RP_Find:SendMessage("RP_FIND_PING_ALL");
 end;
 
