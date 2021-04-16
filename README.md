@@ -9,10 +9,11 @@ or can be run without any of those.
 ## To Do:
 
 - [x] Localization strings
-- [x] Ads
+- [ ] Ads
   - [x] Improve editor interface
   - [x] Ad viewer
   - [x] Debug why title keeps clearing
+  - [ ] More than one ad per profile
 - [ ] Database viewer:
   - [x] View ad (see above)
   - [x] Send ping
@@ -34,6 +35,8 @@ or can be run without any of those.
     - [ ] Sent ad
     - [ ] Friend of player
     - [ ] in same zone (likely)
+- [ ] Profiles
+  - [ ] Rebuild frame when loading new / resetting profile
 - [ ] Tools:
   - [x] Send map ping request
   - [x] Mass ping / offline player removal
