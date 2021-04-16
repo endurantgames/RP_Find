@@ -23,8 +23,9 @@ or can be run without any of those.
   - [x] Filters
   - [x] Search
   - [x] Rows per page
-  - [ ] View data instead of playerRecords (is this even a good idea?)
   - [x] Tooltips
+  - [ ] ~~View data instead of playerRecords (is this even a good idea?)~~
+  - [ ] Get flags / flag tooltip working
   - [ ] Flags (brainstorming)
     - [x] Have MRP/TRP3
     - [x] is IC
@@ -35,12 +36,16 @@ or can be run without any of those.
     - [ ] in same zone (likely)
 - [ ] Tools:
   - [x] Send map ping request
+  - [x] Mass ping / offline player removal
   - [ ] Find hotspots
     - [ ] Create list
     - [ ] Ad code
-- [ ] LFG
+- [ ] LF Raid
   - [ ] Search and display
   - [ ] Post
+- [ ] LF Guild
+  - [ ] Search and display
 - [ ] Beta testing
-  - [ ] Advertise/recruit
-  - [ ] Get feedback
+  - [x] Advertise/recruit
+  - [x] Get feedback
+  - [ ] Lather, rinse, repeat
