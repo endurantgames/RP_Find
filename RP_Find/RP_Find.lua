@@ -22,8 +22,8 @@ local LibColor          = LibStub("LibColorManipulation-1.0");
 local LibRealmInfo      = LibStub("LibRealmInfo");
 local L                 = AceLocale:GetLocale(addOnName);
 
-local MEMORY_WARN_MB = 1000 * 3;
-local MEMORY_WARN_GB = 1000 * 1000;
+local MEMORY_WARN_MB = 6;
+local MEMORY_WARN_GB = 1;
 local PLAYER_RECORD  = "RP_Find Player Record";
 local ARROW_UP       = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
 local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
@@ -166,7 +166,28 @@ local menu =
       "Info Data First Seen", "Info Server",
     },
 
+  notifyChatType = 
+    { ["COMBAT_MISC_INFO"] = COMBAT_MISC_INFO,
+      ["SKILL"] = SKILLUPS,
+      ["BN_INLINE_TOAST_ALERT"] = BN_INLINE_TOAST_ALERT,
+      ["SYSTEM"] = SYSTEM_MESSAGES,
+      ["TRADESKILLS"] = TRADESKILLS,
+      ["CHANNEL"] = CHANNEL,
+      ["SAY"] = SAY,
+      ["MONSTER_SAY"] = SAY .. " (" .. CREATURE .. ")",
+    },
+
+  notifyChatTypeOrder =
+    { "COMBAT_MISC_INFO", "SKILL", "BN_INLINE_TOAST_ALERT",
+      "SYSTEM", "TRADESKILLS", "CHANNEL", "SAY", "MONSTER_SAY", }
+
 };
+
+local function sortNotifyChatType(a, b)
+  return menu.notifyChatType[a] < menu.notifyChatType[b]
+end;
+
+table.sort(menu.notifyChatTypeOrder, sortNotifyChatType);
 
 for i = 10, 30, 5 
 do menu.perPage[tostring(i)] = tostring(i); 
@@ -463,19 +484,43 @@ local function playNotifySound()
   PlaySound(RP_Find.db.profile.config.notifySound); 
 end;
 
+function RP_Find:SendChatMessage(messageType, prefix, text)
+  local frames = CHAT_FRAMES;
+  for f, frameName in ipairs(CHAT_FRAMES)
+  do  local frame = _G[frameName]
+      for c, chatType in ipairs(frame.messageTypeList)
+      do  if chatType == messageType
+          then local info = ChatTypeInfo[messageType];
+               frame:AddMessage(prefix .. text, info.r, info.g, info.b, info.id)
+               _ = self.db.profile.config.notifyChatFlash and FCF_StartAlertFlash(frame);
+               break;
+          end;
+      end;
+  end;
+end;
+
 function RP_Find:Notify(forceChat, ...) 
   local soundPlayed;
-  local  dots = { ... };
-
+  local dots = { ... };
+  
   if     type(forceChat) == "boolean" and forceChat
-  then   print("[" .. self.addOnTitle .. "]", unpack(dots));
-
+  then   
+         self:SendChatMessage(
+           self.db.profile.config.notifyChatType, 
+           "[" .. self.addOnTitle .. "] ",
+           table.concat(dots, " ")
+          )
   elseif type(forceChat) == "boolean" -- and not forceChat
   then   self:SendToast(table.concat(dots, " "))
 
   else   if   self.db.profile.config.notifyMethod == "chat"
          or   self.db.profile.config.notifyMethod == "both"
-         then print("[" .. self.addOnTitle .. "]", forceChat, unpack(dots));
+         then 
+              self:SendChatMessage(
+                self.db.profile.config.notifyChatType, 
+                "[" .. self.addOnTitle .. "] ",
+                forceChat .. " " .. table.concat(dots, " ")
+               )
          end;
 
          if   self.db.profile.config.notifyMethod == "toast"
@@ -581,14 +626,15 @@ end;
 function RP_Find:GetMemoryUsage(fmt) -- returns value, units, message, bytes
   local value, units, warn;
   local currentUsage = GetAddOnMemoryUsage(self.addOnName);
+  local highMemoryLimitMB = 6;
 
   if     currentUsage < 1000
   then   value, units, warn = currentUsage, "KB", "";
   elseif currentUsage < 1000 * 1000
   then   value, units, warn = currentUsage / 1000, "MB", "";
-  if     value > 2 then warn = L["Warning High Memory MB"] end;
-  else   value, units, warn = currentUsage / 1000 * 1000, "GB",
-         L["Warning High Memory GB"];
+         if value > MEMORY_WARN_MB then warn = L["Warning High Memory MB"] end;
+  else   value, units, warn = currentUsage / 1000 * 1000, "GB";
+         if value > MEMORY_WARN_GB then warn = L["Warning High Memory GB"] end;
   end;
 
   local message = string.format(fmt or L["Format Memory Usage"],
@@ -1314,13 +1360,16 @@ RP_Find.defaults =
       deleteDBonLogin    = false,
       useSmartPruning    = false,
       repeatSmartPruning = false,
+      smartPruningThreshold = 7,
       notifyLFRP         = true,
       seeAdultAds        = false,
       rowsPerPage        = 10,
       buttonBarSize      = 28,
       infoColumn         = "Info Server",
       infoColumnTags     = "[rp:gender] [rp:race] [rp:class]",
-      showColorBar       = true,
+      showColorBar       = false,
+      notifyChatType     = "SAY",
+      notifyChatFlash    = true,
     },
     ad                   = 
     { title              = "",
@@ -2786,53 +2835,6 @@ function RP_Find:OnInitialize()
                              end,
             width          = "full",
           },
-          loginMessage     =
-          { name           = L["Config Login Message"],
-            type           = "toggle",
-            order          = source_order(),
-            desc           = L["Config Login Message Tooltip"],
-            get            = function() return self.db.profile.config.loginMessage end,
-            set            = function(info, value) self.db.profile.config.loginMessage  = value end,
-            width          = "full",
-          },
-          buttonBarSize    =
-          { name           = L["Config Button Bar Size"],
-            type           = "range",
-            order          = source_order(),
-            desc           = L["Config Button Bar Size Tooltip"],
-            min            = 10,
-            max            = 40,
-            step           = 2,
-            get            = function() return self.db.profile.config.buttonBarSize end,
-            set            = function(info, value) 
-                               self.db.profile.config.buttonBarSize = value 
-                               for id, btn in pairs(Finder.buttons)
-                               do  
-                                   btn:SetWidth(value)
-                                   btn:SetHeight(value)
-                                   btn:SetImageSize(value, value)
-                                   self.Finder:DoLayout();
-                               end;
-                             end,
-          },
-          notifyLFRP       =
-          { name           = L["Config Notify LFRP"],
-            type           = "toggle",
-            order          = source_order(),
-            desc           = L["Config Notify LFRP Tooltip"],
-            get            = function() return self.db.profile.config.notifyLFRP end,
-            set            = function(info, value) self.db.profile.config.notifyLFRP = value end,
-            width          = "full",
-          },
-          seeAdultAds =
-          { name           = L["Config See Adult Ads"],
-            type           = "toggle",
-            order          = source_order(),
-            desc           = L["Config See Adult Ads Tooltip"],
-            get            = function() return self.db.profile.config.seeAdultAds end,
-            set            = function(info, value) self.db.profile.config.seeAdultAds = value end,
-            width          = "full",
-          },
           monitorMSP       =
           { name           = L["Config Monitor MSP"],
             type           = "toggle",
@@ -2864,6 +2866,15 @@ function RP_Find:OnInitialize()
                                             or not self.db.profile.config.monitorTRP3 
                              end,
           },
+          seeAdultAds =
+          { name           = L["Config See Adult Ads"],
+            type           = "toggle",
+            order          = source_order(),
+            desc           = L["Config See Adult Ads Tooltip"],
+            get            = function() return self.db.profile.config.seeAdultAds end,
+            set            = function(info, value) self.db.profile.config.seeAdultAds = value end,
+            width          = "full",
+          },
           infoColumn       =
           { type = "select",
             order = source_order(),
@@ -2881,6 +2892,7 @@ function RP_Find:OnInitialize()
             width = 1,
             values = menu.infoColumn,
           },
+          spacerInfoColumn = optionsSpacer(),
           infoColumnTags =
           { type = "input",
             order = source_order(),
@@ -2896,50 +2908,26 @@ function RP_Find:OnInitialize()
             width = 1,
             disabled = function() return not self.addonList.RP_Tags end,
           },
-          notifyOptions    =
-          { type           = "group",
-            inline         = true,
-            name           = L["Config Notify"],
+          buttonBarSize    =
+          { name           = L["Config Button Bar Size"],
+            type           = "range",
             order          = source_order(),
-            args           = 
-            { notifyMethod =
-              { name      = L["Config Notify Method"],
-                type      = "select",
-                order     = source_order(),
-                desc      = L["Config Notify Method Tooltip"],
-                get       = function() return self.db.profile.config.notifyMethod end,
-                set       = function(info, value) self.db.profile.config.notifyMethod  = value end,
-                sorting   = { "chat", "toast", "both", "none" },
-                width     = 2/4,
-                values    = { chat  = L["Menu Notify Method Chat"], 
-                              toast = L["Menu Notify Method Toast"],
-                              both  = L["Menu Notify Method Both"],
-                              none  = L["Menu Notify Method None"], },
-              },
-              spacer1     = optionsSpacer(),
-              notifySound =
-              { name      = L["Config Notify Sound"],
-                type      = "select",
-                order     = source_order(),
-                desc      = L["Config Notify Sound Tooltip"],
-                get       = function() return self.db.profile.config.notifySound end,
-                set       = function(info, value) self.db.profile.config.notifySound  = value; PlaySound(value); end,
-                values    = menu.notifySound,
-                sorting   = menu.notifySoundOrder,
-                disabled  = function() return self.db.profile.config.notifyMethod == "none" end,
-                width     = 4/4,
-              },
-              spacer2     = optionsSpacer(),
-              testNotify  =
-              { name      = L["Button Test Notify"],
-                type      = "execute",
-                order     = source_order(),
-                desc      = L["Button Test Notify Tooltip"],
-                func      = function() self:Notify(L["Notify Test"]); end,
-                width     = 2/4,
-                disabled  = function() return self.db.profile.config.notifyMethod == "none" end,
-              },
-            },
+            desc           = L["Config Button Bar Size Tooltip"],
+            width          = 2.1,
+            min            = 10,
+            max            = 40,
+            step           = 2,
+            get            = function() return self.db.profile.config.buttonBarSize end,
+            set            = function(info, value) 
+                               self.db.profile.config.buttonBarSize = value 
+                               for id, btn in pairs(Finder.buttons)
+                               do  
+                                   btn:SetWidth(value)
+                                   btn:SetHeight(value)
+                                   btn:SetImageSize(value, value)
+                                   self.Finder:DoLayout();
+                               end;
+                             end,
           },
           trp3Group        =
           { name           = L["Config TRP3"],
@@ -2992,15 +2980,107 @@ function RP_Find:OnInitialize()
                 width          = "full",
               },
             },
+          }, -- here
+        },
+      },
+      notifyOptions    =
+      { type           = "group",
+        name           = L["Config Notify"],
+        order          = source_order(),
+        args           = 
+        {
+          notifyLFRP       =
+          { name           = L["Config Notify LFRP"],
+            type           = "toggle",
+            order          = source_order(),
+            desc           = L["Config Notify LFRP Tooltip"],
+            get            = function() return self.db.profile.config.notifyLFRP end,
+            set            = function(info, value) self.db.profile.config.notifyLFRP = value end,
+            width          = "full",
+          },
+          loginMessage     =
+          { name           = L["Config Login Message"],
+            type           = "toggle",
+            order          = source_order(),
+            desc           = L["Config Login Message Tooltip"],
+            get            = function() return self.db.profile.config.loginMessage end,
+            set            = function(info, value) self.db.profile.config.loginMessage  = value end,
+            width          = "full",
+          },
+          notifyMethod =
+          { name      = L["Config Notify Method"],
+            type      = "select",
+            order     = source_order(),
+            desc      = L["Config Notify Method Tooltip"],
+            get       = function() return self.db.profile.config.notifyMethod end,
+            set       = function(info, value) self.db.profile.config.notifyMethod  = value end,
+            sorting   = { "chat", "toast", "both", "none" },
+            style     = "radio",
+            width     = "full", 
+            values    = { chat  = L["Menu Notify Method Chat"], 
+                          toast = L["Menu Notify Method Toast"],
+                          both  = L["Menu Notify Method Both"],
+                          none  = L["Menu Notify Method None"], },
+          },
+          notifyChatType = 
+          { name = L["Config Notify Chat Type"],
+            type = "select",
+            order = source_order(),
+            desc = L["Config Notify Chat Type Tooltip"],
+            get = function() return self.db.profile.config.notifyChatType end,
+            set = function(info, value) self.db.profile.config.notifyChatType = value end,
+            values = menu.notifyChatType,
+            sorting = menu.notifyChatTypeOrder,
+            disabled = function() return self.db.profile.config.notifyMethod ~= "both"
+                                     and self.db.profile.config.notifyMethod ~= "chat"
+                       end,
+            width = 1,
+          },
+          spacer1     = optionsSpacer(),
+          notifyChatFlash =
+          { name = L["Config Notify Chat Flash"],
+            type = "toggle",
+            order = source_order(),
+            desc = L["Config Notify Chat Flash Tooltip"],
+            get = function() return self.db.profile.config.notifyChatFlash end,
+            set = function(info, value) self.db.profile.config.notifyChatFlash = value end,
+            disabled = function() return self.db.profile.config.notifyMethod ~= "both"
+                                     and self.db.profile.config.notifyMethod ~= "chat"
+                       end,
+            width = 1,
+          },
+          notifySound =
+          { name      = L["Config Notify Sound"],
+            type      = "select",
+            order     = source_order(),
+            desc      = L["Config Notify Sound Tooltip"],
+            get       = function() return self.db.profile.config.notifySound end,
+            set       = function(info, value) self.db.profile.config.notifySound  = value; PlaySound(value); end,
+            values    = menu.notifySound,
+            sorting   = menu.notifySoundOrder,
+            disabled  = function() return self.db.profile.config.notifyMethod == "none" end,
+            width     = 1,
+          },
+          spacer2     = optionsSpacer(),
+          -- spacer3     = optionsSpacer(),
+          -- spacer4     = optionsSpacer(),
+          testNotify  =
+          { name      = L["Button Test Notify"],
+            type      = "execute",
+            order     = source_order(),
+            desc      = L["Button Test Notify Tooltip"],
+            func      = function() self:Notify(L["Notify Test"]); end,
+            width     = 1,
+            disabled  = function() return self.db.profile.config.notifyMethod == "none" end,
           },
         },
       },
       databaseConfig =
       { name  = function() 
                   local  currentUsage =  GetAddOnMemoryUsage(self.addOnName);
-                  if     currentUsage >= MEMORY_WARN_GB
+                  if     currentUsage >= MEMORY_WARN_GB * 1000 * 1000
                   then   return L["Config Database Warning GB"]
-                  elseif currentUsage >= MEMORY_WARN_MB
+                  elseif currentUsage >= MEMORY_WARN_MB * 1000
                   then   return L["Config Database Warning MB"]
                   else   return L["Config Database"]
                   end
@@ -3569,6 +3649,15 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
   end;
 end;
 
+function RP_Find:MoveAddonChannelToEndOfList()
+  for chanNum = 1, MAX_WOW_CHAT_CHANNELS, 1
+  do  local _, chanName = GetChannelName(chanNum);
+      if chanName == addonChannel
+      then C_ChatInfo.SwapChatChannelsByChannelIndex(chanNum, chanNum + 1)
+      end;
+  end;
+end;
+
 function RP_Find:RegisterAddonChannel()
   for addon, prefix in pairs(addonPrefix)
   do  AddOn_Chomp.RegisterAddonPrefix(
@@ -3581,6 +3670,9 @@ function RP_Find:RegisterAddonChannel()
   if not haveJoinedAddonChannel and channelCount < 10
   then   JoinTemporaryChannel(addonChannel);
   end;
+
+  self:MoveAddonChannelToEndOfList();
+
 end;
 
 function RP_Find:SendTRP3Scan(zoneNum)
