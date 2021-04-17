@@ -946,18 +946,33 @@ RP_Find.PlayerMethods =
       end;
     end,
 
-  ["GetMSP"] = function(self, field) return msp and msp.char[self.playerName] and msp.char[self.playerName].field[field] or nil end,
+  ["GetMSP"] = 
+    function(self, field) 
+      return _G["msp"] 
+         and msp.char[self.playerName] 
+         and msp.char[self.playerName].field[field] 
+         or nil 
+    end,
 
   ["GetTRP3"] =
     function(self, field, mspField)
       if not RP_Find:HaveRPClient("totalRP3") then return nil end;
 
       local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
+      if not profile then return nil end;
+
       local char    = profile.character or {};
       local ristics = profile.characteristics or {};
       local misc    = {};
 
-      if ristics.MT then for i, item in ipairs(ristics.MI) do misc[item.NA:lower()] = item.VA; end; end;
+      if   field == "house name" or field == "motto" or field == "nickname" or field == "pronouns"
+      then for i, item in ipairs(ristics.MI) 
+           do  if   item.NA:lower() = field 
+               then self:Set("rp_" .. field, item.VA)
+                    return item.VA 
+               end;
+           end;
+      end;
 
       local hash = 
       { 
@@ -977,13 +992,9 @@ RP_Find.PlayerMethods =
         honorific  = function() return ristics.TI         end,
         rstatus    = function() return ristics.RS         end,
         title      = function() return ristics.FT         end,
-        house      = function() return misc["house name"] end,
-        motto      = function() return misc.motto         end,
-        nick       = function() return misc.nickname      end,
-        pronouns   = function() return misc.pronouns      end,
       }
 
-      if hash[field] then return hash[field]() else return self:GetMSP(mspField) end;
+      return hash[field] and hash[field]() or nil;
 
     end,
 
@@ -1055,8 +1066,8 @@ RP_Find.PlayerMethods =
   ["GetRPBirthplace" ] = function(self) return self:GetRP("birthplace",  "HB")   end,
   ["GetRPHome"       ] = function(self) return self:GetRP("home",        "HH")   end,
   ["GetRPMotto"      ] = function(self) return self:GetRP("motto",       "MO")   end,
-  ["GetRPHouse"      ] = function(self) return self:GetRP("house",       "NH")   end,
-  ["GetRPNickname"   ] = function(self) return self:GetRP("nick",        "NI")   end,
+  ["GetRPHouse"      ] = function(self) return self:GetRP("house name",  "NH")   end,
+  ["GetRPNickname"   ] = function(self) return self:GetRP("nickname",    "NI")   end,
   ["GetRPTitle"      ] = function(self) return self:GetRP("title",       "NT")   end,
   ["GetRPPronouns"   ] = function(self) return self:GetRP("pronouns",    "PN")   end,
   ["GetRPHonorific"  ] = function(self) return self:GetRP("honorific",   "PX")   end,
