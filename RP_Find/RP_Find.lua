@@ -1,7 +1,6 @@
 -- rpFind
 -- by Oraibi, Moon Guard (US) server
 -- ------------------------------------------------------------------------------
---
 -- This work is licensed under the Creative Commons Attribution 4.0 International (CC BY 4.0) license.
 
 local addOnName, ns = ...;
@@ -712,7 +711,7 @@ function RP_Find.OnMinimapButtonEnter(frame)
   local tooltip =  
   { columns = 
     { { RP_Find.addOnTitle, RP_Find.addOnVersion },
-      { "", "" },
+      { " ", " " },
       { L["Button Left-Click"], L["Open Finder Window"], },
       { L["Button Right-Click"], L["Options"], },
     },
@@ -730,35 +729,15 @@ function RP_Find.OnMinimapButtonEnter(frame)
 
   showTooltip(frame, tooltip);
   
-  --[[
-  GameTooltip:ClearLines();
-  GameTooltip:SetOwner(frame, "ANCHOR_BOTTOM");
-  GameTooltip:AddDoubleLine(RP_Find.addOnTitle, RP_Find.addOnVersion);
-  GameTooltip:AddLine(" ");
-  GameTooltip:AddDoubleLine("Left-Click", "Open Finder Window", 0, 1, 1, 1, 1, 1);
-  GameTooltip:AddDoubleLine("Right-Click", RP_Find.addOnTitle .. " Options", 0, 1, 1, 1, 1, 1);
-  if IsModifierKeyDown()
-  then local _, _, memory, _ = RP_Find:GetMemoryUsage("%3.2f %s");
-       GameTooltip:AddLine(" ");
-       GameTooltip:AddDoubleLine("Memory Usage", memory, 1, 1, 0, 1, 1, 1);
-       GameTooltip:AddDoubleLine("Players Seen", RP_Find:CountPlayerData(), 1, 1, 0, 1, 1, 1);
-       GameTooltip:AddDoubleLine("Players Loaded", RP_Find:CountPlayerRecords(), 1, 1, 0, 1, 1, 1);
-  end;
-  GameTooltip:Show();
   --]]
 end;
 
 RP_Find.OnMinimapButtonLeave = hideTooltip;
--- function RP_Find.OnMinimapButtonLeave(frame) GameTooltip:Hide(); end;
 
 function RP_Find:SendWhisper(playerName, message, position)
   local delta = time() - (self:Last("sendWhisper") or 0) 
   if   delta <= 5 * SECONDS_PER_MIN
   then self:Notify(string.format(L["Format Send Whisper Failed"], 5, 5 * SECONDS_PER_MIN - delta));
-  --[[
-      "Sorry, you can only send one whisper through " .. self.addOnTitle ..
-        " every 5 minutes. Please wait another " .. 5 * SECONDS_PER_MIN - delta .. " seconds.");
-  --]]
   else local messageStart = "/tell " .. playerName .. " " .. (message or "");
        if   ChatEdit_GetActiveWindow()
        then ChatEdit_GetActiveWindow():ClearFocus();
@@ -1424,6 +1403,7 @@ RP_Find.myname = "RP_Find";
 function RP_Find:Update(...) self.Finder:Update(...); end
 
 function Finder:SetDimensions()
+  self:ClearAllPoints();
   if   RP_Find.db.profile.finder.left
   and  RP_Find.db.profile.finder.bottom
   then self:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT",
@@ -1711,6 +1691,19 @@ function Finder:CreateButtonBar()
   RP_Find:RegisterMessage("RP_FIND_TAB_CHANGE",            updateButtonBar);
   RP_Find:RegisterMessage("RP_FIND_MAP_SCAN_SENT",         updateButtonBar);
 
+end;
+
+function Finder:ResizeButtonBar(value)
+  value = value or RP_Find.db.profile.config.buttonBarSize;
+  for id, btn in pairs(Finder.buttons)
+  do  
+     self:PauseLayout();
+     btn:SetWidth(value)
+     btn:SetHeight(value)
+     btn:SetImageSize(value, value)
+     self:ResumeLayout()
+     self:DoLayout();
+   end;
 end;
 
 function Finder:CreateTabGroup()
@@ -2965,28 +2958,6 @@ function Finder.MakeFunc.Tools(self)
   massPing:AddChild(pingAllButton);
   RP_Find:RegisterMessage("RP_FIND_PING_ALL", updatePingAllButton);
 
-  --[[
-  local loadAllButton = AceGUI:Create("Button");
-  loadAllButton:SetText("Load All");
-  loadAllButton:SetRelativeWidth(0.20);
-  loadAllButton:SetCallback("OnClick",
-    function(self, event, button)
-      self:SetDisabled(true);
-      RP_Find:LoadAll();
-    end);
-
-  local function updateLoadAllButton()
-    if time() - (RP_Find:Last("loadAll") or 0) > SECONDS_PER_HOUR
-    then loadAllButton:SetDisabled(false)
-    else loadAllButton:SetDisabled(true)
-    end;
-  end;
-
-  panelFrame:AddChild(loadAllButton);
-
-  RP_Find:RegisterMessage("RP_FIND_LOAD_ALL", updateLoadAllButton);
-  --]]
-
   function panelFrame:Update() 
     updateTrp3MapScan(); 
     updatePingAllButton();
@@ -3010,17 +2981,6 @@ function RP_Find:PingAll()
   end;
 end;
 
-function RP_Find:LoadAll()
-  self:SetLast("loadAll");
-  self:SetLast("pingAll");
-  local count = 0;
-  for playerName, playerData in pairs(self:GetAllPlayerData())
-  do self:SendPing(playerName)
-     count = count + 1;
-  end;
-  RP_Find:SendMessage("RP_FIND_PING_ALL");
-end;
-
 Finder:Hide();
 RP_Find.Finder = Finder;
 
@@ -3040,12 +3000,19 @@ local function optionsSpacer(width)
   }
 end
 
+function RP_Find:RedoSetupOnProfileChange()
+  self:LoadSelfRecord();
+  self.Finder:SetDimensions();
+  self.Finder:ResizeButtonBar();
+  self.Finder:Update();
+end;
+
 function RP_Find:OnInitialize()
 
   self.db = AceDB:New(configDB, self.defaults);
-  self.db.RegisterCallback(self, "OnProfileChanged", "LoadSelfRecord");
-  self.db.RegisterCallback(self, "OnProfileCopied",  "LoadSelfRecord");
-  self.db.RegisterCallback(self, "OnProfileReset",   "LoadSelfRecord");
+  self.db.RegisterCallback(self, "OnProfileChanged", "RedoSetupOnProfileChange");
+  self.db.RegisterCallback(self, "OnProfileCopied",  "RedoSetupOnProfileChange");
+  self.db.RegisterCallback(self, "OnProfileReset",   "RedoSetupOnProfileChange");
   
   self.options             =
   { type                   = "group",
@@ -3163,13 +3130,7 @@ function RP_Find:OnInitialize()
             get            = function() return self.db.profile.config.buttonBarSize end,
             set            = function(info, value) 
                                self.db.profile.config.buttonBarSize = value 
-                               for id, btn in pairs(Finder.buttons)
-                               do  
-                                   btn:SetWidth(value)
-                                   btn:SetHeight(value)
-                                   btn:SetImageSize(value, value)
-                                   self.Finder:DoLayout();
-                               end;
+                               Finder:ResizeButtonBar(value)
                              end,
           },
           trp3Group        =
@@ -3992,14 +3953,37 @@ RP_Find.closeButton:SetText(L["Button Close"]);
 RP_Find.closeButton:ClearAllPoints();
 RP_Find.closeButton:SetPoint("BOTTOMRIGHT", Finder.frame, "BOTTOMRIGHT", -20, 20);
 RP_Find.closeButton:SetWidth(buttonSize);
-RP_Find.closeButton:SetScript("OnClick", function(self) Finder:Hide(); end);
+RP_Find.closeButton:SetScript("OnClick", 
+  function(self, button) 
+    Finder:Hide(); 
+end);
+RP_Find.closeButton:SetScript("OnEnter",
+  function(self)
+    showTooltip(self, { title = L["Button Close"],
+      lines = { "Click to close the " .. RP_Find.addOnTitle .. " Finder window." } });
+  end);
+RP_Find.closeButton:SetScript("OnLeave", hideTooltip);
 
 RP_Find.configButton = CreateFrame("Button", nil, Finder.frame, "UIPanelButtonTemplate");
 RP_Find.configButton:SetText(L["Button Config"]);
 RP_Find.configButton:ClearAllPoints();
 RP_Find.configButton:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 20);
 RP_Find.configButton:SetWidth(buttonSize);
-RP_Find.configButton:SetScript("OnClick", function() RP_Find.Finder:Hide(); RP_Find:OpenOptions(); end);
+RP_Find.configButton:SetScript("OnClick", 
+  function(self, button) 
+    if not IsModifierKeyDown() then RP_Find.Finder:Hide(); end
+    RP_Find:OpenOptions(); 
+  end);
+RP_Find.configButton:SetScript("OnEnter",
+  function(self)
+    showTooltip(self, { title = L["Button Config"],
+      lines = { "Click to close the " .. RP_Find.addOnTitle .. " Finder window and open the " ..
+                RP_Find.addOnTitle .. " options menu.",
+                " ",
+                "Shift-Click or Control-Click to open the options menu without closing the Finder window." }
+      });
+  end);
+RP_Find.configButton:SetScript("OnLeave", hideTooltip);
 
 local function makeColorBar()
   local frameWidth = 240;
