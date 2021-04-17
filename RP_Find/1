@@ -1955,23 +1955,26 @@ Finder.flagList =
     func = function(self) 
              local fullName = self:GetPlayerName();
              local name = self:GetPlayerName(true);
+
              if C_FriendList.GetFriendInfo(name) then return true end;
              if not BNConnected() then return false end;
              RP_Find.bnetFriendList = RP_Find.bnetFriendList or {};
-             if   time() - (RP_Find:Last("bnetFriendList") or 0) > 2 * SECONDS_PER_MIN
+             if   time() - (RP_Find:Last("bnetFriendList") or 0) > SECONDS_PER_MIN
              then RP_Find.bnetFriendList = {};
                   local _, count, _, _ = BNGetNumFriends()
+                  print("you have", count, "friends online");
                   for i = 1, count, 1
                   do  local numAccounts = C_BattleNet.GetFriendNumGameAccounts(i);
+                      print("friend", i, "has", numAccounts, "accounts online");
                       for j = 1, numAccounts, 1
                       do  local friendData = C_BattleNet.GetFriendGameAccountInfo(i, j)
                           if friendData.clientProgram == BNET_CLIENT_WOW
-                             and friendData.characterName
-                             and friendData.realmName
-                          then RP_Find.bnetFriendList[
-                                 friendData.characterName .. "-" ..
-                                 friendData.realmName] = true;
-                          end;
+                          then local characterName, realmName = friendData.characterName, friendData.realmName;
+                               if characterName == name and realmName == serverName
+                               then print("found your friend", name, serverName);
+                                    RP_Find.bnetFriendList[fullName] = true
+                               end;
+                            end;
                       end;
                   end;
                   RP_Find:SetLast("bnetFriendList");
