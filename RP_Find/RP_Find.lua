@@ -1665,6 +1665,7 @@ function Finder:CreateButtonBar()
       enable = function() return UnitLevel("player") >= 50 end,
     },
     --]]
+      --
   };
 
   self.buttons = {}
@@ -1868,6 +1869,11 @@ Finder.filterList =
       enabled = false,
     },
 
+  ["ClearAllFilters"] = 
+    { func = function(playerRecord) return true end,
+      title = L["Filter Clear All Filters"],
+      enabled = false,
+    },
 };
 
 local function sortFilters(a, b)
@@ -1880,6 +1886,7 @@ Finder.filterListOrder = { "ContactInLastHour",
   "HaveRPProfile", "HaveAd", };
 
 table.sort(Finder.filterListOrder, sortFilters);
+table.insert(Finder.filterListOrder, "ClearAllFilters");
 
 function Finder.MakeFunc.Display(self)
 
@@ -1955,6 +1962,12 @@ function Finder.MakeFunc.Display(self)
   filterSelector:SetCallback("OnValueChanged",
     function(self, event, key, checked)
       Finder.filterList[key].enabled = checked;
+      if key == "ClearAllFilters"
+      then for filterID, filterData in pairs(Finder.filterList)
+           do  filterData.enabled = false;
+           end;
+           RP_Find:Notify(L["Notify Filters Cleared"]);
+      end;
       setActiveFilters();
       Finder:Update("Display");
     end);
