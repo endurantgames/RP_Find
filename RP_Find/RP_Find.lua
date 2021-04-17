@@ -21,19 +21,21 @@ local LibColor          = LibStub("LibColorManipulation-1.0");
 local LibRealmInfo      = LibStub("LibRealmInfo");
 local L                 = AceLocale:GetLocale(addOnName);
 
-local MEMORY_WARN_MB = 6;
-local MEMORY_WARN_GB = 1;
+local MEMORY_WARN_MB      = 6;
+local MEMORY_WARN_GB      = 1;
 local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
-local PLAYER_RECORD  = "RP_Find Player Record";
-local ARROW_UP       = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
-local ARROW_DOWN     = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
-local SLASH          = "/rpfind|/lfrp";
-local configDB       = "RP_Find_ConfigDB";
-local finderDB       = "RP_FindDB";
-local finderFrameName = "RP_Find_Finder_Frame";
-local addonChannel   = "xtensionxtooltip2";
-local addonPrefix    = { trp3 = "RPB1", rpfind = "LFRP1" };
+local BIG_STRING_LIMIT    = 30;
+local MSP_FIELDS          = "RA RC IC FC AG AH AW CO CU FR NI NT PN PX VA TR GR GS GC"
+local PLAYER_RECORD       = "RP_Find Player Record";
+local ARROW_UP            = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
+local ARROW_DOWN          = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
+local SLASH               = "/rpfind|/lfrp";
+local configDB            = "RP_Find_ConfigDB";
+local finderDB            = "RP_FindDB";
+local finderFrameName     = "RP_Find_Finder_Frame";
+local addonChannel        = "xtensionxtooltip2";
+local addonPrefix         = { trp3 = "RPB1", rpfind = "LFRP1" };
 
 local col = {
   gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
@@ -238,6 +240,26 @@ local function split(str, pat)
   return t;
 end;
 
+local function stripColor(text)
+  local rrggbb, strippedText = text:match("|cff(%x%x%x%x%x%x)(.+)|r");
+  if   rrggbb 
+  then return strippedText:gsub("|cff%x%x%x%x%x%x",""):gsub("|r", ""), 
+              rrggbb
+  else return text
+  end;
+end;
+
+local function fixColor(text)
+  local strippedText, rrggbb = stripColor(text);
+  if not rrggbb then return text end;
+
+  local col = LibColor("#" .. rrggbb);
+  local _, _, lightness = col:hsl();
+  if lightness < 0.75 then col = col:lighten_to(0.75) end;
+      
+  return col:format("|cffrrggbb") .. strippedText .. "|r";
+end;
+
 local order = 0;
 
 local function source_order(reset) order = reset or (order + 1); return order; end;
@@ -351,6 +373,7 @@ RP_Find.addOnIcon    = IC.spotlight;
 RP_Find.addOnToast   = "RP_Find_notify";
 RP_Find.timers       = {};
 RP_Find.addonList = addon;
+RP_Find.mspFields = split(MSP_FIELDS, " ");
 
 function RP_Find:GetLast(name)        return self.db.global.last[name]            end;
 function RP_Find:ClearLast(name)      self.db.global.last[name] = nil;            end;
@@ -922,17 +945,7 @@ RP_Find.PlayerMethods =
       end;
     end,
 
-  ["GetRPNameColorFixed"] =
-    function(self)
-      local name, rrggbb = self:GetRPNameStripped();
-      if not rrggbb then return name end;
-
-      local col = LibColor("#" .. rrggbb);
-      local _, _, lightness = col:hsl();
-      if lightness < 0.75 then col = col:lighten_to(0.75) end;
-      
-      return col:format("|cffrrggbb") .. name .. "|r";
-    end,
+  ["GetRPNameColorFixed"] = function(self) return fixColor(self:GetRPName()); end,
 
   ["GetColorizedRPName"] =
     function(self)
@@ -957,15 +970,26 @@ RP_Find.PlayerMethods =
   ["GetRPHouse"      ] = function(self) return self:GetRP("house",       "NH")   end,
   ["GetRPNickname"   ] = function(self) return self:GetRP("nick",        "NI")   end,
   ["GetRPTitle"      ] = function(self) return self:GetRP("title",       "NT")   end,
-  ["GetRPPronouns"   ] = 
-    function(self) 
-      return self:GetRP("pronouns", "PN"):gsub("'", "/");
-    end,
+  ["GetRPPronouns"   ] = function(self) return self:GetRP("pronouns",    "PN")   end,
   ["GetRPHonorific"  ] = function(self) return self:GetRP("honorific",   "PX")   end,
   ["GetRPAddon"      ] = function(self) return self:GetRP("addon",       "VA")   end,
   ["GetRPTrial"      ] = function(self) return self:GetRP("trial",       "TR")   end,
   ["IsSetIC"         ] = function(self) return tonumber(self:GetRPStatus()) == 2 end,
   ["IsTrial"         ] = function(self) return tonumber(self:GetRPTrial())  == 1 end,
+
+  ["GetRPStatusWord" ] = 
+    function(self)
+      local  status = self:GetRPStatus()
+      local  statusNum = tonumber(status);
+
+      if     statusNum == 1 then return "Out of Character"
+      elseif statusNum == 2 then return "In Character"
+      elseif statusNum == 3 then return "Looking for Contact"
+      elseif statusNum == 4 then return "Storyteller"
+      elseif status then return status
+      else return ""
+      end;
+    end,
 
   ["GetIcon"] =
     function(self)
@@ -1042,19 +1066,7 @@ RP_Find.PlayerMethods =
             return (race and (race .. " ") or "") .. (class or "");
           end,
 
-        ["Info Status"] = 
-          function(self)
-            local  status = self:GetRPStatus()
-            local  statusNum = tonumber(status);
-
-            if     statusNum == 1 then return "Out of Character"
-            elseif statusNum == 2 then return "In Character"
-            elseif statusNum == 3 then return "Looking for Contact"
-            elseif statusNum == 4 then return "Storyteller"
-            elseif status then return status
-            else return ""
-            end;
-          end,
+        ["Info Status"] = function(self) return self:GetRPStatusWord() end,
 
         ["Info Tags"] = 
           function(self)
@@ -1101,20 +1113,73 @@ RP_Find.PlayerMethods =
       local lines = {};
       local columns = {};
 
+      if not RP_Find:HasRPClient() then return lines, column end;
+
       local function addCol(method, label)
         local value = self[method](self);
-        if value and value ~= ""
-        then table.insert(columns, { label, value });
+        if   value and value ~= ""
+        then value = fixColor(value);
+             table.insert(
+               columns, 
+               { label, 
+                 value:len() < BIG_STRING_LIMIT and value or
+                (value:sub(1, BIG_STRING_LIMIT) .. "...") 
+               }
+            );
         end;
       end;
 
-      addCol("GetRPClass", "Class");
-      addCol("GetRPRace", "Race");
-      addCol("GetRPPronouns", "Pronouns");
-      addCol("GetZoneName", "Zone");
+      local fields = 
+        { { id = "race",     method = "GetRPRace",       label = "Race",    },
+          { id = "class",    method = "GetRPClass",      label = "Class",   },
+          { id = "title",    method = "GetRPTitle",      label = "Title"    },
+          { id = "status",   method = "GetRPStatusWord", label = "Status",  },
+          { id = "pronouns", method = "GetRPPronouns",   label = "Pronouns" },
+          { id = "zone",     method = "GetZoneName",     label = "Zone"     },
+          { id = "age",      method = "GetRPAge",        label = "Age",     },
+          { id = "height",   method = "GetRPHeight",     label = "Height"   },
+          { id = "weight",   method = "GetRPWeight",     label = "Weight",  },
+          { id = "addon",    method = "GetRPAddon",      label = "RP Addon" }, 
+        };
+
+      for _, item in ipairs(fields)
+      do  if RP_Find.db.profile.config.nameTooltip[item.id]
+          then addCol(item.method, item.label)
+          end;
+      end;
+
+      if RP_Find.db.profile.config.nameTooltip.trial
+      then local trialStatus = self:IsTrial();
+           if trialStatus then table.insert(columns, { "Trial Status", "Trial" });
+           end;
+      end;
+
+      if RP_Find.db.profile.config.nameTooltip.currently
+      then local currently = self:GetRPCurr();
+           if currently and currently ~= ""
+           then table.insert(lines, " ");
+                table.insert(lines, "Currently:");
+                table.insert(lines, col.white(currently));
+            end;
+      end;
+
+      if RP_Find.db.profile.config.nameTooltip.oocinfo
+      then local oocinfo = self:GetRPInfo();
+           if oocinfo and oocinfo ~= ""
+           then table.insert(lines, " ");
+                table.insert(lines, "OOC Info:");
+                table.insert(lines, col.white(oocinfo));
+            end;
+      end;
 
       local icon, iconFound = self:GetIcon();
-      return lines, columns, iconFound and icon or nil;
+
+      return lines, 
+             columns, 
+             iconFound 
+               and RP_Find.db.profile.config.nameTooltip.icon
+               and icon 
+               or nil;
     end,
       
   ["GetZoneName"] =
@@ -1381,6 +1446,23 @@ RP_Find.defaults =
       showColorBar       = false,
       notifyChatType     = "SAY",
       notifyChatFlash    = true,
+      nameTooltip        = 
+      { 
+        icon             = true,
+        class            = true,
+        race             = true,
+        pronouns         = false,
+        zone             = true,
+        age              = false,
+        status           = false,
+        addon            = false,
+        trial            = false,
+        title            = false,
+        height           = false,
+        weight           = false,
+        oocinfo          = false,
+        currently        = false,
+      },
     },
     ad                   = 
     { title              = "",
@@ -2133,7 +2215,7 @@ function Finder.MakeFunc.Display(self)
       method      = "GetRPNameColorFixed",
       sorting     = "GetRPNameStripped",
       ttMethod    = "GetNameTooltip",
-      ttTitleMethod = "GetRPName",
+      ttTitleMethod = "GetRPNameColorFixed",
       width       = 0.25,
     },
     { 
@@ -3227,6 +3309,170 @@ function RP_Find:OnInitialize()
             set = function(info, value) self.db.profile.config.infoColumnTags = value end,
             width = 1,
             disabled = function() return not self.addonList.RP_Tags end,
+          },
+          nameTooltip =
+          { name = "Name Column Tooltip",
+            type = "group",
+            inline = true,
+            width = "full",
+            order = source_order(),
+            args =
+            { 
+              icon = 
+              { name = "Icon",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's icon in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.icon end,
+                set = function(info, value) self.db.profile.config.nameTooltip.trial = icon end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              status = 
+              { name = "Status",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's IC/OOC status in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.status end,
+                set = function(info, value) self.db.profile.config.nameTooltip.status = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              class = 
+              { name = "Class",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's class in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.class end,
+                set = function(info, value) self.db.profile.config.nameTooltip.class = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              race = 
+              { name = "Race",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's race in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.race end,
+                set = function(info, value) self.db.profile.config.nameTooltip.race = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              pronouns = 
+              { name = "Pronouns",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's pronouns in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.pronouns end,
+                set = function(info, value) self.db.profile.config.nameTooltip.pronouns = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              title = 
+              { name = "Title",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's title in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.title end,
+                set = function(info, value) self.db.profile.config.nameTooltip.title = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              age = 
+              { name = "Age",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's age in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.age end,
+                set = function(info, value) self.db.profile.config.nameTooltip.age = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              zone = 
+              { name = "Zone",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's current zone in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.zone end,
+                set = function(info, value) self.db.profile.config.nameTooltip.zone = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              height = 
+              { name = "Height",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's height in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.height end,
+                set = function(info, value) self.db.profile.config.nameTooltip.height = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              weight = 
+              { name = "Weight",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's weight in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.weight end,
+                set = function(info, value) self.db.profile.config.nameTooltip.name = weight end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              trial = 
+              { name = "Trial",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's trial status in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.trial end,
+                set = function(info, value) self.db.profile.config.nameTooltip.trial = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              addon = 
+              { name = "Addon",
+                type = "toggle",
+                width = 0.5,
+                order = source_order(),
+                desc = "Display the character's RP addon in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.addon end,
+                set = function(info, value) self.db.profile.config.nameTooltip.addon = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              currently =
+              { name = "Currently",
+                type = "toggle",
+                width = 1,
+                order = source_order(),
+                desc = "Display the character's currently in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.currently end,
+                set = function(info, value) self.db.profile.config.nameTooltip.currently = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+              oocinfo =
+              { name = "OOC Info",
+                type = "toggle",
+                width = 1,
+                order = source_order(),
+                desc = "Display the character's OOC info in the tooltip.",
+                get = function() return self.db.profile.config.nameTooltip.oocinfo end,
+                set = function(info, value) self.db.profile.config.nameTooltip.oocinfo = value end,
+                disabled = function() return not self:HasRPClient(); end,
+              },
+
+            },
           },
           buttonBarSize    =
           { name           = L["Config Button Bar Size"],
