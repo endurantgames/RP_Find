@@ -56,21 +56,21 @@ local questionMark = "Interface\\ICONS\\INV_Misc_QuestionMark";
 
 local IC = -- icons
 { 
-  spotlight = "Interface\\ICONS\\inv_misc_tolbaradsearchlight",
-  question  = "Interface\\ICONS\\INV_Misc_QuestionMark",
-  sendAd    = "Interface\\ICONS\\Inv_letter_18",
-  editAd    = "Interface\\ICONS\\inv_inscription_inkcerulean01",
-  previewAd = "Interface\\ICONS\\Inv_misc_notescript2b",
-  readAds   = "Interface\\ICONS\\inv_letter_03",
-  tools     = "Interface\\ICONS\\inv_engineering_90_toolbox_green",
-  database  = "Interface\\ICONS\\Inv_misc_platnumdisks",
-  prune     = "Interface\\ICONS\\inv_pet_broom",
-  scan      = "Interface\\ICONS\\ability_hunter_snipertraining",
-  scanResults = "Interface\\ICONS\\ability_hunter_snipershot",
-  checkLFG  = "Interface\\ICONS\\inv_misc_grouplooking",
-  sendLFG   = "Interface\\ICONS\\Inv_misc_groupneedmore",
+  spotlight     = "Interface\\ICONS\\inv_misc_tolbaradsearchlight",
+  question      = "Interface\\ICONS\\INV_Misc_QuestionMark",
+  sendAd        = "Interface\\ICONS\\Inv_letter_18",
+  editAd        = "Interface\\ICONS\\inv_inscription_inkcerulean01",
+  previewAd     = "Interface\\ICONS\\Inv_misc_notescript2b",
+  readAds       = "Interface\\ICONS\\inv_letter_03",
+  tools         = "Interface\\ICONS\\inv_engineering_90_toolbox_green",
+  database      = "Interface\\ICONS\\Inv_misc_platnumdisks",
+  prune         = "Interface\\ICONS\\inv_pet_broom",
+  scan          = "Interface\\ICONS\\ability_hunter_snipertraining",
+  scanResults   = "Interface\\ICONS\\ability_hunter_snipershot",
+  checkLFG      = "Interface\\ICONS\\inv_misc_grouplooking",
+  sendLFG       = "Interface\\ICONS\\Inv_misc_groupneedmore",
   autosendStart = "Interface\\Icons\\inv_engineering_90_gizmo",
-  autosendStop = "Interface\\Icons\\inv_mechagon_spareparts",
+  autosendStop  = "Interface\\Icons\\inv_mechagon_spareparts",
 };
 local textIC = -- icons for text
 { rpProfile  = "|A:profession:0:0|a",
@@ -127,7 +127,6 @@ local pointsOfInterest =
     { x = 55, y = 20, title = "Sunfury Spire", r = 12 },
   },
 };
-
 
 local zoneBacklink = {};
 
@@ -386,7 +385,7 @@ RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
 RP_Find.addOnDesc    = GetAddOnMetadata(addOnName, "Notes");
 RP_Find.addOnIcon    = IC.spotlight;
 RP_Find.addOnToast   = "RP_Find_notify";
-RP_Find.timers       = {};
+RP_Find.addOnTimers  = {};
 RP_Find.addonList = addon;
 RP_Find.mspFields = split(MSP_FIELDS, " ");
 
@@ -395,6 +394,21 @@ function RP_Find:ClearLast(name)      self.db.global.last[name] = nil;          
 function RP_Find:SetLast(name, value) self.db.global.last[name] = value or time() end;
 function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
                                           or self:GetLast(name)                   end;
+
+function RP_Find:ClearTimer(name)
+  if self.addOnTimers[name]
+  then self:CancelTimer(self.addOnTimers[name]);
+       self.addOnTimers[name] = nil;
+  end;
+end;
+
+function RP_Find:SaveTimer(name, value)
+  if not self.addOnTimers[name]
+  then self.addOnTimers[name] = value
+  end;
+end;
+
+function RP_Find:HaveTimer(name) return self.addOnTimers[name] end;
 
 function RP_Find:FixColor(text)
   if not self.db.profile.config.lightenColors then return text end;
@@ -476,16 +490,17 @@ function RP_Find:SoftlyPurgePlayer(name)
 end;
 
 function RP_Find:StartOrStopPruningTimer()
-  if     self.timers.pruning and self.db.profile.config.repeatSmartPruning 
+  if     self:HaveTimer("pruning") and self.db.profile.config.repeatSmartPruning 
   then 
-  elseif self.timers.pruning
-  then   self:CancelTimer(self.timers.pruning);
-         self.timers.pruning = nil;
+  elseif self:HaveTimer("pruning")
+  then   self:ClearTimer("pruning");
   elseif self.db.profile.config.repeatSmartPruning -- and not self.pruningTimer
-  then   self.timers.pruning = 
+  then   self:SaveTimer("pruning",
            self:ScheduleRepeatingTimer(
              "SmartPruneDatabase", 
-             15 * SECONDS_PER_MIN );
+             15 * SECONDS_PER_MIN )
+          );
+
   else   -- not self.timers.pruning and not repeatSmartPruning 
   end;
 end;
@@ -812,8 +827,9 @@ function RP_Find:SendPing(player, interactive)
          pingSent = "msp";
   end;
 
-  if     pingSent and not self.timers.sendPing
-  then   self.timers.sendPing = self:ScheduleTimer("CheckPingResult", SECONDS_PER_MIN, playerName)
+  if     pingSent and not self:HaveTimer("sendPing")
+  then   self:SaveTimer("sendPing",
+           self:ScheduleTimer("CheckPingResult", SECONDS_PER_MIN, playerName))
   end;
 
   if     pingSent and interactive
@@ -828,7 +844,7 @@ function RP_Find:CheckPingResult(playerName)
   if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
   then self:SoftlyPurgePlayer(playerName); return;
   end;
-  self.timers.sendPing = nil;
+  self:ClearTimer("sendPing");
   RP_Find:Update("Display");
 end;
 
@@ -838,7 +854,7 @@ function RP_Find:CheckAllPings()
       then self:PurgePlayer(playerRecord:GetPlayerName())
       end;
   end;
-  self.timers.sendPing = nil;
+  self:ClearTimer("sendPing");
   RP_Find:Update("Display");
 end;
 
@@ -1575,13 +1591,7 @@ Finder:SetLayout("Flow");
 Finder:SetCallback("OnClose",
   function(self, event, ...)
     local cancelTimers = { "playerList" };
-    for _, t in ipairs(cancelTimers)
-    do local timer = RP_Find.timers[t];
-       if   timer 
-       then RP_Find:CancelTimer(timer);
-            RP_Find.timers[t] = nil;
-       end;
-    end;
+    for _, t in ipairs(cancelTimers) do RP_Find:CancelTimer(t); end;
   end);
 
 _G[finderFrameName] = Finder.frame;
@@ -1685,9 +1695,7 @@ function Finder:CreateButtonBar()
       icon    = IC.editAd,
       id      = "editAd",
       tooltip = L["Button Toolbar Edit Ad Tooltip"],
-      func    = function(self, event, button) 
-                  Finder:LoadTab("Ads"); 
-                end,
+      func    = function(self, event, button) Finder:LoadTab("Ads"); end,
       enable  = function() return Finder.currentTab ~= "Ads" end,
     },
 
@@ -1696,10 +1704,11 @@ function Finder:CreateButtonBar()
       id      = "previewAd",
       tooltip = L["Button Toolbar Preview Ad Tooltip"],
       func    = function(self, event, button) 
-                  if   RP_Find.adFrame:IsShown()
+                  if   RP_Find.adFrame:IsShown() 
+                   and RP_Find.adFrame:GetPlayerName() == RP_Find.me
                   then RP_Find.adFrame:Hide()
                   else Finder:LoadTab("Ads"); 
-                       RP_Find:ShowPreview();
+                       RP_Find.adFrame.ShowPreview();
                   end;
                 end,
        enable = function() return true end,
@@ -1710,6 +1719,7 @@ function Finder:CreateButtonBar()
       id      = "sendAd",
       tooltip = L["Button Toolbar Send Ad Tooltip"],
       func    = function(self, event, button) 
+                  RP_Find.db.profile.ad.autoSend = true;
                   RP_Find:SendLFRPAd(true);  -- true = interactive
                 end,
       enable  = function() return not RP_Find:ShouldSendAdBeDisabled() end,
@@ -1724,7 +1734,9 @@ function Finder:CreateButtonBar()
                RP_Find:Notify("Starting autosend.");
                RP_Find:StartOrStopAutoSend();
              end,
-      enable = function() return not RP_Find:ShouldSendAdBeDisabled() end,
+      enable = function() 
+                 return not RP_Find:ShouldSendAdBeDisabled();
+               end,
     },
 
     { title = L["Button Toolbar Autosend Stop"],
@@ -1736,7 +1748,7 @@ function Finder:CreateButtonBar()
                RP_Find:Notify("Autosend stopped.");
                RP_Find:StartOrStopAutoSend();
              end,
-      enable = function() return RP_Find.timers.autoSend end,
+      enable = function() return RP_Find:HaveTimer("autoSend") and RP_Find.db.profile.ad.autoSend end,
     },
 
     { title   = L["Button Toolbar Tools"],
@@ -1805,7 +1817,7 @@ function Finder:CreateButtonBar()
   do  local button = AceGUI:Create("Icon");
       button:SetImage(info.icon);
       button:SetImageSize(buttonSize, buttonSize);
-      button:SetWidth(buttonSize);
+      button:SetWidth(buttonSize + 1);
       button:SetCallback("OnEnter",
         function(self, event)
           showTooltip(self.frame, 
@@ -1814,6 +1826,7 @@ function Finder:CreateButtonBar()
               anchor = "ANCHOR_TOP",
             });
         end);
+      button.info = info;
       button:SetCallback("OnLeave", hideTooltip);
       button:SetCallback("OnClick", info.func);
 
@@ -1828,33 +1841,72 @@ function Finder:CreateButtonBar()
       self.buttons[info.id] = button;
   end;
 
-  local function updateButtonBar()
-    for id, button in pairs(self.buttons)
-    do  button:SetDisabled(not button.info.enable());
-    end;
+  local fontFile, _, _ = GameFontNormal:GetFont();
+
+  local sendAdCountdownContainer = AceGUI:Create("SimpleGroup");
+  sendAdCountdownContainer:ClearAllPoints();
+  sendAdCountdownContainer.frame:SetParent(self.buttons.sendAd.frame);
+  sendAdCountdownContainer:SetPoint("CENTER", self.buttons.sendAd.frame, "CENTER");
+  sendAdCountdownContainer:SetLayout("Flow");
+  sendAdCountdownContainer:SetWidth(buttonSize);
+  
+  local sendAdCountdown = AceGUI:Create("InteractiveLabel");
+  sendAdCountdown:SetFullWidth(true);
+  sendAdCountdown:SetDisabled(true);
+  sendAdCountdown:SetJustifyH("CENTER");
+  sendAdCountdown:SetCallback("OnEnter",
+    function(self, event, ...)
+      showTooltip(self, 
+        { title = "Send Ad Timer", 
+          lines = { "This timer shows how long until you can send your next ad." } });
+    end);
+  sendAdCountdown:SetCallback("OnLeave", hideTooltip);
+  sendAdCountdown:SetFont(fontFile, buttonSize / 3);
+  sendAdCountdownContainer:AddChild(sendAdCountdown);
+
+  self.sendAdCountdownContainer = sendAdCountdownContainer;
+  self.sendAdCountdown = sendAdCountdown;
+end;
+
+function RP_Find:StartSendAdCountdown()
+  self:SaveTimer("sendAdCountdown", self:ScheduleRepeatingTimer("UpdateSendAdCountdown", 0.5));
+end;
+
+function RP_Find:UpdateSendAdCountdown()
+  local remaining = SECONDS_PER_MIN - (time() - (RP_Find:Last("sendAd")));
+  if   remaining <= 0 or self:HaveTimer("autoSend")
+  then self.Finder.sendAdCountdown:SetText();
+       self.Finder.sendAdCountdown:SetDisabled(true);
+       self:ClearTimer("sendAdCountdown");
+       self.Finder:UpdateButtonBar();
+  else self.Finder.sendAdCountdown:SetText(string.format("0:%02d", remaining));
+       self.Finder.sendAdCountdown:SetDisabled(false);
   end;
+end;
 
-  RP_Find:RegisterMessage("RP_FIND_CHANGE_AD",             updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_SEND_AD",               updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_SEND_AD_STATUS_CHANGE", updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_START",        updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_STOP",         updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_TAB_CHANGE",            updateButtonBar);
-  RP_Find:RegisterMessage("RP_FIND_MAP_SCAN_SENT",         updateButtonBar);
-
+function Finder:UpdateButtonBar()
+  for id, button in pairs(self.buttons)
+  do button:SetDisabled(not button.info.enable());
+  end;
 end;
 
 function Finder:ResizeButtonBar(value)
   value = value or RP_Find.db.profile.config.buttonBarSize;
+  self:PauseLayout();
+  self.sendAdCountdown:PauseLayout();
   for id, btn in pairs(Finder.buttons)
   do  
-     self:PauseLayout();
      btn:SetWidth(value)
      btn:SetHeight(value)
      btn:SetImageSize(value, value)
-     self:ResumeLayout()
-     self:DoLayout();
    end;
+   self.sendAdCountdownContainer:SetWidth(value);
+   local fontFile = GameFontNormal:GetFont();
+   self.sendAdCountdown:SetFont(fontFile, value / 3);
+   self.sendAdCountdown:ResumeLayout();
+   self.sendAdCountdown:DoLayout();
+   self:ResumeLayout()
+   self:DoLayout();
 end;
 
 function Finder:CreateProfileButton()
@@ -1961,10 +2013,7 @@ function Finder:CreateTabGroup()
 
   function tabGroup:LoadTab(tab)
     tab = tab or Finder.currentTab;
-    if   RP_Find.timers.playerList 
-    then RP_Find:CancelTimer(RP_Find.timers.playerList) 
-         RP_Find.timers.playerList = nil; 
-    end;
+    RP_Find:ClearTimer("playerList");
     self:ReleaseChildren();
 
     local scrollContainer = AceGUI:Create("SimpleGroup");
@@ -1982,8 +2031,6 @@ function Finder:CreateTabGroup()
     scrollFrame:AddChild(panelFrame);
     self.current = panelFrame;
     Finder.currentTab = tab;
-
-    RP_Find:SendMessage("RP_FIND_TAB_CHANGE");
 
     if self:IsShown() then Finder:Update() end;
   end;
@@ -2635,9 +2682,8 @@ function Finder.MakeFunc.Display(self)
         );
     end;
 
-    if not RP_Find.timers.playerList
-    then   RP_Find.timers.playerList = 
-             RP_Find:ScheduleRepeatingTimer("Update", 10); 
+    if not RP_Find:HaveTimer("playerList")
+    then   RP_Find:SaveTimer(RP_Find:ScheduleRepeatingTimer("Update", 10)); 
     end;
 
     buildNavbar(div, Finder.pos);
@@ -2743,10 +2789,10 @@ function RP_Find:IsAdIncomplete()
 end;
 
 function RP_Find:ShouldSendAdBeDisabled()
-  return time() - (self:Last("sendAd") or 0) < 1 * SECONDS_PER_MIN
-      or self.timers.autoSend
-      or self.db.profile.autoSend
-      or self:IsAdIncomplete();
+  local elapsedTime = time() - (self:Last("sendAd") or 0);
+  if elapsedTime < 1 * SECONDS_PER_MIN then return true end;
+  if self:HaveTimer("autoSend") and self.db.profile.ad.autoSend then return true end;
+  if self:IsAdIncomplete() then return true end;
 end;
 
 function Finder.MakeFunc.Ads(self)
@@ -2776,38 +2822,49 @@ function Finder.MakeFunc.Ads(self)
 
   local currentProfile;
 
+  local function enableOrDisableButtons(dontUpdateButtonBar)
+    local autoSendActive = RP_Find:HaveTimer("autoSend") and RP_Find.db.profile.ad.autoSend;
+    local disableSend = RP_Find:ShouldSendAdBeDisabled();
+    local incomplete = RP_Find:IsAdIncomplete();
+    
+    _ = autoSendStopButton and autoSendStopButton:SetDisabled(not autoSendActive);
+    _ = autoSendStartButton and autoSendStartButton:SetDisabled(disableSend);
+    _ = sendAdButton and sendAdButton:SetDisabled(disableSend);
+    _ = bodyField and bodyField:SetDisabled(autoSendActive);
+    _ = titleField and titleField:SetDisabled(autoSendActive);
+    _ = adultToggle and adultToggle:SetDisabled(autoSendActive);
+    _ = clearAdButton:SetDisabled(
+          autoSendActive
+          or (RP_Find.db.profile.ad.title == ""
+              and RP_Find.db.profile.ad.body == "")
+
+        );
+
+    if not dontUpdateButtonBar then RP_Find.Finder:UpdateButtonBar(); end;
+
+  end;
+
+  local function adultContentCheck()
+    local adult = RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.text)
+                  or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body);
+    if   adult
+    then RP_Find.db.profile.ad.adult = true;
+         adultToggle:SetValue(true);
+    end;
+  end;
+
   local function loadCurrentProfileAd()
     if   RP_Find.db:GetCurrentProfile() ~= currentProfile
     then adultToggle:SetValue(RP_Find.db.profile.ad.adult);
          titleField:SetText(RP_Find.db.profile.ad.title);
          bodyField:SetText(RP_Find.db.profile.ad.body);
+
+         adultContentCheck();
+         enableOrDisableButtons();
          currentProfile = RP_Find.db:GetCurrentProfile();
     end;
   end;
 
-  local function showPreview(self, event, button)
-    if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
-    then RP_Find.adFrame:Hide(); return
-    end;
-
-    local myRecord = RP_Find:LoadSelfRecord();
-    myRecord:UnpackMSPData();
-    myRecord:UnpackTRP3Data();
-
-    local race = myRecord:GetRPRace();
-    if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
-
-    local class = myRecord:GetRPClass();
-    if class == "" then class, _, _ = UnitClass("player"); myRecord:Set("MSP-RC", class); end;
-
-    myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
-    myRecord:Set("ad_body",  RP_Find.db.profile.ad.body);
-    myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);
-    RP_Find.adFrame:SetPlayerRecord(myRecord);
-    RP_Find.adFrame:Show();
-  end;
-
-  RP_Find.ShowPreview = showPreview;
 
   clearAdButton:SetText(L["Button Clear Ad"]);
   clearAdButton:SetRelativeWidth(0.19);
@@ -2816,9 +2873,8 @@ function Finder.MakeFunc.Ads(self)
       titleField:ResetValue();
       bodyField:ResetValue();
       adultToggle:ResetValue();
+      enableOrDisableButtons();
       RP_Find:Notify(L["Notify Ad Cleared"]);
-      RP_Find:SendMessage("RP_FIND_CHANGE_AD");
-      panelFrame:Update("Ads");
     end);
 
   clearAdButton:SetCallback("OnEnter",
@@ -2837,7 +2893,7 @@ function Finder.MakeFunc.Ads(self)
 
   previewAdButton:SetText(L["Button Preview Ad"]);
   previewAdButton:SetRelativeWidth(0.19);
-  previewAdButton:SetCallback("OnClick", showPreview);
+  previewAdButton:SetCallback("OnClick", RP_Find.adFrame.showPreview);
 
   previewAdButton:SetCallback("OnEnter",
     function(self, event, ...)
@@ -2850,7 +2906,8 @@ function Finder.MakeFunc.Ads(self)
   sendAdButton:SetRelativeWidth(0.19);
   sendAdButton:SetCallback("OnClick", 
     function(self, event, ...) 
-      RP_Find:SendLFRPAd(true) -- true = interactive
+      RP_Find:SendLFRPAd(true) 
+      enableOrDisableButtons();
     end);
 
   sendAdButton:SetCallback("OnEnter",
@@ -2872,8 +2929,8 @@ function Finder.MakeFunc.Ads(self)
   autoSendStartButton:SetCallback("OnClick",
     function(self, event, button)
       RP_Find.db.profile.ad.autoSend = true;
-      RP_Find:Notify("Starting autosend.");
-      RP_Find:StartOrStopAutoSend();
+      RP_Find:StartOrStopAutoSend(true);
+      enableOrDisableButtons();
     end);
   autoSendStartButton:SetCallback("OnEnter",
     function(self, event, button)
@@ -2886,12 +2943,16 @@ function Finder.MakeFunc.Ads(self)
   autoSendStopButton:SetCallback("OnClick",
     function(self, event, button)
       RP_Find.db.profile.ad.autoSend = false;
-      RP_Find:Notify("Autosend cancelled.");
-      RP_Find:StartOrStopAutoSend();
+      RP_Find:StartOrStopAutoSend(true);
+      enableOrDisableButtons();
     end);
+
   autoSendStopButton:SetCallback("OnEnter",
     function(self, event, button)
-      showTooltip(self, { title = "Cancel Autosend", lines = { "Click to cancel your ad that is currently autosent every hour." } });
+      showTooltip(self, 
+        { title = "Cancel Autosend", 
+          lines = { "Click to cancel your ad that is currently autosent every hour." } }
+        );
     end);
   autoSendStopButton:SetCallback("OnLeave", hideTooltip);
 
@@ -2903,8 +2964,8 @@ function Finder.MakeFunc.Ads(self)
   titleField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.title = value;
-      RP_Find:SendMessage("RP_FIND_CHANGE_AD");
-      panelFrame:Update("Ads");
+      adultContentCheck();
+      enableOrDisableButtons();
     end);
 
   function titleField:ResetValue()
@@ -2921,11 +2982,7 @@ function Finder.MakeFunc.Ads(self)
   adultToggle:SetLabel(L["Field Adult Ad"]);
   adultToggle:SetRelativeWidth(0.38);
   adultToggle:SetValue(RP_Find.db.profile.ad.adult)
-  adultToggle:SetCallback("OnValueChanged",
-    function(self, event, value)
-      RP_Find.db.profile.ad.adult = value;
-      panelFrame:Update("Ads");
-    end);
+  adultToggle:SetCallback("OnValueChanged", function(self, event, value) RP_Find.db.profile.ad.adult = value; end);
 
   function adultToggle:ResetValue()
      RP_Find.db.profile.ad.adult = RP_Find.defaults.profile.ad.adult;
@@ -2944,8 +3001,8 @@ function Finder.MakeFunc.Ads(self)
   bodyField:SetCallback("OnTextChanged",
     function(self, event, value)
       RP_Find.db.profile.ad.body = value;
-      RP_Find:SendMessage("RP_FIND_CHANGE_AD");
-      panelFrame:Update("Ads");
+      adultContentCheck();
+      enableOrDisableButtons();
     end);
 
   function bodyField:ResetValue()
@@ -2963,67 +3020,9 @@ function Finder.MakeFunc.Ads(self)
     end);
   bodyField:SetCallback("OnLeave", hideTooltip);
 
-  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_START",
-    function(self, message)
-      _ = bodyField and bodyField:SetDisabled(true);
-      _ = titleField and titleField:SetDisabled(true);
-      _ = adultToggle and adultToggle:SetDisabled(true);
-      _ = sendAdButton and sendAdButton:SetDisabled(true);
-      _ = clearAdButton and clearAdButton:SetDisabled(true);
-      _ = autoSendStopButton and autoSendStopButton:SetDisabled(false);
-      _ = autoSendStartButton and autoSendStartButton:SetDisabled(true);
-    end);
-
-  RP_Find:RegisterMessage("RP_FIND_AUTOSEND_STOP",
-    function(self, message)
-      _ = bodyField and bodyField:SetDisabled(false);
-      _ = titleField and titleField:SetDisabled(false);
-      _ = adultToggle and adultToggle:SetDisabled(false);
-      _ = sendAdButton and sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-      _ = clearAdButton and clearAdButton:SetDisabled(false);
-      _ = autoSendStopButton and autoSendStopButton:SetDisabled(true);
-      _ = autoSendStartButton and autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-    end);
-
-  local function sendAdStatusChange()
-    bodyField:SetDisabled(RP_Find.timers.autoSend);
-    titleField:SetDisabled(RP_Find.timers.autoSend);
-    adultToggle:SetDisabled(RP_Find.timers.autoSend);
-    clearAdButton:SetDisabled(RP_Find.timers.autoSend);
-    sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-    autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-    autoSendStopButton:SetDisabled(not RP_Find.timers.autoSend);
-  end;
-
-  RP_Find:RegisterMessage("RP_FIND_SEND_AD",               sendAdStatusChange);
-  RP_Find:RegisterMessage("RP_FIND_SEND_AD_STATUS_CHANGE", sendAdStatusChange);
-
-  RP_Find:RegisterMessage("RP_FIND_CHANGE_AD",
-    function(self, message)
-      local adult = RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.text)
-                    or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body);
-      if adult
-      then RP_Find.db.profile.ad.adult = true;
-           adultToggle:SetValue(true);
-      end;
-      sendAdButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-      autoSendStartButton:SetDisabled(RP_Find:ShouldSendAdBeDisabled());
-    end);
-
-  function panelFrame:Update() 
-    sendAdStatusChange();
+  function panelFrame:Update()
     loadCurrentProfileAd();
-
-    -- clearAdButton:SetDisabled(isAdIncomplete());
-    -- previewAdButton:SetDisabled(isAdIncomplete());
-    -- enableOrDisableSendAd();
-    -- if   not RP_Find.db.profile.ad.adult and 
-    --      (RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.title)
-    --       or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body)
-    --       )
-    -- then RP_Find.db.profile.ad.adult = true;
-    --      adultToggle:SetValue(true);
-    -- end;
+    enableOrDisableButtons(true);
   end;
 
   -- this order determines what order they're shown in
@@ -3045,8 +3044,10 @@ function Finder.MakeFunc.Ads(self)
   return panelFrame;
 end;
 
-function RP_Find.enableOrDisableSendAd()
-  RP_Find:SendMessage("RP_FIND_SEND_AD_STATUS_CHANGE");
+function RP_Find:SendAdTimerFinish()
+  RP_Find:ClearTimer("sendAd");
+  RP_Find.Finder:UpdateButtonBar();
+  RP_Find.Finder:Update("Ads");
 end;
 
 function Finder.MakeFunc.LFG(self)
@@ -3275,7 +3276,6 @@ function Finder.MakeFunc.Tools(self)
   end;
 
   massPing:AddChild(pingAllButton);
-  RP_Find:RegisterMessage("RP_FIND_PING_ALL", updatePingAllButton);
 
   function panelFrame:Update() 
     updateTrp3MapScan(); 
@@ -3287,16 +3287,13 @@ end;
 
 function RP_Find:PingAll()
   if   time() - ( self:Last("pingAll") or 0) > SECONDS_PER_HOUR
-  then 
-  self:SetLast("pingAll");
-       if self.timers.sendPing
-       then self:CancelTimer(self.timers.sendPing);
-       end;
-       self.timers.sendPing = self:ScheduleTimer("CheckAllPings", SECONDS_PER_MIN);
+  then self:SetLast("pingAll");
+       self:ClearTimer("sendPing");
+       self:SaveTimer("sendPing", self:ScheduleTimer("CheckAllPings", SECONDS_PER_MIN));
        for _, playerRecord in ipairs(self:GetAllPlayerRecords())
        do  self:SendPing(playerRecord:GetPlayerName())
        end;
-       RP_Find:SendMessage("RP_FIND_PING_ALL");
+       RP_Find:Update("Tools");
   end;
 end;
 
@@ -4032,6 +4029,28 @@ function adFrame:SetSubtitle(text, default)
   end;
 end;
 
+function adFrame.ShowPreview()
+  if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+  then RP_Find.adFrame:Hide(); return
+  end;
+
+  local myRecord = RP_Find:LoadSelfRecord();
+  myRecord:UnpackMSPData();
+  myRecord:UnpackTRP3Data();
+
+  local race = myRecord:GetRPRace();
+  if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
+
+  local class = myRecord:GetRPClass();
+  if class == "" then class, _, _ = UnitClass("player"); myRecord:Set("MSP-RC", class); end;
+
+  myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
+  myRecord:Set("ad_body",  RP_Find.db.profile.ad.body);
+  myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);
+  RP_Find.adFrame:SetPlayerRecord(myRecord);
+  RP_Find.adFrame:Show();
+end;
+
 function adFrame:AddField(field, value, default)
   if self.fieldY > 300 then return end;
   local fieldString, valueString;
@@ -4117,27 +4136,24 @@ function adFrame:SetPlayerRecord(playerRecord)
        );
 end;
 
-RP_Find:RegisterMessage("RP_FIND_CHANGE_AD",
-  function(self, message)
-    if   adFrame:IsShown() and adFrame:GetPlayerName() == self.me
-    then adFrame:SetPlayerRecord(self.my);
-    end;
-  end);
-
-function RP_Find:StartOrStopAutoSend()
-  if     self.db.profile.ad.autoSend
-   and   self.timers.autoSend
+function RP_Find:StartOrStopAutoSend(interactive)
+  if     self.db.profile.ad.autoSend and self:HaveTimer("autoSend")
   then   -- all is running as it should be
   elseif self.db.profile.ad.autoSend
-  then   self:SendLFRPAd();
-         self.timers.autoSend = 
-           self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_HOUR);
-               -- SECONDS_PER_MIN);
-         self:SendMessage("RP_FIND_AUTOSEND_START");
-  elseif self.timers.autoSend
-  then   self:CancelTimer(self.timers.autoSend) 
-         self.timers.autoSend = nil;
-         self:SendMessage("RP_FIND_AUTOSEND_STOP");
+  then   self:SendLFRPAd(false);
+         if   interactive 
+         then self:Notify(L["Notify Auto Send Start"]); 
+         end;
+         self:SaveTimer(self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_HOUR));
+         self.Finder:UpdateButtonBar();
+         self.Finder:Update("Ads");
+  elseif self:HaveTimer("autoSend")
+  then   self:ClearTimer("autoSend")
+         self.db.profile.ad.autoSend = false;
+         self:StartSendAdCountdown();
+         self.Finder:UpdateButtonBar();
+         self.Finder:Update("Ads");
+         if interactive then self:Notify(L["Notify Auto Send Stop"]); end;
   else -- all is as it should be
   end;
 end;
@@ -4153,7 +4169,6 @@ function RP_Find:ShowOrHideMinimapButton()
 end;
 
 function RP_Find:ShowFinder() self.Finder:Show(); self.Finder:Update(); end;
-
 function RP_Find:HideFinder() self.Finder:Hide(); end;
 
 function RP_Find:SendVersionCheck()
@@ -4188,10 +4203,11 @@ function RP_Find:OnEnable()
   self.Finder:CreateButtonBar();
   self.Finder:CreateTabGroup();
   self.Finder:CreateProfileButton();
-  self.enableOrDisableSendAd();
+  self.Finder:UpdateButtonBar();
   -- self.colorBar:Update();
   self.Finder:LoadTab("Display");
   self:StartOrStopAutoSend();
+  self:StartSendAdCountdown();
 
 end;
 
@@ -4297,7 +4313,6 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          if   RP_Find.db.profile.config.autoSendPing
           and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              -- playerRecord:UnpackTRP3Data();
          end;
          
          RP_Find.Finder:Update("Display");
@@ -4314,7 +4329,6 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          if   RP_Find.db.profile.config.autoSendPing
           and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              -- playerRecord:UnpackTRP3Data();
          end;
          
          if   RP_Find.db.profile.config.alertTRP3Scan
@@ -4336,7 +4350,6 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          if   RP_Find.db.profile.config.autoSendPing
           and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              -- playerRecord:UnpackTRP3Data();
          end;
          
          if time() - (RP_Find:Last("mapScan") or 0) < 60
@@ -4426,8 +4439,8 @@ function RP_Find:SendTRP3Scan(zoneNum)
        self:SendAddonMessage(addonPrefix.trp3, message);
        self:SetLast("mapScan");
        self:SetLast("mapScanZone", zoneNum);
+       self.Finder:UpdateButtonBar();
        self.Finder:Update("Tools");
-       self:SendMessage("RP_FIND_MAP_SCAN_SENT");
        self:Notify(L["Notify TRP3 Scan Sent"]);
   end;
 end;
@@ -4473,12 +4486,20 @@ end;
 function RP_Find:SendLFRPAd(interactive)
   local message = self:ComposeAd();
   if   time() - (self:Last("sendAd") or 0) < 60
-  then if interactive then self:Notify(string.format(L["Format Send Ad Failed"], 60)); end;
+  then if   interactive 
+       then self:Notify(string.format(L["Format Send Ad Failed"], 60)); 
+       end;
   else self:SendSmartAddonMessage(addonPrefix.rpfind, message);
        self:SetLast("sendAd");
-       if interactive then self:Notify(L["Notify Send Ad"]); end;
-       RP_Find:SendMessage("RP_FIND_SEND_AD");
-       RP_Find:ScheduleTimer(RP_Find.enableOrDisableSendAd, 60); -- one-shot timer
+       if   interactive 
+       then self:Notify(L["Notify Send Ad"]); 
+            self:StartSendAdCountdown();
+       end;
+       RP_Find.Finder:UpdateButtonBar();
+       RP_Find.Finder:Update("Ads");
+       if   not self:HaveTimer("sendAd")
+       then self:SaveTimer(RP_Find:ScheduleTimer("SendAdTimerFinish", SECONDS_PER_MIN));
+       end;
   end;
 end;
 
