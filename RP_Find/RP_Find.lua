@@ -76,6 +76,7 @@ local IC = -- icons
 local textIC = -- icons for text
 { rpProfile  = "|A:profession:0:0|a",
   isIC       = "|TInterface\\COMMON\\Indicator-Green:0:0|t",
+  isOOC      = "|TInterface\\COMMON\\Indicator-Red:0:0|t",
   hasAd      = "|A:mailbox:0:0|a",
   mapScan    = "|A:taxinode_continent_neutral:0:0|a",
   inSameZone = "|A:minimap-vignettearrow:0:0|a",
@@ -253,17 +254,6 @@ local function stripColor(text)
   end;
 end;
 
-local function fixColor(text)
-  local strippedText, rrggbb = stripColor(text);
-  if not rrggbb then return text end;
-
-  local col = LibColor("#" .. rrggbb);
-  local _, _, lightness = col:hsl();
-  if lightness < 0.75 then col = col:lighten_to(0.75) end;
-      
-  return col:format("|cffrrggbb") .. strippedText .. "|r";
-end;
-
 local order = 0;
 
 local function source_order(reset) order = reset or (order + 1); return order; end;
@@ -384,6 +374,19 @@ function RP_Find:ClearLast(name)      self.db.global.last[name] = nil;          
 function RP_Find:SetLast(name, value) self.db.global.last[name] = value or time() end;
 function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
                                           or self:GetLast(name)                   end;
+
+function RP_Find:FixColor(text)
+  if not self.db.profile.config.lightenColors then return text end;
+
+  local strippedText, rrggbb = stripColor(text);
+  if not rrggbb then return text end;
+
+  local col = LibColor("#" .. rrggbb);
+  local _, _, lightness = col:hsl();
+  if lightness < 0.75 then col = col:lighten_to(0.75) end;
+      
+  return col:format("|cffrrggbb") .. strippedText .. "|r";
+end;
 
 function RP_Find:HasRPClient(addonToQuery)
   if addonToQuery
@@ -949,7 +952,7 @@ RP_Find.PlayerMethods =
       end;
     end,
 
-  ["GetRPNameColorFixed"] = function(self) return fixColor(self:GetRPName()); end,
+  ["GetRPNameColorFixed"] = function(self) return RP_Find:FixColor(self:GetRPName()); end,
 
   ["GetColorizedRPName"] =
     function(self)
@@ -1126,7 +1129,7 @@ RP_Find.PlayerMethods =
       local function addCol(method, label)
         local value = self[method](self);
         if   value and value ~= ""
-        then value = fixColor(value);
+        then value = RP_Find:FixColor(value);
              table.insert(
                columns, 
                { label, 
@@ -1458,6 +1461,7 @@ RP_Find.defaults =
       showColorBar       = false,
       notifyChatType     = "SAY",
       notifyChatFlash    = true,
+      lightenColors      = true,
       nameTooltip        = 
       { 
         icon             = true,
@@ -1989,6 +1993,11 @@ Finder.flagList =
   { title  = "In Character",
     icon = textIC.isIC,
     func   = function(self) return self:IsSetIC() end,
+  },
+
+  { title = "Out of Character",
+    icon = textIC.isOOC,
+    func = function(self) local status = self:GetRPStatus(); return status and status == 1 end,
   },
 
   { title = "Trial Account",
@@ -3342,6 +3351,23 @@ function RP_Find:OnInitialize()
             set            = function(info, value) self.db.profile.config.seeAdultAds = value end,
             width          = "full",
           },
+          lightenColors =
+          { type = "toggle",
+            order = source_order(),
+            width = "full",
+            name = "Lighten Colors",
+            desc = "Some players' RP names and classes contain color codes that are too dark to read." ..
+                   " Check this box to automatically lighten the colors.",
+            get = function() return self.db.profile.config.lightenColors end,
+            set = function(info, value) self.db.profile.config.lightenColors = value
+                    self.db.profile.config.infoColumn = value 
+                    if   self.Finder:IsShown() 
+                    and  self.Finder.currentTab == "Display" 
+                    then self.Finder:Update();
+                    end
+                  end,
+          },
+
           infoColumn       =
           { type = "select",
             order = source_order(),
