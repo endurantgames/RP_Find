@@ -1464,8 +1464,11 @@ local function restoreOnResize()
   Finder:Update();
 end;
 
+
 hooksecurefunc(Finder.frame, "StartSizing",        dontBreakOnResize);
 hooksecurefunc(Finder.frame, "StopMovingOrSizing", restoreOnResize);
+
+Finder.frame:SetClampedToScreen(true);
 
 Finder.content:ClearAllPoints();
 Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
@@ -1706,6 +1709,98 @@ function Finder:ResizeButtonBar(value)
    end;
 end;
 
+function Finder:CreateProfileButton()
+  local profileButton = AceGUI:Create("InteractiveLabel");
+  profileButton:ClearAllPoints();
+  profileButton:SetWidth(200);
+  profileButton:SetFontObject(GameFontNormal);
+  profileButton:SetPoint("BOTTOMRIGHT", self.TabGroup.frame, "TOPRIGHT", -10, -25);
+  profileButton:SetJustifyH("RIGHT");
+  profileButton:SetColor(0.5, 0.5, 0.5);
+  profileButton:SetText(RP_Find.db:GetCurrentProfile());
+  profileButton.frame:SetParent(self.frame);
+  profileButton.frame:Show();
+  profileButton.frame:Raise();
+
+  profileButton:SetCallback("OnEnter",
+    function(self, event, ...)
+      self:SetColor(1, 1, 0);
+      showTooltip(self, { title = "Current Profile",
+        lines = { "Click to change the current profile." } });
+    end);
+  profileButton:SetCallback("OnLeave",
+    function(self, event, ...)
+      self:SetColor(0.5, 0.5, 0.5);
+      hideTooltip();
+    end);
+  profileButton:SetCallback("OnClick",
+    function(self, event, button)
+      if   self.window 
+      then AceGUI:Release(self.window); 
+           self.window = nil;
+           return;
+      end;
+
+      local currentProfile = RP_Find.db:GetCurrentProfile();
+      local window = AceGUI:Create("SimpleGroup");
+      self.window = window;
+      window:SetWidth(300);
+      window:ClearAllPoints();
+      window:SetPoint("TOPLEFT", self.frame, "TOPRIGHT", 30, 25);
+      window:SetLayout("Flow");
+      window.frame:SetParent(self.frame);
+      window.frame:Show();
+      
+      local inline = AceGUI:Create("InlineGroup");
+      inline:SetLayout("Flow");
+      inline:SetFullWidth(true);
+      inline:SetFullHeight(true);
+      window:AddChild(inline);
+
+      local check = "|TInterface\\COMMON\\Indicator-Green:0:0|t";
+      local blank = "|TInterface\\Store\\ServicesAtlas:0::0:0:1024:1024:1023:1024:1023:1024|t";
+      local profileList = RP_Find.db:GetProfiles();
+      for _, profileName in ipairs(profileList)
+      do  
+          local button = AceGUI:Create("InteractiveLabel")
+
+          if   profileName == currentProfile 
+          then button:SetText(check .. profileName);
+          else button:SetText(blank .. profileName);
+          end;
+      
+          button:SetFontObject(GameFontNormal);
+          button:SetCallback("OnClick",
+            function(self, event, button)
+              RP_Find.db:SetProfile(profileName);
+              window.frame:Hide();
+              profileButton.window = nil;
+              AceGUI:Release(window);
+            end);
+          button:SetCallback("OnEnter",
+            function(self, event, ...)
+              self:SetColor(1, 1, 0);
+              showTooltip(self, { title = profileName, lines = { "Click to set this as the active profile." } });
+            end);
+          button:SetCallback("OnLeave",
+            function(self, event, ...)
+              self:SetColor(1, 1, 1);
+              hideTooltip()
+            end);
+          button:SetFullWidth(true);
+
+          inline:AddChild(button);
+      end;
+
+    end);
+
+  self.profileButton = profileButton;
+end;
+
+function Finder:ResetProfileButton()
+  self.profileButton:SetText(RP_Find.db:GetCurrentProfile());
+end;
+  
 function Finder:CreateTabGroup()
   local tabGroup = AceGUI:Create("TabGroup");
   tabGroup:SetFullWidth(true);
@@ -2416,8 +2511,10 @@ end;
 
 function Finder:UpdateContent(event, ...)
   if self.updatesDisabled then return end;
+  self:PauseLayout();
   local update = self.UpdateFunc[self.currentTab]
   if update then update(self) end;
+  self:ResumeLayout();
   self:DoLayout();
 end;
 
@@ -2466,6 +2563,17 @@ function Finder.MakeFunc.Ads(self)
   spacer3:SetRelativeWidth(0.01);
   spacer4:SetRelativeWidth(0.01);
   spacer5:SetRelativeWidth(0.01);
+
+  local currentProfile;
+
+  local function loadCurrentProfileAd()
+    if   RP_Find.db:GetCurrentProfile() ~= currentProfile
+    then adultToggle:SetValue(RP_Find.db.profile.ad.adult);
+         titleField:SetText(RP_Find.db.profile.ad.title);
+         bodyField:SetText(RP_Find.db.profile.ad.body);
+         currentProfile = RP_Find.db:GetCurrentProfile();
+    end;
+  end;
 
   local function showPreview(self, event, button)
     if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
@@ -2694,6 +2802,7 @@ function Finder.MakeFunc.Ads(self)
 
   function panelFrame:Update() 
     sendAdStatusChange();
+    loadCurrentProfileAd();
 
     -- clearAdButton:SetDisabled(isAdIncomplete());
     -- previewAdButton:SetDisabled(isAdIncomplete());
@@ -3004,7 +3113,8 @@ function RP_Find:RedoSetupOnProfileChange()
   self:LoadSelfRecord();
   self.Finder:SetDimensions();
   self.Finder:ResizeButtonBar();
-  self.Finder:Update();
+  self.Finder:ResetProfileButton();
+  self.Finder:Update(self.Finder.currentTab);
 end;
 
 function RP_Find:OnInitialize()
@@ -3668,6 +3778,7 @@ function RP_Find:OnEnable()
   self.Finder:SetDimensions();
   self.Finder:CreateButtonBar();
   self.Finder:CreateTabGroup();
+  self.Finder:CreateProfileButton();
   self.enableOrDisableSendAd();
   self.colorBar:Update();
   self.Finder:LoadTab("Display");
