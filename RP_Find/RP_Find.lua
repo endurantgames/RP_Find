@@ -423,7 +423,7 @@ function RP_Find:FixColor(text)
   return col:format("|cffrrggbb") .. strippedText .. "|r";
 end;
 
-function RP_Find:HasRPClient(addonToQuery)
+function RP_Find:HaveRPClient(addonToQuery)
   if addonToQuery
   then return self.addonList[addonToQuery];
   else return self.addonList["totalRP3"]
@@ -818,11 +818,11 @@ function RP_Find:SendPing(player, interactive)
   local  pingSent = false;
   local  playerName, server = unpack(split(player, "-"));
 
-  if     self:HasRPClient("totalRP3")
+  if     self:HaveRPClient("totalRP3")
   then   TRP3_API.r.sendMSPQuery(player);
          TRP3_API.r.sendQuery(player);
          pingSent = "trp3";
-  elseif self:HasRPClient()
+  elseif self:HaveRPClient()
   then   msp:Request(playerName, server, self.mspFields);
          pingSent = "msp";
   end;
@@ -946,22 +946,56 @@ RP_Find.PlayerMethods =
       end;
     end,
 
-  ["GetMSP"] = function(self, field) return self:Get("MSP-" .. field) end,
+  ["GetMSP"] = function(self, field) return msp and msp.char[self.playerName] and msp.char[self.playerName].field[field] or nil end,
+
+  ["GetTRP3"] =
+    function(self, field, mspField)
+      if not RP_Find:HaveRPClient("totalRP3") then return nil end;
+
+      local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
+      local char    = profile.character or {};
+      local ristics = profile.characteristics or {};
+      local misc    = {};
+
+      if ristics.MT then for i, item in ipairs(ristics.MI) do misc[item.NA:lower()] = item.VA; end; end;
+
+      local hash = 
+      { 
+        curr       = function() return char.CU            end,
+        info       = function() return char.CO            end,
+        status     = function() return char.RP            end,
+        name       = function() return ristics.FN         end,
+        class      = function() return ristics.CL         end,
+        race       = function() return ristics.RA         end,
+        icon       = function() return ristics.IC         end,
+        age        = function() return ristics.AG         end,
+        eyecolor   = function() return ristics.EC         end,
+        height     = function() return ristics.HE         end,
+        weight     = function() return ristics.WE         end,
+        birthplace = function() return ristics.BP         end,
+        home       = function() return ristics.RE         end,
+        honorific  = function() return ristics.TI         end,
+        rstatus    = function() return ristics.RS         end,
+        title      = function() return ristics.FT         end,
+        house      = function() return misc["house name"] end,
+        motto      = function() return misc.motto         end,
+        nick       = function() return misc.nickname      end,
+        pronouns   = function() return misc.pronouns      end,
+      }
+
+      if hash[field] then return hash[field]() else return self:GetMSP(mspField) end;
+
+    end,
 
   ["GetRP"] = 
     function(self, field, mspField)
-      return self:Get("rp_" .. field) 
-          or self:GetMSP(mspField)    
-          or self:Get(field) 
-          or ""
+      return self:Get("rp_" .. field)
+          or (self:HaveTRP3Data() and self:GetTRP3(field, mspField))
+          or (self:HaveMSPData()  and self:GetMSP(mspField)        )
+          or nil
     end,
 
-  ["GetPlayerName"] = 
-    function(self, omitServer) 
-      return omitServer 
-         and self.playerName:gsub("%-.+$", "") 
-          or self.playerName 
-    end,
+  ["GetPlayerName"] = function(self, omitServer) return omitServer and self.playerName:gsub("%-.+$", "") or self.playerName end,
 
   ["GetServer"] =
     function(self)
@@ -986,16 +1020,16 @@ RP_Find.PlayerMethods =
   ["GetRPName"] = 
     function(self) 
       local name = self:GetRP("name", "NA");
-      if name == "" then return self:GetPlayerName(true); else return name end
+      if not name or name == "" then return self:GetPlayerName(true); else return name end
     end,
     
   ["GetRPNameStripped"] =
     function(self)
       local name = self:GetRPName();
       local rrggbb, strippedName = name:match("|cff(%x%x%x%x%x%x)(.+)|r");
-      if   strippedName 
-      then return strippedName, rrggbb
-      else return name, nil 
+      if    strippedName 
+      then  return strippedName, rrggbb
+      else  return name, nil 
       end;
     end,
 
@@ -1048,7 +1082,7 @@ RP_Find.PlayerMethods =
   ["GetIcon"] =
     function(self)
       local rpIcon = self:GetRPIcon();
-      if rpIcon ~= "" then return "Interface\\ICONS\\" .. rpIcon, true end;
+      if rpIcon and rpIcon ~= "" then return "Interface\\ICONS\\" .. rpIcon, true end;
 
       local gameRace = self:GetRP("gameRace", "GR");
       local gameSex  = self:GetRP("gameSex",  "GS");
@@ -1174,7 +1208,7 @@ RP_Find.PlayerMethods =
       local lines = {};
       local columns = {};
 
-      if not RP_Find:HasRPClient() then return lines, column end;
+      if not RP_Find:HaveRPClient() then return lines, column end;
 
       local function addCol(method, label)
         local value = self[method](self);
@@ -1297,7 +1331,7 @@ RP_Find.PlayerMethods =
   ["LabelSendPing"] = 
     function(self) 
       return L["Label Ping"], 
-        not RP_Find:HasRPClient() or
+        not RP_Find:HaveRPClient() or
         time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
     end,
 
@@ -1364,17 +1398,16 @@ RP_Find.PlayerMethods =
       RP_Find:Update("Display");
     end,
 
-  ["HaveTRP3Data" ] = function(self) return self:Get("have_trp3Data");                end,
-  ["HaveMSPData"  ] = function(self) return self:Get("have_mspData")                  end,
-  ["HaveRPProfile"] = 
-    function(self) 
-      return self:HaveTRP3Data() 
-          or self:HaveMSPData() 
-      end,
+  ["RecordMSPData"]  = function(self) self:Set("have_mspData")                         end,
+  ["RecordTRP3Data"] = function(self) self:Set("have_trp3Data")                        end,
+  ["HaveTRP3Data" ]  = function(self) return self:Get("have_trp3Data")                 end,
+  ["HaveMSPData"  ]  = function(self) return self:Get("have_mspData")                  end,
+  ["HaveRPProfile"]  = function(self) return self:HaveTRP3Data() or self:HaveMSPData() end,
 
+  --[[
   ["UnpackMSPData"] =
     function(self)
-      if not RP_Find:HasRPClient() then return nil end;
+      if not RP_Find:HaveRPClient() then return nil end;
       local  mspData = _G["msp"].char[self.playerName];
       if not mspData then return end;
       if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
@@ -1388,53 +1421,16 @@ RP_Find.PlayerMethods =
 
   ["UnpackTRP3Data"] =
     function(self)
-      if not RP_Find:HasRPClient("totalRP3") then return end;
+      if not RP_Find:HaveRPClient("totalRP3") then return end;
 
-      local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
-
-      local ristics = profile.characteristics;
 
       -- as with :GetRP, we're probably not going to use all of these
       --
-      local char    = profile.character;
-      if   char
-      then self:SetCarefully("MSP-FC", char.RP)
-           self:SetCarefully("MSP-CO", char.CO);
-           self:SetCarefully("MSP-CU", char.CU);
-           self:SetCarefully("MSP-FR", char.RP);
-      end;
-
-      if ristics
-      then self:SetCarefully("MSP-NA", ristics.FN);
-           self:SetCarefully("MSP-RC", ristics.CL);
-           self:SetCarefully("MSP-RA", ristics.RA);
-           self:SetCarefully("MSP-IC", ristics.IC);
-           self:SetCarefully("MSP-AG", ristics.AG);
-           self:SetCarefully("MSP-AE", ristics.EC);
-           self:SetCarefully("MSP-AH", ristics.HE);
-           self:SetCarefully("MSP-AW", ristics.WE);
-           self:SetCarefully("MSP-HB", ristics.BP);
-           self:SetCarefully("MSP-HH", ristics.RE);
-           self:SetCarefully("MSP-PX", ristics.TI);
-           self:SetCarefully("MSP-RS", ristics.RS);
-           self:SetCarefully("MSP-NT", ristics.FT);
-      
-           if   ristics.MI
-           then local miscRistics = {}
-                for i, item in ipairs(ristics.MI)
-                do miscRistics[item.NA:lower()] = item.VA;
-                end;
-                self:SetCarefully("MSP-MO", miscRistics.motto);
-                self:SetCarefully("MSP-NH", miscRistics["house name"]);
-                self:SetCarefully("MSP-NI", miscRistics.nickname);
-                self:SetCarefully("MSP-PN", miscRistics.pronouns);
-           end;
-      end;
-
       self:Set("have_trp3Data", true);
 
       RP_Find:Update("Display");
     end,
+  --]]
 
   ["GetTimestamp"] =
     function(self, field, permanent)
@@ -3302,8 +3298,8 @@ RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
   self.my = self:GetPlayerRecord(self.me, self.realm); 
-  if msp and self.msp then self.my:UnpackMSPData();  end;
-  if addon.totalRP3   then self.my:UnpackTRP3Data(); end;
+  if msp and self.msp then self.my:RecordMSPData();  end;
+  if RP_Find:HaveRPClient("totalRP3") then self.my:RecordTRP3Data(); end;
   self.my:Set("rpFindUser", true);
   return self.my;
 end;
@@ -3390,7 +3386,7 @@ function RP_Find:OnInitialize()
             desc           = L["Config Auto Send Ping Tooltip"],
             get            = function() return self.db.profile.config.autoSendPing end,
             set            = function(info, value) self.db.profile.config.autoSendPing = value end,
-            disabled       = function() return not self:HasRPClient() 
+            disabled       = function() return not self:HaveRPClient() 
                                             or not self.db.profile.config.monitorTRP3 
                              end,
           },
@@ -3469,7 +3465,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's icon in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.icon end,
                 set = function(info, value) self.db.profile.config.nameTooltip.trial = icon end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               status = 
@@ -3480,7 +3476,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's IC/OOC status in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.status end,
                 set = function(info, value) self.db.profile.config.nameTooltip.status = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               class = 
@@ -3491,7 +3487,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's class in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.class end,
                 set = function(info, value) self.db.profile.config.nameTooltip.class = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               race = 
@@ -3502,7 +3498,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's race in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.race end,
                 set = function(info, value) self.db.profile.config.nameTooltip.race = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               pronouns = 
@@ -3513,7 +3509,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's pronouns in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.pronouns end,
                 set = function(info, value) self.db.profile.config.nameTooltip.pronouns = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               title = 
@@ -3524,7 +3520,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's title in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.title end,
                 set = function(info, value) self.db.profile.config.nameTooltip.title = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               age = 
@@ -3535,7 +3531,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's age in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.age end,
                 set = function(info, value) self.db.profile.config.nameTooltip.age = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               zone = 
@@ -3546,7 +3542,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's current zone in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.zone end,
                 set = function(info, value) self.db.profile.config.nameTooltip.zone = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               height = 
@@ -3557,7 +3553,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's height in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.height end,
                 set = function(info, value) self.db.profile.config.nameTooltip.height = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
               weight = 
               { name = "Weight",
@@ -3567,7 +3563,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's weight in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.weight end,
                 set = function(info, value) self.db.profile.config.nameTooltip.weight = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               trial = 
@@ -3578,7 +3574,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's trial status in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.trial end,
                 set = function(info, value) self.db.profile.config.nameTooltip.trial = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               addon = 
@@ -3589,7 +3585,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's RP addon in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.addon end,
                 set = function(info, value) self.db.profile.config.nameTooltip.addon = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               currently =
@@ -3600,7 +3596,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's currently in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.currently end,
                 set = function(info, value) self.db.profile.config.nameTooltip.currently = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
               oocinfo =
@@ -3611,7 +3607,7 @@ function RP_Find:OnInitialize()
                 desc = "Display the character's OOC info in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.oocinfo end,
                 set = function(info, value) self.db.profile.config.nameTooltip.oocinfo = value end,
-                disabled = function() return not self:HasRPClient(); end,
+                disabled = function() return not self:HaveRPClient(); end,
               },
 
             },
@@ -4035,8 +4031,8 @@ function adFrame.ShowPreview()
   end;
 
   local myRecord = RP_Find:LoadSelfRecord();
-  myRecord:UnpackMSPData();
-  myRecord:UnpackTRP3Data();
+  myRecord:RecordMSPData();
+  myRecord:RecordTRP3Data();
 
   local race = myRecord:GetRPRace();
   if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
@@ -4227,24 +4223,17 @@ function RP_Find:RegisterTRP3Received()
   TRP3_API.Events.registerCallback(
     TRP3_API.events.REGISTER_DATA_UPDATED,
     function(unitID, profile, dataType)
-      if unitID
-      then local playerRecord = RP_Find:GetPlayerRecord(unitID);
-           playerRecord:UnpackTRP3Data();
-      end;
+      if unitID then RP_Find:GetPlayerRecord(unitID):RecordTRP3Data(); end;
     end
   );
 
   TRP3_API.Events.registerCallback(
     TRP3_API.events.REGISTER_PROFILES_LOADED,
-    function(profileStructure)
-      self.my:UnpackTRP3Data();
-    end);
+    function(profileStructure) self.my:RecordTRP3Data(); end);
 
   TRP3_API.Events.registerCallback(
     TRP3_API.events.REGISTER_PROFILE_DELETED,
-    function(profileStructure)
-      self.my:UnpackTRP3Data()
-    end);
+    function(profileStructure) self.my:RecordTRP3Data() end);
 end;
 
 function RP_Find:RegisterMspReceived()
@@ -4255,8 +4244,8 @@ function RP_Find:RegisterMspReceived()
       if   self.db.profile.config.monitorMSP 
       then 
            local playerRecord = self:GetPlayerRecord(playerName);
-                 playerRecord:UnpackMSPData();
-           if   self.db.profile.config.autoSendPing
+                 playerRecord:RecordMSPData();
+           if   self.db.profile.config.autoSendPing and not playerRecord:HaveRPProfile()
            then self:SendPing(playerName)
            end;
            self.Finder:Update("Display");
@@ -4376,8 +4365,9 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
        if count > 0
        then 
             playerRecord:Set("ad", true)
+
             for field, value in pairs(ad)
-            do if field:match("^rp_") or field:match("^MSP-")
+            do if   field:match("^rp_") 
                then playerRecord:Set(field, value)
                else playerRecord:Set("ad_" .. field, value)
                end;
@@ -4416,10 +4406,7 @@ end;
 
 function RP_Find:RegisterAddonChannel()
   for addon, prefix in pairs(addonPrefix)
-  do  AddOn_Chomp.RegisterAddonPrefix(
-                    prefix, 
-                    self.AddonMessageReceived[addon]
-                  );
+  do  AddOn_Chomp.RegisterAddonPrefix(prefix, self.AddonMessageReceived[addon]);
   end;
 
   local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
@@ -4449,36 +4436,28 @@ function RP_Find:ComposeAd()
 
   local text = addonPrefix.rpfind .. ":AD";
 
-  local function add(f, v) 
-    text = text .. "|||" .. (f or "") .. "=" .. (v or ""); 
-  end;
+  local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
 
-  self.my:UnpackMSPData();
-  self.my:UnpackTRP3Data();
+  add("rp_name",      self.my:GetRPName())
+  add("rp_title",     self.my:GetRPTitle());
+  add("rp_pronouns",  self.my:GetRPPronouns());
+  add("rp_age",       self.my:GetRPAge());
+  add("rp_height",    self.my:GetRPHeight());
+  add("rp_weight",    self.my:GetRPWeight());
+  add("rp_curr",      self.my:GetRPCurr());
+  add("rp_info",      self.my:GetRPInfo());
+  add("rp_addon",     self.my:GetRPAddon());
 
-  add("MSP-NA",      self.my:GetRPName())
+  local race = self.my:GetRPRace();   if race  == "" then race,  _, _ = UnitRace("player");             end;
+  local class = self.my:GetRPClass(); if class == "" then class, _, _ = UnitClass("player")             end;
+  local trial = self.my:GetRPTrial(); if trial == "" then trial       = IsTrialAccount() and "1" or "0" end;
 
-  local race = self.my:GetRPRace();
-  if race == "" then race, _, _ = UnitRace("player"); end;
-  add("MSP-RA", race);
-
-  local class = self.my:GetRPClass();
-  if class == "" then class, _, _ = UnitClass("player") end;
-  add("MSP-RC", class);
-
-  add("MSP-NT",     self.my:GetRPTitle());
-  add("MSP-PN",  self.my:GetRPPronouns());
-  add("MSP-AG",       self.my:GetRPAge());
-  add("MSP-VA",     self.my:GetRPAddon());
-
-  local trial = self.my:GetRPTrial();
-  if trial == "" then trial = IsTrialAccount() and "1" or "0" end;
-
-  add("MSP-TR", trial);
-
-  add("title",        self.db.profile.ad.title);
-  add("body",         self.db.profile.ad.body);
-  add("adult",        self.db.profile.ad.adult);
+  add("rp_race",  race);
+  add("rp_class", class);
+  add("rp_trial", trial);
+  add("title",    self.db.profile.ad.title);
+  add("body",     self.db.profile.ad.body);
+  add("adult",    self.db.profile.ad.adult);
 
   return text;
 end;
