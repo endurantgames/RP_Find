@@ -1624,10 +1624,7 @@ function Finder:CreateButtonBar()
       tooltip = L["Button Toolbar Scan Tooltip"],
       func    = function(self, event, button)
                   Finder:LoadTab("Tools"); -- otherwise super spammy
-                  RP_Find:SendTRP3Scan(
-                    Finder.scanZone 
-                    or C_Map.GetBestMapForUnit("player")
-                  )
+                  RP_Find:SendTRP3Scan(C_Map.GetBestMapForUnit("player"))
                 end,
       enable = function() 
                  return RP_Find.db.profile.config.monitorTRP3 
@@ -1842,7 +1839,7 @@ Finder.filterList =
   ["ContactInLastHour"] =
     { func =
         function(playerRecord)
-          return time() - self:GetTimestamp() < SECONDS_PER_HOUR
+          return time() - playerRecord:GetTimestamp() < SECONDS_PER_HOUR
         end,
       title = L["Filter Active Last Hour"],
       enabled = false,
@@ -3650,8 +3647,8 @@ function RP_Find:StartOrStopAutoSend()
   elseif self.db.profile.ad.autoSend
   then   self:SendLFRPAd();
          self.timers.autoSend = 
-           self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_MIN);
-             -- SECONDS_PER_HOUR);
+           self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_HOUR);
+               -- SECONDS_PER_MIN);
          self:SendMessage("RP_FIND_AUTOSEND_START");
   elseif self.timers.autoSend
   then   self:CancelTimer(self.timers.autoSend) 
