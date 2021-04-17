@@ -35,7 +35,7 @@ local configDB            = "RP_Find_ConfigDB";
 local finderDB            = "RP_FindDB";
 local finderFrameName     = "RP_Find_Finder_Frame";
 local addonChannel        = "xtensionxtooltip2";
-local addonPrefix         = { trp3 = "RPB1", rpfind = "LFRP1" };
+local addonPrefix         = { trp3 = "RPB1", rpfind = "LFRP1", };
 
 local col = {
   gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
@@ -45,7 +45,6 @@ local col = {
   green  = function(str) return       GREEN_FONT_COLOR:WrapTextInColorCode(str) end,
   addon  = function(str) return     RP_FIND_FONT_COLOR:WrapTextInColorCode(str) end,
 };
-
 
 local addon = {};
 for i = 1, GetNumAddOns()
@@ -862,6 +861,16 @@ RP_Find.PlayerMethods =
       end;
     end,
       
+  ["SetCarefully"] =
+    function(self, field, value, permanent)
+      local current = self:Get(field, permanent);
+      if   (not current or current == "")
+           and 
+           (value   and value ~= "")
+      then self:Set(field, value, permanent);
+      end;
+    end,
+
   ["SetTimestamp"] =
     function(self, field, timeStamp, permanent)
       timeStamp = timeStamp or time();
@@ -1048,9 +1057,12 @@ RP_Find.PlayerMethods =
     function(self)
       return 
         { L["Info Column Tooltip"] },
-        { { "Currently Showing", 
-            L[RP_Find.db.profile.config.infoColumn or "Info Server"],
-        } }
+        { 
+          { L["Display Header Name"], self:GetRPNameColorFixed(), },
+          { L[RP_Find.db.profile.config.infoColumn or "Info Server"],
+            self:GetInfoColumn(),
+          },
+        }
     end,
 
   ["GetInfoColumn"] = 
@@ -1328,50 +1340,56 @@ RP_Find.PlayerMethods =
              do  self:SetGently("MSP-" .. field, value); 
              end;
       end;
-      self:SetGently("have_mspData", true);
+      self:SetCarefully("have_mspData", true);
       RP_Find:Update("Display");
     end,
 
   ["UnpackTRP3Data"] =
     function(self)
       if not RP_Find:HasRPClient("totalRP3") then return end;
+
       local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
 
-      local char = profile.character or {};
-      local ristics = profile.characteristics or {};
-      local miscRistics = {}
-
-      if ristics.MI
-      then for i, item in ipairs(ristics.MI)
-           do miscRistics[item.NA:lower()] = item.VA;
-           end;
-      end;
+      local ristics = profile.characteristics;
 
       -- as with :GetRP, we're probably not going to use all of these
       --
-      self:SetGently("MSP-NA", ristics.FN);
-      self:SetGently("MSP-RC", ristics.CL);
-      self:SetGently("MSP-RA", ristics.RA);
-      self:SetGently("MSP-IC", ristics.IC);
-      self:SetGently("MSP-FC", char.RP)
-      self:SetGently("MSP-AG", ristics.AG);
-      self:SetGently("MSP-AE", ristics.EC);
-      self:SetGently("MSP-AH", ristics.HE);
-      self:SetGently("MSP-AW", ristics.WE);
-      self:SetGently("MSP-CO", char.CO);
-      self:SetGently("MSP-CU", char.CU);
-      self:SetGently("MSP-FR", char.RP);
-      self:SetGently("MSP-HB", ristics.BP);
-      self:SetGently("MSP-HH", ristics.RE);
-      self:SetGently("MSP-MO", miscRistics.motto);
-      self:SetGently("MSP-NH", miscRistics["house name"]);
-      self:SetGently("MSP-NI", miscRistics.nickname);
-      self:SetGently("MSP-NT", ristics.FT);
-      self:SetGently("MSP-PN", miscRistics.pronouns);
-      self:SetGently("MSP-PX", ristics.TI);
-      self:SetGently("MSP-RS", ristics.RS);
+      local char    = profile.character;
+      if   char
+      then self:SetCarefully("MSP-FC", char.RP)
+           self:SetCarefully("MSP-CO", char.CO);
+           self:SetCarefully("MSP-CU", char.CU);
+           self:SetCarefully("MSP-FR", char.RP);
+      end;
 
-      self:SetGently("have_trp3Data", true);
+      if ristics
+      then self:SetCarefully("MSP-NA", ristics.FN);
+           self:SetCarefully("MSP-RC", ristics.CL);
+           self:SetCarefully("MSP-RA", ristics.RA);
+           self:SetCarefully("MSP-IC", ristics.IC);
+           self:SetCarefully("MSP-AG", ristics.AG);
+           self:SetCarefully("MSP-AE", ristics.EC);
+           self:SetCarefully("MSP-AH", ristics.HE);
+           self:SetCarefully("MSP-AW", ristics.WE);
+           self:SetCarefully("MSP-HB", ristics.BP);
+           self:SetCarefully("MSP-HH", ristics.RE);
+           self:SetCarefully("MSP-PX", ristics.TI);
+           self:SetCarefully("MSP-RS", ristics.RS);
+           self:SetCarefully("MSP-NT", ristics.FT);
+      
+           if   ristics.MI
+           then local miscRistics = {}
+                for i, item in ipairs(ristics.MI)
+                do miscRistics[item.NA:lower()] = item.VA;
+                end;
+                self:SetCarefully("MSP-MO", miscRistics.motto);
+                self:SetCarefully("MSP-NH", miscRistics["house name"]);
+                self:SetCarefully("MSP-NI", miscRistics.nickname);
+                self:SetCarefully("MSP-PN", miscRistics.pronouns);
+           end;
+      end;
+
+      self:Set("have_trp3Data", true);
 
       RP_Find:Update("Display");
     end,
@@ -2294,8 +2312,8 @@ function Finder.MakeFunc.Display(self)
     { 
       title       = L["Display Header Info"],
       method      = "GetInfoColumn",
-      ttMethod    = "GetInfoColumnTitle",
-      ttTitleMethod = "GetInfoColumnTooltip",
+      ttMethod    = "GetInfoColumnTooltip",
+      ttTitle     = L["Display Header Info"],
       width       = 0.17,
     },
     { 
@@ -3507,7 +3525,6 @@ function RP_Find:OnInitialize()
                 set = function(info, value) self.db.profile.config.nameTooltip.height = value end,
                 disabled = function() return not self:HasRPClient(); end,
               },
-
               weight = 
               { name = "Weight",
                 type = "toggle",
@@ -3515,7 +3532,7 @@ function RP_Find:OnInitialize()
                 order = source_order(),
                 desc = "Display the character's weight in the tooltip.",
                 get = function() return self.db.profile.config.nameTooltip.weight end,
-                set = function(info, value) self.db.profile.config.nameTooltip.name = weight end,
+                set = function(info, value) self.db.profile.config.nameTooltip.weight = value end,
                 disabled = function() return not self:HasRPClient(); end,
               },
 
@@ -4164,8 +4181,12 @@ function RP_Find:RegisterMspReceived()
   table.insert(msp.callback.received, 
     function(playerName) 
       if   self.db.profile.config.monitorMSP 
-      then local playerRecord = self:GetPlayerRecord(playerName, server);
+      then 
+           local playerRecord = self:GetPlayerRecord(playerName);
                  playerRecord:UnpackMSPData();
+           if   self.db.profile.config.autoSendPing
+           then self:SendPing(playerName)
+           end;
            self.Finder:Update("Display");
       end;
     end);
@@ -4218,9 +4239,9 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
   elseif text:find("^RPB1~TRP3HI")
   then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveTRP3Data()
+          and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              playerRecord:UnpackTRP3Data();
+              -- playerRecord:UnpackTRP3Data();
          end;
          
          RP_Find.Finder:Update("Display");
@@ -4235,9 +4256,9 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          playerRecord:Set("mapScan", zoneID);
 
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveTRP3Data()
+          and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              playerRecord:UnpackTRP3Data();
+              -- playerRecord:UnpackTRP3Data();
          end;
          
          if   RP_Find.db.profile.config.alertTRP3Scan
@@ -4257,9 +4278,9 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          local x, y = text:match("^C_SCAN~(%d+%.%d+)~(%d+%.%d+)")
 
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveTRP3Data()
+          and not playerRecord:HaveRPProfile()
          then RP_Find:SendPing(sender)
-              playerRecord:UnpackTRP3Data();
+              -- playerRecord:UnpackTRP3Data();
          end;
          
          if time() - (RP_Find:Last("mapScan") or 0) < 60
