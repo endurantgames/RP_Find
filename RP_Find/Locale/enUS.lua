@@ -226,6 +226,7 @@ L["Menu Notify Method None"                ] = "Disable Notifications";
 L["Menu Notify Method Toast"               ] = "Toast";
 L["Notify Filters Cleared"                 ] = "All filters cleared.";
 L["Notify Ad Cleared"                      ] = "Your ad has been cleared.";
+L["Format New Version Available"           ] = "A new version of " .. addOnTitle .. " (%s) " .. " is available.";
 L["Notify Database Deleted"                ] = "Database deleted.";
 L["Notify Database Deletion Aborted"       ] = "Database deletion aborted.";
 L["Notify Login Message"                   ] = "AddOn loaded. Type " .. SLASH .. " for help and options.";

@@ -87,6 +87,7 @@ local textIC = -- icons for text
   lgbt       = "|TInterface\\ICONS\\Achievement_DoubleRainbow:0:0:0:0:64:64:32:60:32:60|t",
   walkups    = "|A:flightmaster:0:0|a",
   trial      = "|TInterface\\ICONS\\NewPlayerHelp_Newcomer:0:0|t",
+  rpFind     = "|T" .. IC.spotlight .. ":0:0:0:0:64:64:8:56:8:56:85:204:255|t",
 }
 
 local zoneList =
@@ -253,6 +254,25 @@ local function stripColor(text)
   end;
 end;
 
+local function calcVersion(version) -- takes a version string, returns a number
+  local a, b, c, d, more = version:match("^(%d+)%.(%d+)%.(%d+)%.(%d+)(.*)$");
+  local sum =   tonumber(a) * 1000 * 100 * 100
+              + tonumber(b) * 1000 * 100
+              + tonumber(c) * 1000
+              + tonumber(d);
+  if   more == "" then sum = sum + 1 - 1 / (100 * 100);
+  else local greek, e = more:match("^ ?(%a)%a+ ?(%d+)$");
+       if   greek:lower() == "a"
+       then sum = sum + tonumber(e) / (100 * 100);
+       elseif greek:lower() == "b"
+       then local num = tonumber(e) / ( 100) 
+            sum = sum + num; -- tonumber(e) / (100 * 100)
+       else sum = sum + 1 - 1 / (100 * 100)
+       end;
+  end;
+  return sum;
+end;
+
 local order = 0;
 
 local function source_order(reset) order = reset or (order + 1); return order; end;
@@ -271,7 +291,6 @@ local function showTooltip(frame, info)
   frame = frame.frame or frame;
   GameTooltip:ClearLines();
   GameTooltip:SetOwner(frame, info.anchor or "ANCHOR_BOTTOM");
-
 
   local r,  g,  b  = 1, 1, 0;
   local r2, g2, b2 = 1, 1, 1;
@@ -334,6 +353,8 @@ end;
 local function hideTooltip() GameTooltip:Hide(); end;
 
 local function colorize(text, timeValue)
+  return text;
+  --[[
   local color = 
     LibColor.hsv(
       120 * math.min(
@@ -348,6 +369,7 @@ local function colorize(text, timeValue)
       1
     );
   return color:format("|cffrrggbb") .. text .. "|r";
+  --]]
 end;
 
 local RP_Find = AceAddon:NewAddon(
@@ -1281,7 +1303,11 @@ RP_Find.PlayerMethods =
       RP_Find:Update("Display");
     end,
 
-  ["HaveLFRPAd"] = function(self) local ad = self:Get("ad"); return ad and ad ~= ""; end,
+  ["HaveLFRPAd"] = 
+    function(self) 
+      local ad = self:Get("ad"); 
+      return ad and ad ~= ""; 
+    end,
 
   ["GetLFRPAd"] = 
     function(self)
@@ -1479,6 +1505,7 @@ RP_Find.defaults =
       showColorBar       = false,
       notifyChatType     = "SAY",
       notifyChatFlash    = true,
+      versionCheck       = true,
       lightenColors      = true,
       nameTooltip        = 
       { 
@@ -1636,7 +1663,12 @@ function Finder:CreateButtonBar()
                   end;
                   Finder:LoadTab("Display");
                 end,
-       enable = function() return true end,
+       enable = 
+         function() 
+           local function haveAd(playerRecord) return playerRecord:HaveLFRPAd() end;
+           local _, count = RP_Find:GetAllPlayerRecords({ haveAd });
+           return count > 0
+         end,
     },
 
     { title   = L["Button Toolbar Prune"],
@@ -2024,7 +2056,7 @@ Finder.flagList =
   },
 
   { title = "Sent LFRP Ad",
-    icon = textIC.sentAd,
+    icon = textIC.hasAd,
     func = function(self) return self:HaveLFRPAd() end,
   },
 
@@ -2053,6 +2085,10 @@ Finder.flagList =
              return (curr and curr:lower():match(pat)
                      or oocinfo and oocinfo:lower():match(pat))
             end,
+  },
+  { title = RP_Find.addOnTitle .. " User",
+    icon = textIC.rpFind,
+    func = function(self) return self:Get("rpFindUser") end,
   },
 };
 
@@ -3271,6 +3307,7 @@ function RP_Find:LoadSelfRecord()
   self.my = self:GetPlayerRecord(self.me, self.realm); 
   if msp and self.msp then self.my:UnpackMSPData();  end;
   if addon.totalRP3   then self.my:UnpackTRP3Data(); end;
+  self.my:Set("rpFindUser", true);
   return self.my;
 end;
 
@@ -3674,6 +3711,15 @@ function RP_Find:OnInitialize()
             get            = function() return self.db.profile.config.loginMessage end,
             set            = function(info, value) self.db.profile.config.loginMessage  = value end,
             width          = "full",
+          },
+          versionCheck =
+          { name = "Version Check",
+            type = "toggle",
+            order = source_order(),
+            desc = "Notify whenever there's a new version of " .. self.addOnTitle .. " available.",
+            get = function() return self.db.profile.config.versionCheck end,
+            set = function(info, value) self.db.profile.config.versionCheck = value end,
+            width = "full",
           },
           notifyMethod =
           { name      = L["Config Notify Method"],
@@ -4110,6 +4156,13 @@ function RP_Find:ShowFinder() self.Finder:Show(); self.Finder:Update(); end;
 
 function RP_Find:HideFinder() self.Finder:Hide(); end;
 
+function RP_Find:SendVersionCheck()
+  local channelNum = GetChannelName(addonChannel);
+  RP_Find:SendSmartAddonMessage(
+      addonPrefix.rpfind,
+      addonPrefix.rpfind .. ":HELO|||version=" .. RP_Find.addOnVersion .. "|||")
+end;
+
 function RP_Find:OnEnable()
   self.realm = GetNormalizedRealmName() 
                or GetRealmName():gsub("[%-%s]","");
@@ -4124,6 +4177,8 @@ function RP_Find:OnEnable()
   self:RegisterTRP3Received();
   self:RegisterAddonChannel();
 
+  self:SendVersionCheck();
+
   if self.db.profile.config.loginMessage 
   then self:Notify(L["Notify Login Message"]); 
   end;
@@ -4134,9 +4189,10 @@ function RP_Find:OnEnable()
   self.Finder:CreateTabGroup();
   self.Finder:CreateProfileButton();
   self.enableOrDisableSendAd();
-  self.colorBar:Update();
+  -- self.colorBar:Update();
   self.Finder:LoadTab("Display");
   self:StartOrStopAutoSend();
+
 end;
 
 if addon.totalRP3
@@ -4225,7 +4281,7 @@ function RP_Find:SendSmartAddonMessage(prefix, data)
                 data, 
                 "CHANNEL", 
                 channelNum, 
-                { serialize = true}
+                { serialize = true }
               );
 end;
 
@@ -4302,13 +4358,14 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
                 count = count + 1;
            end;
        end;
+       local playerRecord = RP_Find:GetPlayerRecord(sender);
+       playerRecord:Set("rpFindUser", true);
        if count > 0
        then 
-            local playerRecord = RP_Find:GetPlayerRecord(sender);
-            playerRecord:Set("ad", true);
+            playerRecord:Set("ad", true)
             for field, value in pairs(ad)
             do if field:match("^rp_") or field:match("^MSP-")
-               then  playerRecord:Set(field, value)
+               then playerRecord:Set(field, value)
                else playerRecord:Set("ad_" .. field, value)
                end;
             end;
@@ -4320,6 +4377,18 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
             end;
             RP_Find.Finder:Update("Display");
        end;
+  elseif text:match(addonPrefix.rpfind .. ":HELO") and
+         RP_Find.db.profile.config.versionCheck and
+         not RP_Find.versionCheck
+  then   local version = text:match(":HELO|||version=(.-)|||")
+
+         local playerRecord = RP_Find:GetPlayerRecord(sender);
+         playerRecord:Set("rpFindUser", true);
+
+         if   calcVersion(version) > calcVersion(RP_Find.addOnVersion)
+         then RP_Find:Notify(string.format(L["Format New Version Available"], version))
+              RP_Find.versionCheck = true;
+         end;
   end;
 end;
 
@@ -4527,7 +4596,7 @@ local function makeColorBar()
   return colorBar;
 end;
 
-RP_Find.colorBar = makeColorBar();
+-- RP_Find.colorBar = makeColorBar();
 
 for i, slash in ipairs(split(SLASH, "|"))
 do _G["SLASH_RP_FIND" .. i] = slash;
