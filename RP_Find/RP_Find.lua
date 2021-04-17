@@ -4377,16 +4377,16 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
             end;
             RP_Find.Finder:Update("Display");
        end;
-  elseif text:match(addonPrefix.rpfind .. ":HELO") and
-         RP_Find.db.profile.config.versionCheck and
-         not RP_Find.versionCheck
-  then   local version = text:match(":HELO|||version=(.-)|||")
+  elseif text:match(addonPrefix.rpfind .. ":HELO") 
+         and RP_Find.db.profile.config.versionCheck 
+         and not RP_Find.versionCheck
+  then   local receivedVersion = text:match(":HELO|||version=(.-)|||")
 
          local playerRecord = RP_Find:GetPlayerRecord(sender);
          playerRecord:Set("rpFindUser", true);
 
-         if   calcVersion(version) > calcVersion(RP_Find.addOnVersion)
-         then RP_Find:Notify(string.format(L["Format New Version Available"], version))
+         if   calcVersion(receivedVersion) > calcVersion(RP_Find.addOnVersion)
+         then RP_Find:Notify(string.format(L["Format New Version Available"], receivedVersion))
               RP_Find.versionCheck = true;
          end;
   end;
