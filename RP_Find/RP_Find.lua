@@ -162,7 +162,6 @@ local menu =
     ["Info OOC Info"] = L["Info OOC Info"],
     ["Info Title"] = L["Info Title"],
     ["Info Data Timestamp"] = L["Info Data Timestamp"],
-    ["Info Data First Seen"] = L["Info Data First Seen"],
     ["Info Server"] = L["Info Server"],
     ["Info Subzone"] = L["Info Subzone"],
     ["Info Zone Subzone"] = L["Info Zone Subzone"],
@@ -173,7 +172,7 @@ local menu =
       "Info Pronouns", "Info Zone", "Info Zone Subzone",
       "Info Subzone", "Info Tags", "Info Status", 
       "Info Currently", "Info OOC Info", "Info Title", 
-      "Info Data First Seen", "Info Server",
+      "Info Server",
     },
 
   notifyChatType = 
@@ -623,7 +622,8 @@ local function initializeDatabase(wipe)
 
 end;
 
-function RP_Find:NewPlayerRecord(playerName, server, playerData)
+function RP_Find:NewPlayerRecord(playerName, server, how)
+  _ = how and print(playerName, how)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
 
@@ -636,22 +636,16 @@ function RP_Find:NewPlayerRecord(playerName, server, playerData)
 
   playerRecord:Initialize();
 
-  if playerData then for field, value in pairs(playerData) 
-  do playerRecord:Set(field, value) end; 
-  end;
-
-  if not playerRecord:Get("First Seen") 
-  then playerRecord:Set("First Seen", nil, true) 
-  end;
+  playerRecord:Set("First Seen", nil, true);
 
   self.playerRecords[playerName] = playerRecord;
   return playerRecord;
 end;
 
-function RP_Find:GetPlayerRecord(playerName, server)
+function RP_Find:GetPlayerRecord(playerName, server, how)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
-  return self.playerRecords[playerName] or self:NewPlayerRecord(playerName);
+  return self.playerRecords[playerName] or self:NewPlayerRecord(playerName, nil, how);
 end;
 
   -- filters are a list of functions
@@ -839,7 +833,7 @@ function RP_Find:SendPing(player, interactive)
 end;
 
 function RP_Find:CheckPingResult(playerName)
-  local playerRecord = self:GetPlayerRecord(playerName);
+  local playerRecord = self:GetPlayerRecord(playerName, nil, "checkPingResult");
   if not playerRecord then self:SoftlyPurgePlayer(playerName); return; end;
   if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
   then self:SoftlyPurgePlayer(playerName); return;
@@ -862,51 +856,42 @@ RP_Find.PlayerMethods =
 { 
   ["Initialize"] =
     function(self)
-      RP_Find.data.rolePlayers[self.playerName] 
-        = RP_Find.data.rolePlayers[self.playerName] or {};
+      RP_Find.data.rolePlayers[self.playerName] = RP_Find.data.rolePlayers[self.playerName] or {};
       self.data            = RP_Find.data.rolePlayers[self.playerName];
       self.data.fields     = self.data.fields or {};
       self.data.last       = self.data.last or {};
       self.data.last.when  = time();
+
       self.cache           = {};
       self.cache.fields    = {};
       self.cache.last      = {};
       self.cache.last.when = time();
+
       self.type            = PLAYER_RECORD;
+
       return self;
     end,
 
   ["Set"] =
     function(self, field, value, permanent)
-      self.cache.fields[field]       = self.cache.fields[field] or {};
-      self.cache.fields[field].value = value;
-      self.cache.fields[field].when  = time();
-      self.cache.last.when           = time();
+      if   value == nil
+      then self.cache.fields[field]       = nil;
+      else self.cache.fields[field]       = self.cache.fields[field] or {};
+           self.cache.fields[field].value = value;
+           self.cache.fields[field].when  = time();
+           self.cache.last.when           = time();
+      end;
 
-      if   permanent
+      if   permanent and value == nil
+      then self.data.fields[field] = nil
+      elseif permanent
       then self.data.fields[field]       = self.data.fields[field] or {};
            self.data.fields[field].value = value;
            self.data.fields[field].when  = time();
            self.data.last.when           = time();
       end;
-      return self;
-    end,
 
-  ["SetGently"] = 
-    function(self, field, value, permanent)
-      if not self:Get(field, permanent)
-      then   self:Set(field, value, permanent);
-      end;
-    end,
-      
-  ["SetCarefully"] =
-    function(self, field, value, permanent)
-      local current = self:Get(field, permanent);
-      if   (not current or current == "")
-           and 
-           (value   and value ~= "")
-      then self:Set(field, value, permanent);
-      end;
+      return self;
     end,
 
   ["SetTimestamp"] =
@@ -936,15 +921,7 @@ RP_Find.PlayerMethods =
 
     end,
 
-  ["Get"] =
-    function(self, field)
-      if            self.cache.fields[field] ~= nil
-      then   return self.cache.fields[field].value
-      elseif        self.data.fields[field]
-      then   return self.data.fields[field].value
-      else   return nil
-      end;
-    end,
+  ["Get"] = function(self, field) return self.cache.fields[field] and self.cache.fields[field].value or nil end,
 
   ["GetMSP"] = 
     function(self, field) 
@@ -965,9 +942,9 @@ RP_Find.PlayerMethods =
       local ristics = profile.characteristics or {};
       local misc    = {};
 
-      if   field == "house name" or field == "motto" or field == "nickname" or field == "pronouns"
+      if   field == "nickname" or field == "pronouns"
       then for i, item in ipairs(ristics.MI) 
-           do  if   item.NA:lower() = field 
+           do  if   item.NA:lower() == field 
                then self:Set("rp_" .. field, item.VA)
                     return item.VA 
                end;
@@ -1023,10 +1000,7 @@ RP_Find.PlayerMethods =
       return self.serverName;
     end,
 
-  ["GetColorizedServerName"] =
-    function(self)
-      return colorize(self:GetServerName(), self:GetTimestamp());
-    end,
+  ["GetColorizedServerName"] = function(self) return colorize(self:GetServerName(), self:GetTimestamp()); end,
 
   ["GetRPName"] = 
     function(self) 
@@ -1045,11 +1019,7 @@ RP_Find.PlayerMethods =
     end,
 
   ["GetRPNameColorFixed"] = function(self) return RP_Find:FixColor(self:GetRPName()); end,
-
-  ["GetColorizedRPName"] =
-    function(self)
-      return colorize(self:GetRPNameStripped(), self:GetTimestamp());
-    end,
+  ["GetColorizedRPName"]  = function(self) return colorize(self:GetRPNameStripped(), self:GetTimestamp()); end,
 
   -- we probably aren't going to use all of these
   ["GetRPClass"      ] = function(self) return self:GetRP("class",       "RC")   end,
@@ -1066,8 +1036,6 @@ RP_Find.PlayerMethods =
   ["GetRPBirthplace" ] = function(self) return self:GetRP("birthplace",  "HB")   end,
   ["GetRPHome"       ] = function(self) return self:GetRP("home",        "HH")   end,
   ["GetRPMotto"      ] = function(self) return self:GetRP("motto",       "MO")   end,
-  ["GetRPHouse"      ] = function(self) return self:GetRP("house name",  "NH")   end,
-  ["GetRPNickname"   ] = function(self) return self:GetRP("nickname",    "NI")   end,
   ["GetRPTitle"      ] = function(self) return self:GetRP("title",       "NT")   end,
   ["GetRPPronouns"   ] = function(self) return self:GetRP("pronouns",    "PN")   end,
   ["GetRPHonorific"  ] = function(self) return self:GetRP("honorific",   "PX")   end,
@@ -1163,7 +1131,6 @@ RP_Find.PlayerMethods =
         ["Info Server"         ] = function(self) return self:GetServerName() or "" end,
 
         ["Info Data Timestamp" ] = function(self) return self:GetTimestamp() end,
-        ["Info Data First Seen"] = function(self) return self:GetTimestamp("First Seen") end,
 
         ["Info Race Class"] =
           function(self)
@@ -2300,13 +2267,9 @@ function Finder.MakeFunc.Display(self)
 
     if   count == 0 
     then filterSelector:SetText(L["Display Filters"]);
-    else filterSelector:SetText(
-           string.format(
-             L["Format Display Filters"], 
-             count
-           )
-         );
+    else filterSelector:SetText(string.format( L["Format Display Filters"], count));
     end;
+
     RP_Find.Finder.activeFilters = activeFilters;
   end;
 
@@ -2466,7 +2429,7 @@ function Finder.MakeFunc.Display(self)
   local function sortPlayerRecords(a, b)
 
     local function helper(booleanValue)
-      if recordSortFieldReverse
+      if   recordSortFieldReverse
       then return not booleanValue
       else return     booleanValue
       end;
@@ -3308,7 +3271,7 @@ Finder:Hide();
 RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
-  self.my = self:GetPlayerRecord(self.me, self.realm); 
+  self.my = self:GetPlayerRecord(self.me, self.realm, "loadSelfRecord"); 
   if msp and self.msp then self.my:RecordMSPData();  end;
   if RP_Find:HaveRPClient("totalRP3") then self.my:RecordTRP3Data(); end;
   self.my:Set("rpFindUser", true);
@@ -4234,7 +4197,7 @@ function RP_Find:RegisterTRP3Received()
   TRP3_API.Events.registerCallback(
     TRP3_API.events.REGISTER_DATA_UPDATED,
     function(unitID, profile, dataType)
-      if unitID then RP_Find:GetPlayerRecord(unitID):RecordTRP3Data(); end;
+      if unitID then RP_Find:GetPlayerRecord(unitID, nil, "trp3DataUpdated"):RecordTRP3Data(); end;
     end
   );
 
@@ -4254,7 +4217,7 @@ function RP_Find:RegisterMspReceived()
     function(playerName) 
       if   self.db.profile.config.monitorMSP 
       then 
-           local playerRecord = self:GetPlayerRecord(playerName);
+           local playerRecord = self:GetPlayerRecord(playerName, nil, "registerMSPReceived");
                  playerRecord:RecordMSPData();
            if   self.db.profile.config.autoSendPing and not playerRecord:HaveRPProfile()
            then self:SendPing(playerName)
@@ -4304,16 +4267,15 @@ end;
 RP_Find.AddonMessageReceived = {};
 
 function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, channelname, ...)
+  local autoPing = RP_Find.db.profile.config.autoSendPing;
+
   if     not RP_Find.db.profile.config.monitorTRP3
   then   return
   elseif sender == RP_Find.me
   then   return
   elseif text:find("^RPB1~TRP3HI")
-  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
-         if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
-         then RP_Find:SendPing(sender)
-         end;
+  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil, "addonMessageReceived.trp3 - helo");
+         if   autoPing and not playerRecord:HaveRPProfile() then RP_Find:SendPing(sender) end;
          
          RP_Find.Finder:Update("Display");
 
@@ -4321,15 +4283,12 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          then RP_Find:Notify(string.format(L["Format Alert TRP3 Connect"], sender));
          end;
   elseif text:find("^RPB1~C_SCAN~")
-  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
+  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil, "addonMessageReceived.trp3 - scan");
          local zoneID = tonumber(text:match("~(%d+)$"));
 
          playerRecord:Set("mapScan", zoneID);
 
-         if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
-         then RP_Find:SendPing(sender)
-         end;
+         if   autoPing and not playerRecord:HaveRPProfile() then RP_Find:SendPing(sender) end;
          
          if   RP_Find.db.profile.config.alertTRP3Scan
          and  (RP_Find.db.profile.config.alertAllTrp3Scan 
@@ -4342,15 +4301,12 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
               );
          end;
   elseif text:find("^C_SCAN~%d+%.%d+~%d+%.%d+")
-  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
+  then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil, "addonMessageReceived.trp3 - scan response");
 
          local zoneID = RP_Find:Last("mapScanZone");
          local x, y = text:match("^C_SCAN~(%d+%.%d+)~(%d+%.%d+)")
 
-         if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
-         then RP_Find:SendPing(sender)
-         end;
+         if   autoPing and not playerRecord:HaveRPProfile() then RP_Find:SendPing(sender) end;
          
          if time() - (RP_Find:Last("mapScan") or 0) < 60
          then playerRecord:Set("zoneID", RP_Find:Last("mapScanZone"))
@@ -4371,7 +4327,7 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
                 count = count + 1;
            end;
        end;
-       local playerRecord = RP_Find:GetPlayerRecord(sender);
+       local playerRecord = RP_Find:GetPlayerRecord(sender, nil, "addonMessageReceived.rpfind - ad");
        playerRecord:Set("rpFindUser", true);
        if count > 0
        then 
@@ -4396,7 +4352,7 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
          and not RP_Find.versionCheck
   then   local receivedVersion = text:match(":HELO|||version=(.-)|||")
 
-         local playerRecord = RP_Find:GetPlayerRecord(sender);
+         local playerRecord = RP_Find:GetPlayerRecord(sender, nil, "addonMessageReceived.rpfind - helo");
          playerRecord:Set("rpFindUser", true);
 
          if   calcVersion(receivedVersion) > calcVersion(RP_Find.addOnVersion)
