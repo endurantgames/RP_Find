@@ -26,8 +26,8 @@ local MEMORY_WARN_GB      = 1;
 local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
 local BIG_STRING_LIMIT    = 30;
-local HAVE_MSP_DATA = "have_mspData";
-local HAVE_TRP3_DATA = "have_trp3Data";
+local HAVE_MSP_DATA       = "have_mspData";
+local HAVE_TRP3_DATA      = "have_trp3Data";
 local MSP_FIELDS          = "RA RC IC FC AG AH AW CO CU FR NI NT PN PX VA TR GR GS GC"
 local PLAYER_RECORD       = "RP_Find Player Record";
 local ARROW_UP            = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
@@ -66,8 +66,8 @@ local IC = -- icons
   prune         = "Interface\\ICONS\\inv_pet_broom",
   scan          = "Interface\\ICONS\\ability_hunter_snipertraining",
   scanResults   = "Interface\\ICONS\\ability_hunter_snipershot",
-  checkLFG      = "Interface\\ICONS\\inv_misc_grouplooking",
-  sendLFG       = "Interface\\ICONS\\Inv_misc_groupneedmore",
+  -- checkLFG      = "Interface\\ICONS\\inv_misc_grouplooking",
+  -- sendLFG       = "Interface\\ICONS\\Inv_misc_groupneedmore",
   autosendStart = "Interface\\Icons\\inv_engineering_90_gizmo",
   autosendStop  = "Interface\\Icons\\inv_mechagon_spareparts",
 };
@@ -150,22 +150,22 @@ local menu =
   perPage = {},
   perPageOrder = {},
   infoColumn =
-  { ["Info Class"] = L["Info Class"],
-    ["Info Race"] = L["Info Race"],
-    ["Info Race Class"] = L["Info Race Class"],
-    ["Info Age"] = L["Info Age"],
-    ["Info Pronouns"] = L["Info Pronouns"],
-    ["Info Zone"] = L["Info Zone"],
-    ["Info Tags"] = L["Info Tags"],
-    ["Info Status"] = L["Info Status"],
-    ["Info Currently"] = L["Info Currently"],
-    ["Info OOC Info"] = L["Info OOC Info"],
-    ["Info Title"] = L["Info Title"],
-    ["Info Data Timestamp"] = L["Info Data Timestamp"],
-    ["Info Data First Seen"] = L["Info Data First Seen"],
-    ["Info Server"] = L["Info Server"],
-    ["Info Subzone"] = L["Info Subzone"],
-    ["Info Zone Subzone"] = L["Info Zone Subzone"],
+  { ["Info Class"           ] = L["Info Class"           ] ,
+    ["Info Race"            ] = L["Info Race"            ] ,
+    ["Info Race Class"      ] = L["Info Race Class"      ] ,
+    ["Info Age"             ] = L["Info Age"             ] ,
+    ["Info Pronouns"        ] = L["Info Pronouns"        ] ,
+    ["Info Zone"            ] = L["Info Zone"            ] ,
+    ["Info Tags"            ] = L["Info Tags"            ] ,
+    ["Info Status"          ] = L["Info Status"          ] ,
+    ["Info Currently"       ] = L["Info Currently"       ] ,
+    ["Info OOC Info"        ] = L["Info OOC Info"        ] ,
+    ["Info Title"           ] = L["Info Title"           ] ,
+    ["Info Data Timestamp"  ] = L["Info Data Timestamp"  ] ,
+    ["Info Data First Seen" ] = L["Info Data First Seen" ] ,
+    ["Info Server"          ] = L["Info Server"          ] ,
+    ["Info Subzone"         ] = L["Info Subzone"         ] ,
+    ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ] ,
 
   },
   infoColumnOrder =
@@ -177,14 +177,14 @@ local menu =
     },
 
   notifyChatType = 
-    { ["COMBAT_MISC_INFO"] = COMBAT_MISC_INFO,
-      ["SKILL"] = SKILLUPS,
+    { ["COMBAT_MISC_INFO"]      = COMBAT_MISC_INFO,
+      ["SKILL"]                 = SKILLUPS,
       ["BN_INLINE_TOAST_ALERT"] = BN_INLINE_TOAST_ALERT,
-      ["SYSTEM"] = SYSTEM_MESSAGES,
-      ["TRADESKILLS"] = TRADESKILLS,
-      ["CHANNEL"] = CHANNEL,
-      ["SAY"] = SAY,
-      ["MONSTER_SAY"] = SAY .. " (" .. CREATURE .. ")",
+      ["SYSTEM"]                = SYSTEM_MESSAGES,
+      ["TRADESKILLS"]           = TRADESKILLS,
+      ["CHANNEL"]               = CHANNEL,
+      ["SAY"]                   = SAY,
+      ["MONSTER_SAY"]           = SAY .. " (" .. CREATURE .. ")",
     },
 
   notifyChatTypeOrder =
@@ -193,37 +193,30 @@ local menu =
 
 };
 
-local function sortNotifyChatType(a, b)
-  return menu.notifyChatType[a] < menu.notifyChatType[b]
-end;
+for i = 10, 30, 5 do menu.perPage[tostring(i)] = tostring(i); table.insert(menu.perPageOrder, tostring(i)) end;
 
-table.sort(menu.notifyChatTypeOrder, sortNotifyChatType);
+-- we can't just pre-define an order because it's going to vary from language to language
+--
+local function sortNotifyChatType(a, b) return menu.notifyChatType[a] < menu.notifyChatType[b] end;
+local function sortInfo(a, b)           return menu.infoColumn[a]     < menu.infoColumn[b]     end;
+local function sortSounds(a, b)         return menu.notifySound[a]    < menu.notifySound[b];   end;
+local function sortZones( a, b)         return menu.zone[a       ]    < menu.zone[b       ];   end;
 
-for i = 10, 30, 5 
-do menu.perPage[tostring(i)] = tostring(i); 
-   table.insert(menu.perPageOrder, tostring(i)) 
-end;
-
-local function sortInfo(a, b) return menu.infoColumn[a] < menu.infoColumn[b] end;
-
-table.sort(menu.infoColumnOrder, sortInfo);
+table.sort(menu.notifyChatTypeOrder ,  sortNotifyChatType );
+table.sort(menu.infoColumnOrder     ,  sortInfo           );
+table.sort(menu.zoneOrder           ,  sortZones          );
+table.sort(menu.notifySound         ,  sortSounds         );
 
 for i, mapID in ipairs(zoneList)
 do  local info = C_Map.GetMapInfo(mapID);
     if not zoneBacklink[info.name]
-    then menu.zone[mapID] = info.name;
-         table.insert(menu.zoneOrder, mapID);
-         zoneBacklink[info.name] = mapID;
+    then   menu.zone[mapID] = info.name;
+           table.insert(menu.zoneOrder, mapID);
+           zoneBacklink[info.name] = mapID;
     end;
 end;
 
--- we can't just pre-define an order because it's going to vary from language to language
 --
-local function sortSounds(a, b) return menu.notifySound[a] < menu.notifySound[b]; end;
-local function sortZones( a, b) return menu.zone[a       ] < menu.zone[b       ]; end;
-
-table.sort(menu.zoneOrder, sortZones)
-table.sort(menu.notifySound, sortSounds);
 
 local function split(str, pat)
   local t = {};
@@ -237,10 +230,8 @@ local function split(str, pat)
         last_end = e + 1;
         s, e, cap = str:find(fpat, last_end);
   end;
-  if   last_end <= #str
-  then cap = str:sub(last_end);
-       table.insert(t, cap);
-  end;
+  if   last_end <= #str then cap = str:sub(last_end); table.insert(t, cap); end;
+  str, pat, fpat, last_end, s, e, cap = nil, nil, nil, nil, nil, nil, nil
   return t;
 end;
 
@@ -259,10 +250,10 @@ local function getMSPFieldByPlayerName(playerName, field)
 end;
 
 local function stripColor(text)
-  local rrggbb, strippedText = text:match("|cff(%x%x%x%x%x%x)(.+)|r");
-  if   rrggbb 
-  then return strippedText:gsub("|cff%x%x%x%x%x%x",""):gsub("|r", ""), 
-              rrggbb
+  local rrggbb, strippedText = text:match("|cff(%x%x%x%x%x%x)(.+)");
+  if    rrggbb 
+  then  return strippedText:gsub("|cff%x%x%x%x%x%x",""):gsub("|r", ""), 
+               rrggbb
   else return text
   end;
 end;
@@ -287,7 +278,6 @@ local function calcVersion(version) -- takes a version string, returns a number
 end;
 
 local order = 0;
-
 local function source_order(reset) order = reset or (order + 1); return order; end;
 
 -- info:
@@ -365,9 +355,9 @@ end;
 
 local function hideTooltip() GameTooltip:Hide(); end;
 
-local function colorize(text, timeValue)
-  return text;
+local function colorize(text, timeValue) return text end;
   --[[
+local function colorize(text, timeValue)
   local color = 
     LibColor.hsv(
       120 * math.min(
@@ -382,8 +372,8 @@ local function colorize(text, timeValue)
       1
     );
   return color:format("|cffrrggbb") .. text .. "|r";
-  --]]
 end;
+  --]]
 
 local RP_Find = AceAddon:NewAddon(
   addOnName, 
@@ -393,6 +383,16 @@ local RP_Find = AceAddon:NewAddon(
   "LibToast-1.0"
 );
 
+local function respondToPlayerFlagsChanged(event, unit)
+  if   unit ~= "player" then return end;
+  if   UnitIsAFK(unit)
+  then RP_Find.Finder:DisableUpdates(true)
+  else RP_Find.Finder:DisableUpdates(false);
+  end;
+end;
+
+RP_Find:RegisterEvent("PLAYER_FLAGS_CHANGED", respondToPlayerFlagsChanged);
+
 RP_Find.addOnName    = addOnName;
 RP_Find.addOnTitle   = GetAddOnMetadata(addOnName, "Title");
 RP_Find.addOnVersion = GetAddOnMetadata(addOnName, "Version");
@@ -400,15 +400,20 @@ RP_Find.addOnDesc    = GetAddOnMetadata(addOnName, "Notes");
 RP_Find.addOnIcon    = IC.spotlight;
 RP_Find.addOnToast   = "RP_Find_notify";
 RP_Find.addOnTimers  = {};
-RP_Find.addonList = addon;
-RP_Find.mspFields = { split(MSP_FIELDS, " ") };
+RP_Find.addonList    = addon;
+RP_Find.mspFields    = { split(MSP_FIELDS, " ") };
 
-function RP_Find:GetLast(name)        return self.db.global.last[name]            end;
-function RP_Find:ClearLast(name)      self.db.global.last[name] = nil;            end;
-function RP_Find:SetLast(name, value) self.db.global.last[name] = value or time() end;
-function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
-                                          or self:GetLast(name)                   end;
+-- Last counters
+function RP_Find:ClearLast(name)               self.db.global.last[name] = nil;                      end;
+function RP_Find:SetLast(name, value)          self.db.global.last[name] = value or time()           end;
+function RP_Find:GetLast(name)                 return self.db.global.last[name]                      end;
+function RP_Find:LastElapsed(name)             return time() - (self:GetLast(name) or 0);            end;
+function RP_Find:LastSince(name, value, units) return self:LastElapsed(name) < value * (units or 1); end;
+RP_Find.Last = RP_Find.GetLast;
+--[[ function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
+                                          or self:GetLast(name)                   end; --]]
 
+-- timer management
 function RP_Find:ClearTimer(name)
   if self.addOnTimers[name]
   then self:CancelTimer(self.addOnTimers[name]);
@@ -446,12 +451,13 @@ function RP_Find:HaveRPClient(addonToQuery)
 end;
 
 local popup =
-  { deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
+  { -- deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
     deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
   };
 
 local function fixPopup(self) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3); end;
 
+--[[
 StaticPopupDialogs[popup.deleteDBonLogin] =
 { 
   showAlert      = true,
@@ -472,6 +478,7 @@ StaticPopupDialogs[popup.deleteDBonLogin] =
   wide           = true,
   OnShow         = fixStaticPopup,
 }
+--]]
 
 StaticPopupDialogs[popup.deleteDBNow] =
 { showAlert      = true,
@@ -494,16 +501,11 @@ function RP_Find:PurgePlayer(name) self.playerRecords[name] = nil; end;
 
 function RP_Find:StartOrStopPruningTimer()
   if     self:HaveTimer("pruning") and self.db.profile.config.repeatSmartPruning 
-  then 
+  then   -- all is running as expected
   elseif self:HaveTimer("pruning")
   then   self:ClearTimer("pruning");
   elseif self.db.profile.config.repeatSmartPruning -- and not self.pruningTimer
-  then   self:SaveTimer("pruning",
-           self:ScheduleRepeatingTimer(
-             "SmartPruneDatabase", 
-             15 * SECONDS_PER_MIN )
-          );
-
+  then   self:SaveTimer("pruning", self:ScheduleRepeatingTimer("SmartPruneDatabase", 15 * SECONDS_PER_MIN));
   else   -- not self.timers.pruning and not repeatSmartPruning 
   end;
 end;
@@ -515,9 +517,7 @@ function RP_Find:SmartPruneDatabase(interactive)
   local now = time();
   local count = 0;
 
-  local function getTimestamp(playerData) 
-    return playerData.last and playerData.last.when 
-    or 0 
+  local function getTimestamp(playerData) return playerData.last and playerData.last.when or 0 
   end;
 
   local secs = math.exp(self.db.profile.config.smartPruningThreshold);
@@ -587,19 +587,16 @@ function RP_Find:Notify(forceChat, ...)
   local dots = { ... };
   
   if     type(forceChat) == "boolean" and forceChat
-  then   
-         self:SendChatMessage(
+  then   self:SendChatMessage(
            self.db.profile.config.notifyChatType, 
            "[" .. self.addOnTitle .. "] ",
            table.concat(dots, " ")
           )
   elseif type(forceChat) == "boolean" -- and not forceChat
   then   self:SendToast(table.concat(dots, " "))
-
   else   if   self.db.profile.config.notifyMethod == "chat"
          or   self.db.profile.config.notifyMethod == "both"
-         then 
-              self:SendChatMessage(
+         then self:SendChatMessage(
                 self.db.profile.config.notifyChatType, 
                 "[" .. self.addOnTitle .. "] ",
                 forceChat .. " " .. table.concat(dots, " ")
@@ -616,8 +613,7 @@ function RP_Find:Notify(forceChat, ...)
 end;
 
 local function initializeDatabase(wipe)
-  _G[finderDB] = nil;
-
+  _G[finderDB] = nil;  -- clear out the previous db
   RP_Find.playerRecords = {};
 end;
 
@@ -652,6 +648,42 @@ end;
   -- something has to pass all the functions -- if there
   -- are any -- to be returned
   --
+function RP_Find:GetAllPlayerNames(filters, searchPattern)
+ 
+  local filteredCount = 0;
+  local totalCount    = 0;
+
+  filters = filters or {};
+  searchPattern = searchPattern or "";
+
+  local function nameMatch(playerRecord, pattern)
+    pattern = pattern:lower();
+    return playerRecord:GetRPNameStripped():lower():match(pattern)
+        or playerRecord:GetPlayerName():lower():match(pattern)
+  end;
+
+  local list = {};
+  for _, record in pairs(self.playerRecords) 
+  do  local pass;
+      local success, funcReturnValue = pcall(nameMatch, record, searchPattern);
+      if success then pass = funcReturnValue else pass = true end;
+
+      for filterID, func in pairs(filters)
+      do  local result = func(record)
+          pass = pass and result;
+      end 
+
+      if   pass 
+      then filteredCount = filteredCount + 1;
+           table.insert(list, record:GetPlayerName()); 
+      end
+      
+      totalCount = totalCount + 1;
+  end;
+               
+  return list, filteredCount, totalCount;
+end;
+
 function RP_Find:GetAllPlayerRecords(filters, searchPattern)
  
   local filteredCount = 0;
@@ -709,9 +741,7 @@ end
 
 function RP_Find:CountPlayerRecords()
   local count = 0;
-  if   self.playerRecords
-  then for _, _ in pairs(self.playerRecords) do count = count + 1; end;
-  end;
+  for _, _ in pairs(self.playerRecords) do count = count + 1; end;
   return count;
 end;
 
@@ -763,7 +793,6 @@ function RP_Find.OnMinimapButtonEnter(frame)
   if IsModifierKeyDown()
   then local _, _, memory = RP_Find:GetMemoryUsage("%3.2f %s");
        table.insert(tooltip.columns, { L["Memory Usage"], memory });
-       table.insert(tooltip.columns, { L["Players Seen"], RP_Find:CountPlayerData() });
        table.insert(tooltip.columns, { L["Players Loaded"], RP_Find:CountPlayerRecords() });
   end;
 
@@ -775,8 +804,10 @@ end;
 RP_Find.OnMinimapButtonLeave = hideTooltip;
 
 function RP_Find:SendWhisper(playerName, message, position)
-  local delta = time() - (self:Last("sendWhisper") or 0) 
-  if   delta <= 5 * SECONDS_PER_MIN
+  -- local delta = time() - (self:Last("sendWhisper") or 0) 
+  -- delta <= 5 * SECONDS_PER_MIN
+  --
+  if   self:LastSince("sendWhisper", 5, SECONDS_PER_MIN)
   then self:Notify(string.format(L["Format Send Whisper Failed"], 5, 5 * SECONDS_PER_MIN - delta));
   else local messageStart = "/tell " .. playerName .. " " .. (message or "");
        if   ChatEdit_GetActiveWindow()
@@ -959,11 +990,6 @@ RP_Find.PlayerMethods =
       return self.serverName;
     end,
 
-  ["GetColorizedServerName"] =
-    function(self)
-      return colorize(self:GetServerName(), self:GetTimestamp());
-    end,
-
   ["GetRPName"] = 
     function(self) 
       local name = self:GetRP("name", "NA")
@@ -972,20 +998,12 @@ RP_Find.PlayerMethods =
     
   ["GetRPNameStripped"] =
     function(self)
-      local name = self:GetRPName();
-      local rrggbb, strippedName = name:match("|cff(%x%x%x%x%x%x)(.+)|r");
-      if   strippedName 
-      then return strippedName, rrggbb
-      else return name, nil 
-      end;
+      local  name = self:GetRPName();
+      local  stripped, color = stripColor(name);
+      return stripped;
     end,
 
   ["GetRPNameColorFixed"] = function(self) return RP_Find:FixColor(self:GetRPName()); end,
-
-  ["GetColorizedRPName"] =
-    function(self)
-      return colorize(self:GetRPNameStripped(), self:GetTimestamp());
-    end,
 
   -- we probably aren't going to use all of these
   ["GetRPClass"      ] = function(self) return self:GetRP("class",       "RC")   end,
@@ -1046,7 +1064,7 @@ RP_Find.PlayerMethods =
   ["GetFlags"] = 
     function(self) 
       local flagString = self:Get("flagString");
-      if time() - self:GetTimestamp("flagString") <= 60 then return flagString end;
+      if flagString and time() - self:GetTimestamp("flagString") <= 60 then return flagString end;
 
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
@@ -1058,7 +1076,7 @@ RP_Find.PlayerMethods =
       flagString = table.concat(flags);
       self:Set("flagString", flagString);
 
-      return table.concat(flagString);
+      return flagString;
     end,
 
   ["GetFlagsTooltip"] =
@@ -1148,7 +1166,7 @@ RP_Find.PlayerMethods =
             
   ["GetNameTooltip"] = 
     function(self)
-      local lines = {};
+      local lines   = {};
       local columns = {};
 
       local function addCol(method, label)
@@ -1276,8 +1294,8 @@ RP_Find.PlayerMethods =
   ["LabelSendPing"] = 
     function(self) 
       return L["Label Ping"], 
-        not RP_Find:HaveRPClient() or
-            time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
+        not RP_Find:HaveRPClient() or RP_Find:LastSince("pingPlayer", 1, SECOND_PER_MIN)
+            -- time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendPing"] =
@@ -1288,8 +1306,8 @@ RP_Find.PlayerMethods =
 
   ["LabelSendTell"] = 
     function(self) 
-      return L["Label Whisper"], 
-        time() - (RP_Find:Last("sendWhisper") or 0) < SECONDS_PER_MIN
+      return L["Label Whisper"], RP_Find:LastSince("sendWhisper", 1, SECONDS_PER_MIN);
+        -- time() - (RP_Find:Last("sendWhisper") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendTell"] = 
@@ -1298,11 +1316,11 @@ RP_Find.PlayerMethods =
       RP_Find:Update("Display");
     end,
 
-  ["HaveLFRPAd"] = function(self) local ad = self:Get("ad"); return ad and ad ~= ""; end,
+  ["HaveLFRPAd"] = function(self) local ad = self:Get("ad"); return ad and ad ~= {}; end,
 
   ["GetLFRPAd"] = 
     function(self)
-      local ad = self:HaveLFRPAd()
+      local  ad = self:HaveLFRPAd()
       if not ad then return nil end;
       return { title = self:Get("ad_title"),
                body = self:Get("ad_body"),
@@ -1313,8 +1331,7 @@ RP_Find.PlayerMethods =
   ["LabelReadAd"]   = 
     function(self) 
       local ad = self:GetLFRPAd();
-      return ad and colorize(L["Label Read Ad"], ad.timestamp) or L["Label Read Ad"],
-        not ad or add == {}
+      return L["Label Read Ad"], not ad 
         -- or self.playerName == RP_Find.me 
     end,
 
@@ -1328,8 +1345,8 @@ RP_Find.PlayerMethods =
 
   ["LabelInvite"]   = 
     function(self) 
-      return L["Label Invite"], 
-        time() - (RP_Find:Last("sendInvite") or 0) < SECONDS_PER_MIN
+      return L["Label Invite"], RP_Find:LastSince("sendInvite", 1, SECONDS_PER_MIN)
+        -- time() - (RP_Find:Last("sendInvite") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdInvite"] =
@@ -1373,14 +1390,6 @@ RP_Find.PlayerMethods =
       end
     end,
 
-  ["GetColorizedTimestamp"] =
-    function(self, field, format)
-      return colorize(
-               self:GetHumanReadableTimestamp(field, format), 
-               self:GetTimestamp(field)
-             )
-    end,
-
 };
 
 RP_Find.addOnDataBroker = 
@@ -1413,7 +1422,7 @@ RP_Find.defaults =
       alertAllTRP3Scan   = false,
       alertTRP3Connect   = false,
       notifySound        = 37881,
-      deleteDBonLogin    = false,
+      -- deleteDBonLogin    = false,
       useSmartPruning    = false,
       repeatSmartPruning = false,
       smartPruningThreshold = 7,
@@ -1497,7 +1506,13 @@ Finder:SetCallback("OnClose",
 _G[finderFrameName] = Finder.frame;
 table.insert(UISpecialFrames, finderFrameName);
 
-function Finder:DisableUpdates(value) self.updatesDisabled = value; end;
+function Finder:DisableUpdates(value) 
+  if   self.updatesDisabled and not value
+  then self.updatesDisabled = value;
+       self:Update();
+  else self.updatesDisabled = value; 
+  end;
+end;
 
 local function dontBreakOnResize()
   Finder:DisableUpdates(true);
@@ -1512,11 +1527,9 @@ local function restoreOnResize()
        RP_Find.db.profile.finder.height =
          Finder.frame:GetRect();
   end;
-  Finder:DisableUpdates(false);
   Finder:ResumeLayout();
-  Finder:Update();
+  Finder:DisableUpdates(false);
 end;
-
 
 hooksecurefunc(Finder.frame, "StartSizing",        dontBreakOnResize);
 hooksecurefunc(Finder.frame, "StopMovingOrSizing", restoreOnResize);
@@ -1528,8 +1541,7 @@ Finder.content:SetPoint("BOTTOMLEFT", Finder.frame, "BOTTOMLEFT", 20, 50);
 Finder.content:SetPoint("TOPRIGHT",   Finder.frame, "TOPRIGHT", -20, -30);
 
 Finder.TabList = 
-{ 
-  { value = "Display", text = "Database", },
+{ { value = "Display", text = "Database", },
   { value = "Ads", text = "Your Ad", },
   -- { value = "LFG", text = "Looking for Group" },
   { value = "Tools", text = "Tools", },
@@ -1576,7 +1588,7 @@ function Finder:CreateButtonBar()
        enable = 
          function() 
            local function haveAd(playerRecord) return playerRecord:HaveLFRPAd() end;
-           local _, count = RP_Find:GetAllPlayerRecords({ haveAd });
+           local _, count = RP_Find:GetAllPlayerNames({ haveAd });
            return count > 0
          end,
     },
@@ -1671,7 +1683,9 @@ function Finder:CreateButtonBar()
                 end,
       enable = function() 
                  return RP_Find.db.profile.config.monitorTRP3 
-                    and time() - (RP_Find:Last("mapScan") or 0) > SECONDS_PER_MIN
+                    and not RP_Find:LastSince("mapScan", 1, SECONDS_PER_MIN)
+
+                    -- and time() - (RP_Find:Last("mapScan") or 0) > SECONDS_PER_MIN
                 end,
     },
 
@@ -1687,7 +1701,8 @@ function Finder:CreateButtonBar()
              end,
       enable = function() 
                  return RP_Find.db.profile.config.monitorTRP3 
-                    and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
+                    and RP_Find:LastSince("mapScan", 1, SECONDS_PER_HOUR)
+                    -- and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
                 end,
     },
 
@@ -1959,7 +1974,8 @@ Finder.flagList =
              if C_FriendList.GetFriendInfo(name) then return true end;
              if not BNConnected() then return false end;
              RP_Find.bnetFriendList = RP_Find.bnetFriendList or {};
-             if   time() - (RP_Find:Last("bnetFriendList") or 0) > 2 * SECONDS_PER_MIN
+             if   not RP_Find:LastSince("bnetFriendList", 2, SECONDS_PER_MIN) 
+               -- time() - (RP_Find:Last("bnetFriendList") or 0) > 2 * SECONDS_PER_MIN
              then RP_Find.bnetFriendList = {};
                   local _, count, _, _ = BNGetNumFriends()
                   for i = 1, count, 1
@@ -1981,36 +1997,18 @@ Finder.flagList =
            end,
   },
 
-  { 
-    title  = "Have RP Profile",
-    icon = textIC.rpProfile,
-    func   = function(self) return self:HaveRPProfile() end,
-  },
+  { title  = "Have RP Profile", icon = textIC.rpProfile, func   = function(self) return self:HaveRPProfile() end, },
 
-  { title  = "In Character",
-    icon = textIC.isIC,
-    func   = function(self) return self:IsSetIC() end,
-  },
+  { title  = "In Character", icon = textIC.isIC, func   = function(self) return self:IsSetIC() end, },
 
   { title = "Out of Character",
     icon = textIC.isOOC,
     func = function(self) local status = self:GetRPStatus(); return status and status == 1 end,
   },
 
-  { title = "Trial Account",
-    icon = textIC.trial,
-    func = function(self) return self:IsTrial() end,
-  },
-
-  { title = "Sent LFRP Ad",
-    icon = textIC.hasAd,
-    func = function(self) return self:HaveLFRPAd() end,
-  },
-
-  { title = "Did Map Scan",
-    icon = textIC.mapScan,
-    func = function(self) return self:Get("mapScan") end,
-  },
+  { title = "Trial Account", icon = textIC.trial, func = function(self) return self:IsTrial() end, },
+  { title = "Sent LFRP Ad", icon = textIC.hasAd, func = function(self) return self:HaveLFRPAd() end, },
+  { title = "Did Map Scan", icon = textIC.mapScan, func = function(self) return self:Get("mapScan") end, },
 
   { title = "LGBTQIA+ Friendly",
     func = function(self)
@@ -2074,7 +2072,8 @@ Finder.filterList =
         function(playerRecord)
           local  zoneID = playerRecord:GetZoneID()
           return zoneID and RP_Find:Last("mapScanZone")
-             and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
+             and RP_Find:LastSince("mapScan", 1, SECONDS_PER_HOUR)
+             -- time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
              and zoneID == RP_Find:Last("mapScanZone")
         end,
       title  = L["Filter Match Map Scan"],
@@ -2120,9 +2119,7 @@ Finder.filterList =
     },
 };
 
-local function sortFilters(a, b)
-  return Finder.filterList[a].title < Finder.filterList[b].title
-end;
+local function sortFilters(a, b) return Finder.filterList[a].title < Finder.filterList[b].title end;
 
 Finder.filterListOrder = { "ContactInLastHour",
   "SentMapScan", "InfoColumnNotEmpty", "IsSetIC",
@@ -2177,8 +2174,8 @@ function Finder.MakeFunc.Display(self)
       filterSelector:AddItem(filterID, filterData.title);
   end;
 
-  local function setActiveFilters()
-
+  Finder.SetActiveFilters = Finder.SetActiveFilters or
+  function(self)
     local count = 0;
    
     for filterID, filterData in pairs(self.filterList)
@@ -2212,7 +2209,7 @@ function Finder.MakeFunc.Display(self)
            end;
            RP_Find:Notify(L["Notify Filters Cleared"]);
       end;
-      setActiveFilters();
+      Finder:SetActiveFilters();
       Finder:Update("Display");
     end);
 
@@ -2283,31 +2280,27 @@ function Finder.MakeFunc.Display(self)
  
   headers.list = {};
   
-  local columns   =
-  { { 
-      title       = L["Display Header Name"],
+  Finder.displayColumns = Finder.displayColumns or 
+  { { title       = L["Display Header Name"],
       method      = "GetRPNameColorFixed",
       sorting     = "GetRPNameStripped",
       ttMethod    = "GetNameTooltip",
       ttTitleMethod = "GetRPNameColorFixed",
       width       = 0.25,
     },
-    { 
-      title       = L["Display Header Info"],
+    { title       = L["Display Header Info"],
       method      = "GetInfoColumn",
       ttMethod    = "GetInfoColumnTooltip",
       ttTitle     = L["Display Header Info"],
       width       = 0.17,
     },
-    { 
-      title       = L["Display Header Flags"],
+    { title       = L["Display Header Flags"],
       method      = "GetFlags",
       ttMethod    = "GetFlagsTooltip",
       ttTitle     = L["Display Header Flags"],
       width       = 0.18,
     },
-    {
-      title       = L["Display Header Tools"],
+    { title       = L["Display Header Tools"],
       ttTitle     = L["Display Column Title Profile"],
       method      = "LabelViewProfile",
       callback    = "CmdViewProfile",
@@ -2315,8 +2308,7 @@ function Finder.MakeFunc.Display(self)
       disableSort = true,
       width       = 0.08,
     },
-    { 
-      ttTitle     = L["Display Column Title Whisper"],
+    { ttTitle     = L["Display Column Title Whisper"],
       title       = "",
       method      = "LabelSendTell",
       callback    = "CmdSendTell",
@@ -2324,8 +2316,7 @@ function Finder.MakeFunc.Display(self)
       tooltip     = L["Display Send Tell Tooltip"],
       width       = 0.09,
     },
-    { 
-      ttTitle     = L["Display Column Title Ping"],
+    { ttTitle     = L["Display Column Title Ping"],
       title       = "",
       method      = "LabelSendPing",
       callback    = "CmdSendPing",
@@ -2333,8 +2324,7 @@ function Finder.MakeFunc.Display(self)
       disableSort = true,
       width       = 0.06,
     },
-    { 
-      ttTitle     = L["Display Column Title Ad"],
+    { ttTitle     = L["Display Column Title Ad"],
       title       = "",
       method      = "LabelReadAd",
       callback    = "CmdReadAd",
@@ -2342,8 +2332,7 @@ function Finder.MakeFunc.Display(self)
       disableSort = true,
       width       = 0.09,
     },
-    { 
-      ttTitle     = L["Display Column Title Invite"],
+    { ttTitle     = L["Display Column Title Invite"],
       title       = "",
       method      = "LabelInvite",
       callback    = "CmdInvite",
@@ -2353,82 +2342,71 @@ function Finder.MakeFunc.Display(self)
     },
   };
 
-  local recordSortField        = "GetRPNameStripped";
-  local recordSortFieldReverse = false;
-  
-  local function sortPlayerRecords(a, b)
+  Finder.sortField = Finder.sortField or Finder.displayColumns[1].sorting;
 
-    local function helper(booleanValue)
-      if recordSortFieldReverse
-      then return not booleanValue
-      else return     booleanValue
-      end;
+  Finder.sortPlayerRecords = Finder.sortPlayerRecords or
+  function(a, b)
+    if   Finder.reverseSort
+    then return a[Finder.sortField](a) > b[Finder.sortField](b)
+    else return a[Finder.sortField](a) < b[Finder.sortField](b)
     end;
-  
-    if a[recordSortField] and b[recordSortField]
-    then return a[recordSortField](a)  <  b[recordSortField](b)
-    end;
-  
   end;
 
-  local function ListHeader_SetRecordSortField(self, event, button)
-    recordSortField = self.recordSortField;
-    for headerName, header in pairs(headers.list)
-    do  if     recordSortField == self.recordSortField 
-           and recordSortFieldReverse 
-           and header.recordSortField == self.recordSortField
-        then   recordSortFieldReverse = false;
-               header:SetText(header.baseText .. ARROW_UP);
-        elseif recordSortField == self.recordSortField 
-           and header.recordSortField == self.recordSortField
-        then   recordSortFieldReverse = true;
-               header:SetText(header.baseText .. ARROW_DOWN);
-        elseif header.recordSortField == self.recordSortField
-        then   recordSortFieldReverse = false;
-        else   header:SetText(header.baseText)
-        end;
+  Finder.ListHeader_SetOwnTitle = Finder.ListHeader_SetOwnTitle or
+  function(self)
+    if     Finder.sortField == self.sortField
+    and    Finder.reverseSort
+    then   self:SetText(self.title .. ARROW_UP)
+    elseif Finder.sortField == self.sortField
+    then   self:SetText(self.title .. ARROW_DOWN)
+    else   self:SetText(self.title)
     end;
-    Finder:UpdateTitle("Display");
+  end;
+
+  Finder.ListHeader_SetRecordSortField = Finder.ListHeader_SetRecordSortField or
+  function(self, event, button)
+
+    if   Finder.sortField == self.sortField
+    then Finder.reverseSort = not Finder.reverseSort;
+    else Finder.sortField = self.sortField;
+         Finder.reverseSort = false;
+    end;
+
+    for _, header in ipairs(headers.list) do Finder.ListHeader_SetOwnTitle(header) end;
+
+    Finder:Update("Display");
   end;
    
-  local currentCol = 1;
+  Finder.MakeListHeader = Finder.MakeListHeader or
+  function(self, info)
+    local newHeader = AceGUI:Create("InteractiveLabel");
+    newHeader.info = info;
 
-  local function makeListHeader(info)
-    local newHeader    = AceGUI:Create("InteractiveLabel");
-    newHeader.info     = info;
-    newHeader.col      = currentCol;
-    currentCol         = currentCol + 1;
-    newHeader.baseText = info.title;
     newHeader:SetRelativeWidth(info.width);
-
-    if     recordSortField == info.method 
-       and recordSortFieldReverse
-    then   newHeader:SetText(info.title .. ARROW_UP);
-    elseif recordSortField == info.method 
-    then   newHeader:SetText(info.title .. ARROW_DOWN);
-    else   newHeader:SetText(info.title);
+    newHeader.sortField = info.sorting or info.method;
+    newHeader.title = info.title;
+    Finder.ListHeader_SetOwnTitle(newHeader);
+    newHeader:SetFont("Fonts\\ARIALN.TTF", 14);
+    newHeader:SetColor(1, 1, 0);
+    if not info.disableSort 
+    then   newHeader:SetCallback("OnClick", Finder.ListHeader_SetRecordSortField); 
     end;
 
-    
-    newHeader:SetFont("Fonts\\ARIALN.TTF", 14);
-    -- newHeader:SetFontObject(GameFontNormal);
-    newHeader:SetColor(1, 1, 0);
-    newHeader.recordSortField = info.sorting or info.method;
-    newHeader:SetCallback("OnClick", ListHeader_SetRecordSortField);
     headers:AddChild(newHeader);
-    headers.list[info.title] = newHeader;
 
-    return newHeader;
+    table.insert(headers.list, newHeader);
   end;
- 
-  for i, info in ipairs(columns) do makeListHeader(info); end;
 
-  local function buildLineFromPlayerRecord(playerRecord)
+  for _, info in ipairs(Finder.displayColumns) do Finder:MakeListHeader(info); end;
+  
+  Finder.BuildLineFromPlayerRecord = Finder.BuildLineFromPlayerRecord or
+  function(self, playerRecord)
+
     local line = AceGUI:Create("SimpleGroup");
           line:SetFullWidth(true);
           line:SetLayout("Flow");
 
-    for i, info in ipairs(columns)
+    for i, info in ipairs(Finder.displayColumns)
     do  
         local field = AceGUI:Create("InteractiveLabel")
         field:SetRelativeWidth(info.width)
@@ -2494,7 +2472,9 @@ function Finder.MakeFunc.Display(self)
   playerList:SetLayout("Flow");
   panelFrame:AddChild(playerList);
 
-  local function playerList_Update(playerList)
+  Finder.UpdatePlayerList = Finder.UpdatePlayerList or
+
+  function(self)
     playerList:ReleaseChildren();
 
     local function buildNavbar(count, pos)
@@ -2545,18 +2525,14 @@ function Finder.MakeFunc.Display(self)
     end;
 
     local totalCount = 0;
-    local playerRecordList;
 
-    playerRecordList, filteredCount, totalCount = 
+    Finder.playerRecordsList, Finder.filteredCount, Finder.totalCount = 
       RP_Find:GetAllPlayerRecords(
         activeFilters, 
         searchPattern
       );
 
-    Finder.filteredCount = filteredCount;
-    Finder.totalCount = totalCount;
-
-    if   filteredCount == 0
+    if   Finder.filteredCount == 0
     then local nothingFound = AceGUI:Create("Label");
                nothingFound:SetFullWidth(true);
                nothingFound:SetText(L["Display Nothing Found"]);
@@ -2564,25 +2540,22 @@ function Finder.MakeFunc.Display(self)
          return 
     end;
 
-    table.sort(playerRecordList, sortPlayerRecords);
-  
+    table.sort(Finder.playerRecordsList, Finder.sortPlayerRecords);
+
     Finder.pos = Finder.pos or 0;
 
     local stop;
     local size      = RP_Find.db.profile.config.rowsPerPage or 15;
     local shift     = Finder.pos * size;
-    local div = math.floor(filteredCount/size);
-    local mod = filteredCount % size;
+    local div = math.floor(Finder.filteredCount/size);
+    local mod = Finder.filteredCount % size;
 
     if mod == 0          then div  = div - 1;  mod = size; end;
     if div == Finder.pos then stop = mod else stop = size; end;
 
     for i = 1, stop, 1
     do  local index = i + shift;
-        local playerRecord = playerRecordList[index];
-        playerList:AddChild(
-          buildLineFromPlayerRecord(playerRecord)
-        );
+        playerList:AddChild(Finder:BuildLineFromPlayerRecord(Finder.playerRecordsList[index]));
     end;
 
     if not RP_Find:HaveTimer("playerList")
@@ -2596,9 +2569,9 @@ function Finder.MakeFunc.Display(self)
   end;
 
   function panelFrame:Update(...) 
-    setActiveFilters();
-    playerList_Update(playerList, ...) 
-    RP_Find.Finder:UpdateTitle();
+    Finder:SetActiveFilters();
+    Finder:UpdatePlayerList();
+    Finder:UpdateTitle();
   end;
 
   return panelFrame;
@@ -2625,6 +2598,7 @@ function Finder.TitleFunc.Display(self, ...)
   end;
 end;
 
+--[[
 function Finder.TitleFunc.LFG(self, ...)
   if   UnitLevel("player") >= 50
   then self:SetTitle(
@@ -2636,12 +2610,13 @@ function Finder.TitleFunc.LFG(self, ...)
   else self:SetTitle(L["Format Finder Title LFG Disabled"]);
   end;
 end;
+--]]
 
-function Finder.TitleFunc.Ads(self, ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
+function Finder.TitleFunc.Ads(self, ...)   self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
 function Finder.TitleFunc.Tools(self, ...) self:SetTitle(L["Format Finder Title Tools"]); end;
 
 function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(); end;
-function Finder.UpdateFunc.LFG(self, ...)     self.TabGroup.current:Update(); end;
+-- function Finder.UpdateFunc.LFG(self, ...)     self.TabGroup.current:Update(); end;
 function Finder.UpdateFunc.Tools(self, ...)   self.TabGroup.current:Update(); end;
 function Finder.UpdateFunc.Ads(self, ...)     self.TabGroup.current:Update(); end;
 
@@ -2673,8 +2648,9 @@ function RP_Find:IsAdIncomplete()
 end;
 
 function RP_Find:ShouldSendAdBeDisabled()
-  local elapsedTime = time() - (self:Last("sendAd") or 0);
-  return elapsedTime < 1 * SECONDS_PER_MIN 
+  -- local elapsedTime = time() - (self:Last("sendAd") or 0);
+  return self:LastSince("sendAd", 1, SECONDS_PER_MIN)
+      -- elapsedTime < 1 * SECONDS_PER_MIN 
       or (self:HaveTimer("autoSend") and self.db.profile.ad.autoSend)
       or self:IsAdIncomplete()
 end;
@@ -2934,6 +2910,7 @@ function RP_Find:SendAdTimerFinish()
   RP_Find.Finder:Update("Ads");
 end;
 
+--[[
 function Finder.MakeFunc.LFG(self)
   local panelFrame = AceGUI:Create("SimpleGroup");
   panelFrame:SetFullWidth(true);
@@ -3012,6 +2989,7 @@ function Finder.MakeFunc.LFG(self)
   return panelFrame;
 
 end;
+--]]
 
 function Finder.MakeFunc.Tools(self)
   local panelFrame = AceGUI:Create("SimpleGroup");
@@ -3038,7 +3016,8 @@ function Finder.MakeFunc.Tools(self)
   local spacer2                  = AceGUI:Create("Label");
 
   local function updateTrp3MapScan()
-    if   time() - (RP_Find:Last("mapScan") or 0) >= 60
+    if   not RP_Find:LastSince("mapScan", 1, SECONDS_PER_MIN)
+         -- time() - (RP_Find:Last("mapScan") or 0) >= 60
          and trp3MapScanButton
          and trp3MapScanZone
     then trp3MapScanButton:SetDisabled(false);
@@ -3050,7 +3029,8 @@ function Finder.MakeFunc.Tools(self)
     end;
 
     if   RP_Find:Last("mapScanZone")
-         and time() - (RP_Find:Last("mapScan") or 0) < 5 * SECONDS_PER_MIN
+         and RP_Find:LastSince("mapScan", 5, SECONDS_PER_MIN)
+         -- time() - (RP_Find:Last("mapScan") or 0) < 5 * SECONDS_PER_MIN
          and trp3MapScanResultsButton
     then trp3MapScanResultsButton:SetDisabled(false)
     else trp3MapScanResultsButton:SetDisabled( true)
@@ -3148,10 +3128,13 @@ function Finder.MakeFunc.Tools(self)
     end);
 
   local function updatePingAllButton()
-    if time() - (RP_Find:Last("pingAll") or 0) > SECONDS_PER_HOUR
+    --[[
+    if   time() - (RP_Find:Last("pingAll") or 0) > SECONDS_PER_HOUR
     then pingAllButton:SetDisabled(false)
     else pingAllButton:SetDisabled(true)
     end;
+    ]]--
+    pingAllButton:SetDisabled(RP_Find:LastSince("pingAll", 1, SECONDS_PER_HOUR));
   end;
 
   massPing:AddChild(pingAllButton);
@@ -3165,13 +3148,12 @@ function Finder.MakeFunc.Tools(self)
 end;
 
 function RP_Find:PingAll()
-  if   time() - ( self:Last("pingAll") or 0) > SECONDS_PER_HOUR
+  if   not self:LastSince("pingAll", 1, SECONDS_PER_HOUR)
+       -- time() - ( self:Last("pingAll") or 0) > SECONDS_PER_HOUR
   then self:SetLast("pingAll");
        self:ClearTimer("sendPing");
        self:SaveTimer("sendPing", self:ScheduleTimer("CheckAllPings", SECONDS_PER_MIN));
-       for _, playerRecord in ipairs(self:GetAllPlayerRecords())
-       do  self:SendPing(playerRecord:GetPlayerName())
-       end;
+       for _, playerName in ipairs(self:GetAllPlayerNames()) do self:SendPing(playerName) end;
        RP_Find:Update("Tools");
   end;
 end;
@@ -3188,11 +3170,7 @@ end;
 
 local function optionsSpacer(width)
   return 
-  { type  = "description",
-    name  = " ",
-    width = width or 0.1,
-    order = source_order()
-  }
+  { type  = "description", name  = " ", width = width or 0.1, order = source_order() }
 end
 
 function RP_Find:RedoSetupOnProfileChange()
@@ -3704,7 +3682,6 @@ function RP_Find:OnInitialize()
                                return 
                                  string.format( 
                                    L["Format Database Counts"], 
-                                   self:CountPlayerData(), 
                                    self:CountPlayerRecords()
                                  ) 
                              end,
@@ -3726,6 +3703,7 @@ function RP_Find:OnInitialize()
               },
             },
           },
+          --[[
           deleteDBonLogin =
           { name          = L["Config Delete DB on Login"],
             type          = "toggle",
@@ -3741,6 +3719,7 @@ function RP_Find:OnInitialize()
                             end,
           },
           deleteSpacer = optionsSpacer(),
+          --]]
           deleteDBnow =
           { name      = L["Button Delete DB Now"],
             type      = "execute",
@@ -3765,7 +3744,7 @@ function RP_Find:OnInitialize()
                 desc          = L["Config Use Smart Pruning Tooltip"],
                 get           = function() return self.db.profile.config.useSmartPruning end,
                 set           = function(info, value) self.db.profile.config.useSmartPruning  = value end,
-                disabled      = function() return self.db.profile.config.deleteDBonLogin end,
+                -- disabled      = function() return self.db.profile.config.deleteDBonLogin end,
               },
               spacer1          = optionsSpacer(),
               repeatSmartPruning =
@@ -3780,8 +3759,8 @@ function RP_Find:OnInitialize()
                         self:StartOrStopPruningTimer()
                       end,
                 disabled = function() 
-                             return self.db.profile.config.deleteDBonLogin 
-                             or not self.db.profile.config.useSmartPruning 
+                             return not self.db.profile.config.useSmartPruning 
+                                -- or self.db.profile.config.deleteDBonLogin 
                            end,
               },
               spacer2          = optionsSpacer(),
@@ -3908,7 +3887,7 @@ function adFrame:SetSubtitle(text, default)
 end;
 
 function adFrame.ShowPreview()
-  if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+  if   RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
   then RP_Find.adFrame:Hide(); return
   end;
 
@@ -3990,29 +3969,11 @@ function adFrame:SetPlayerRecord(playerRecord)
   self:SetPortraitToAsset(playerRecord:GetIcon());
   self:SetTitle(playerRecord:GetRPName());
 
-  self:SetSubtitle(
-         playerRecord:Get("ad_title"),
-         L["Field Title Blank"]
-       );
-  self:AddField(
-         L["Field Race"],
-         playerRecord:GetRPRace(),
-         L["Field Blank"]
-       );
-  self:AddField(
-         L["Field Class"],
-         playerRecord:GetRPClass(),
-         L["Field Blank"]
-       );
-  self:AddField(
-         L["Field Pronouns"],
-         playerRecord:GetRPPronouns(),
-         L["Field Blank"]
-       );
-  self:SetBodyText(
-         playerRecord:Get("ad_body"),
-         L["Field Body Blank" ]
-       );
+  self:SetSubtitle(playerRecord:Get("ad_title"),                   L["Field Title Blank"]);
+  self:AddField(L["Field Race"],     playerRecord:GetRPRace(),     L["Field Blank"]);
+  self:AddField(L["Field Class"],    playerRecord:GetRPClass(),    L["Field Blank"]);
+  self:AddField(L["Field Pronouns"], playerRecord:GetRPPronouns(), L["Field Blank"]);
+  self:SetBodyText(playerRecord:Get("ad_body"),                    L["Field Body Blank" ]);
 end;
 
 function RP_Find:StartOrStopAutoSend(interactive)
@@ -4041,9 +4002,9 @@ end;
 --
 
 function RP_Find:ShowOrHideMinimapButton()
-  if     self.db.profile.minimapbutton.hide
-  then   LibDBIcon:Hide(self.addOnTitle);
-  else   LibDBIcon:Show(self.addOnTitle);
+  if   self.db.profile.minimapbutton.hide
+  then LibDBIcon:Hide(self.addOnTitle);
+  else LibDBIcon:Show(self.addOnTitle);
   end;
 end;
 
@@ -4073,7 +4034,7 @@ function RP_Find:OnEnable()
 
   self:SendVersionCheck();
 
-  if self.db.profile.config.loginMessage 
+  if   self.db.profile.config.loginMessage 
   then self:Notify(L["Notify Login Message"]); 
   end;
 
@@ -4222,7 +4183,8 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          then RP_Find:SendPing(sender)
          end;
          
-         if time() - (RP_Find:Last("mapScan") or 0) < 60
+         if RP_Find:LastSince("mapScan", 1, SECONDS_PER_MIN)
+         -- time() - (RP_Find:Last("mapScan") or 0) < 60
          then playerRecord:SetZone(RP_Find:Last("mapScanZone"), x * 100, y * 100)
          end;
   end;
@@ -4284,10 +4246,7 @@ end;
 
 function RP_Find:RegisterAddonChannel()
   for addon, prefix in pairs(addonPrefix)
-  do  AddOn_Chomp.RegisterAddonPrefix(
-                    prefix, 
-                    self.AddonMessageReceived[addon]
-                  );
+  do  AddOn_Chomp.RegisterAddonPrefix(prefix, self.AddonMessageReceived[addon]);
   end;
 
   local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
@@ -4300,7 +4259,8 @@ function RP_Find:RegisterAddonChannel()
 end;
 
 function RP_Find:SendTRP3Scan(zoneNum)
-  if   time() - (self:Last("mapScan") or 0) < 60
+  if   self:LastSince("mapScan", 1, SECONDS_PER_MIN)
+    -- time() - (self:Last("mapScan") or 0) < 60
   then self:Notify(string.format(L["Format TRP3 Scan Failed"], 60));
   else zoneNum = zoneNum or C_Map.GetBestMapForUnit("player");
        local message = addonPrefix.trp3 .. "~C_SCAN~" .. zoneNum;
@@ -4317,13 +4277,11 @@ function RP_Find:ComposeAd()
 
   local text = addonPrefix.rpfind .. ":AD";
 
-  local function add(f, v) 
-    text = text .. "|||" .. (f or "") .. "=" .. (v or ""); 
-  end;
+  local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
 
   if  self:HaveRPClient("totalRP3") then self.my:SetHaveTRP3Data(); end;
 
-  add("rp_name",      self.my:GetRPName())
+  add("rp_name", self.my:GetRPName())
 
   local race = self.my:GetRPRace();
   if race == "" then race, _, _ = UnitRace("player"); end;
@@ -4333,26 +4291,27 @@ function RP_Find:ComposeAd()
   if class == "" then class, _, _ = UnitClass("player") end;
   add("rp_class", class);
 
-  add("rp_title",     self.my:GetRPTitle());
-  add("rp_pronouns",  self.my:GetRPPronouns());
-  add("rp_age",       self.my:GetRPAge());
-  add("rp_addon",     self.my:GetRPAddon());
+  add("rp_title",    self.my:GetRPTitle());
+  add("rp_pronouns", self.my:GetRPPronouns());
+  add("rp_age",      self.my:GetRPAge());
+  add("rp_addon",    self.my:GetRPAddon());
 
   local trial = self.my:GetRPTrial();
   if trial == "" then trial = IsTrialAccount() and "1" or "0" end;
 
   add("rp_trial", trial);
 
-  add("title",        self.db.profile.ad.title);
-  add("body",         self.db.profile.ad.body);
-  add("adult",        self.db.profile.ad.adult);
+  add("title", self.db.profile.ad.title);
+  add("body",  self.db.profile.ad.body);
+  add("adult", self.db.profile.ad.adult);
 
   return text;
 end;
 
 function RP_Find:SendLFRPAd(interactive)
   local message = self:ComposeAd();
-  if   time() - (self:Last("sendAd") or 0) < 60
+  if   self:LastSince("sendAd", 1, SECONDS_PER_MIN)
+       -- time() - (self:Last("sendAd") or 0) < 60
   then if   interactive 
        then self:Notify(string.format(L["Format Send Ad Failed"], 60)); 
        end;
@@ -4379,10 +4338,8 @@ RP_Find.closeButton:SetText(L["Button Close"]);
 RP_Find.closeButton:ClearAllPoints();
 RP_Find.closeButton:SetPoint("BOTTOMRIGHT", Finder.frame, "BOTTOMRIGHT", -20, 20);
 RP_Find.closeButton:SetWidth(buttonSize);
-RP_Find.closeButton:SetScript("OnClick", 
-  function(self, button) 
-    Finder:Hide(); 
-end);
+RP_Find.closeButton:SetScript("OnClick", function(self, button) Finder:Hide(); end);
+
 RP_Find.closeButton:SetScript("OnEnter",
   function(self)
     showTooltip(self, { title = L["Button Close"],
@@ -4416,8 +4373,7 @@ local function makeColorBar()
   local height = 16;
   local colorBar = CreateFrame("Frame", nil, Finder.frame);
 
-  local checkbox = CreateFrame("CheckButton", nil, 
-                     Finder.frame, "ChatConfigCheckButtonTemplate");
+  local checkbox = CreateFrame("CheckButton", nil, Finder.frame, "ChatConfigCheckButtonTemplate");
 
   function colorBar:Update()
     checkbox:SetChecked(RP_Find.db.profile.config.showColorBar);
@@ -4486,9 +4442,9 @@ end;
 
 -- RP_Find.colorBar = makeColorBar();
 
-for i, slash in ipairs(split(SLASH, "|"))
-do _G["SLASH_RP_FIND" .. i] = slash;
-end;
+-- slash commands
+--
+for i, slash in ipairs(split(SLASH, "|")) do _G["SLASH_RP_FIND" .. i] = slash; end;
 
 function RP_Find:OpenOptions()
   InterfaceOptionsFrame:Show();
