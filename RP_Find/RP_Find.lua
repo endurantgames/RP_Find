@@ -4544,6 +4544,8 @@ function RP_Find:HelpCommand()
   self:Notify(true, L["Slash Display" ]);
   self:Notify(true, L["Slash Ads"     ]);
   self:Notify(true, L["Slash Tools"   ]);
+  self:Notify(true, L["Slash Send Ad" ]);
+  self:Notify(true, L["Slash Map Scan"]);
   self:Notify(true, L["Slash Options" ]);
 end;
 
@@ -4573,8 +4575,24 @@ SlashCmdList["RP_FIND"] =
     elseif cmd:match("^tool")
     then   Finder:LoadTab("Tools");
            RP_Find:ShowFinder();
+    elseif cmd:match("^map") or cmd:match("^scan")
+    then   RP_Find:SendTRP3Scan();
+    elseif cmd:match("^send")
+    then   RP_Find:SendLFRPAd();
     else   RP_Find:HelpCommand();
     end;
   end;
+
+_G["BINDING_HEADER_RP_FIND"] = L["Binding Group rpFind"];
+_G["BINDING_NAME_RP_FIND_SHOW"] = L["Binding Show Finder"];
+_G["BINDING_NAME_RP_FIND_HIDE"] = L["Binding Hide Finder"];
+_G["BINDING_NAME_RP_FIND_TOGGLE"] = L["Binding Toggle Finder"];
+_G["BINDING_NAME_RP_FIND_SEND_AD"] = L["Binding Send Ad"];
+_G["BINDING_NAME_RP_FIND_DISPLAY"] = L["Binding Display"];
+_G["BINDING_NAME_RP_FIND_ADS"] = L["Binding Ads"];
+_G["BINDING_NAME_RP_FIND_TOOLS"] = L["Binding Tools"];
+_G["BINDING_NAME_RP_FIND_MAP_SCAN"] = L["Binding Send Map Scan"];
+
+
 
 _G[addOnName] = RP_Find;
