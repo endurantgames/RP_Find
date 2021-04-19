@@ -1,0 +1,35 @@
+<Bindings>
+
+    <Binding name="RP_FIND_TOGGLE" header="RP_FIND" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("toggle");
+    </Binding>
+
+    <Binding name="RP_FIND_SHOW" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("open");
+    </Binding>
+
+    <Binding name="RP_FIND_HIDE" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("hide");
+    </Binding>
+
+    <Binding name="RP_FIND_SEND_AD" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("send");
+    </Binding>
+
+    <Binding name="RP_FIND_DISPLAY" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("database");
+    </Binding>
+
+    <Binding name="RP_FIND_ADS" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("ad");
+    </Binding>
+
+    <Binding name="RP_FIND_TOOLS" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("tool");
+    </Binding>
+
+    <Binding name="RP_FIND_MAP_SCAN" category="BINDING_HEADER_RP_FIND">
+        SlashCmdList["RP_FIND"]("map");
+    </Binding>
+
+</Bindings>
