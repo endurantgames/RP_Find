@@ -76,6 +76,8 @@ local textIC = -- icons for text
 { rpProfile  = "|A:profession:0:0|a",
   isIC       = "|TInterface\\COMMON\\Indicator-Green:0:0|t",
   isOOC      = "|TInterface\\COMMON\\Indicator-Red:0:0|t",
+  isLooking  = "|TInterface\\COMMON\\Indicator-Yellow:0:0|t",
+  isStoryteller = "|Interface\\COMMON\\Indicator-Gray:0:0:::::::85:204:255|t",
   hasAd      = "|A:mailbox:0:0|a",
   mapScan    = "|A:taxinode_continent_neutral:0:0|a",
   inSameZone = "|A:minimap-vignettearrow:0:0|a",
@@ -500,13 +502,13 @@ StaticPopupDialogs[popup.deleteDBNow] =
 function RP_Find:PurgePlayer(name) self.playerRecords[name] = nil; end;
 
 function RP_Find:StartOrStopPruningTimer()
-  if     self:HaveTimer("pruning") and self.db.profile.config.repeatSmartPruning 
+  if     self:HaveTimer("pruning") and self.db.profile.config.useSmartPruning 
   then   -- all is running as expected
   elseif self:HaveTimer("pruning")
   then   self:ClearTimer("pruning");
-  elseif self.db.profile.config.repeatSmartPruning -- and not self.pruningTimer
+  elseif self.db.profile.config.useSmartPruning -- and not self.pruningTimer
   then   self:SaveTimer("pruning", self:ScheduleRepeatingTimer("SmartPruneDatabase", 15 * SECONDS_PER_MIN));
-  else   -- not self.timers.pruning and not repeatSmartPruning 
+  else   -- not self.timers.pruning and not useSmartPruning 
   end;
 end;
 
@@ -1028,7 +1030,60 @@ RP_Find.PlayerMethods =
   ["GetRPAddon"      ] = function(self) return self:GetRP("addon",       "VA")   end,
   ["GetRPTrial"      ] = function(self) return self:GetRP("trial",       "TR")   end,
   ["IsSetIC"         ] = function(self) return tonumber(self:GetRPStatus() or 0) == 2 end,
+  ["IsSetOOC"        ] = function(self) return tonumber(self:GetRPStatus() or 0) == 1 end,
+  ["IsSetLooking"    ] = function(self) return tonumber(self:GetRPStatus() or 0) == 3 end,
+  ["IsSetStoryteller"] = function(self) return tonumber(self:GetRPStatus() or 0) == 4 end,
   ["IsTrial"         ] = function(self) return tonumber(self:GetRPTrial() or 0)  == 1 end,
+
+  ["IsLGBTFriendly"] =
+    function(self)
+      local pat = L["Pattern LGBT Friendly"];
+      local curr = self:GetRPCurr();
+      local oocinfo = self:GetRPInfo();
+      return (curr and curr:lower():match(pat)
+              or oocinfo and oocinfo:lower():match(pat))
+    end,
+
+  ["WelcomesWalkups"] = 
+    function(self)
+      local pat = "walk%-? ?ups?";
+      local curr = self:GetRPCurr();
+      local oocinfo = self:GetRPInfo();
+      return (curr and curr:lower():match(pat)
+              or oocinfo and oocinfo:lower():match(pat))
+    end,
+
+  ["SentMapScan"] = function(self) return self:Get("mapScan") ~= nil end,
+  ["IsRPFindUser"] = function(self) return self:Get("rpFindUser") end,
+
+  ["IsFriendOfPlayer"] =
+    function(self) 
+      local fullName = self:GetPlayerName();
+      local name = self:GetPlayerName(true);
+      if C_FriendList.GetFriendInfo(name) then return true end;
+      if not BNConnected() then return false end;
+      RP_Find.bnetFriendList = RP_Find.bnetFriendList or {};
+      if   not RP_Find:LastSince("bnetFriendList", 2, SECONDS_PER_MIN) 
+        -- time() - (RP_Find:Last("bnetFriendList") or 0) > 2 * SECONDS_PER_MIN
+      then RP_Find.bnetFriendList = {};
+           local _, count, _, _ = BNGetNumFriends()
+           for i = 1, count, 1
+           do  local numAccounts = C_BattleNet.GetFriendNumGameAccounts(i);
+               for j = 1, numAccounts, 1
+               do  local friendData = C_BattleNet.GetFriendGameAccountInfo(i, j)
+                   if friendData.clientProgram == BNET_CLIENT_WOW
+                      and friendData.characterName
+                      and friendData.realmName
+                   then RP_Find.bnetFriendList[
+                          friendData.characterName .. "-" ..
+                          friendData.realmName] = true;
+                   end;
+               end;
+           end;
+           RP_Find:SetLast("bnetFriendList");
+      end;
+      return RP_Find.bnetFriendList[fullName];
+    end,
 
   ["GetRPStatusWord" ] = 
     function(self)
@@ -1068,9 +1123,7 @@ RP_Find.PlayerMethods =
 
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
-      do  if flag.func(self) 
-          then table.insert(flags, flag.icon)
-          end;
+      do  if self[flag.method](self) then table.insert(flags, flag.icon) end;
       end;
 
       flagString = table.concat(flags);
@@ -1083,9 +1136,7 @@ RP_Find.PlayerMethods =
     function(self)
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
-      do if flag.func(self)
-         then table.insert(flags, { flag.icon, flag.title})
-         end;
+      do if self[flag.method](self) then table.insert(flags, { flag.icon, flag.title}) end;
       end;
 
       return {}, flags;
@@ -1423,9 +1474,9 @@ RP_Find.defaults =
       alertTRP3Connect   = false,
       notifySound        = 37881,
       -- deleteDBonLogin    = false,
-      useSmartPruning    = false,
-      repeatSmartPruning = false,
-      smartPruningThreshold = 7,
+      useSmartPruning    = true,
+      -- repeatSmartPruning = false,
+      smartPruningThreshold = 10,
       notifyLFRP         = true,
       seeAdultAds        = false,
       rowsPerPage        = 10,
@@ -1808,7 +1859,7 @@ end;
 function Finder:ResizeButtonBar(value)
   value = value or RP_Find.db.profile.config.buttonBarSize;
   self:PauseLayout();
-  self.sendAdCountdown:PauseLayout();
+  self.sendAdCountdownContainer:PauseLayout();
   for id, btn in pairs(Finder.buttons)
   do  
      btn:SetWidth(value)
@@ -1818,8 +1869,8 @@ function Finder:ResizeButtonBar(value)
    self.sendAdCountdownContainer:SetWidth(value);
    local fontFile = GameFontNormal:GetFont();
    self.sendAdCountdown:SetFont(fontFile, value / 3);
-   self.sendAdCountdown:ResumeLayout();
-   self.sendAdCountdown:DoLayout();
+   self.sendAdCountdownContainer:ResumeLayout();
+   self.sendAdCountdownContainer:DoLayout();
    self:ResumeLayout()
    self:DoLayout();
 end;
@@ -1966,75 +2017,18 @@ Finder.MakeFunc = {}
 
 Finder.flagList = 
 {
-  { title = "Your Friend",
-    icon = textIC.isFriend,
-    func = function(self) 
-             local fullName = self:GetPlayerName();
-             local name = self:GetPlayerName(true);
-             if C_FriendList.GetFriendInfo(name) then return true end;
-             if not BNConnected() then return false end;
-             RP_Find.bnetFriendList = RP_Find.bnetFriendList or {};
-             if   not RP_Find:LastSince("bnetFriendList", 2, SECONDS_PER_MIN) 
-               -- time() - (RP_Find:Last("bnetFriendList") or 0) > 2 * SECONDS_PER_MIN
-             then RP_Find.bnetFriendList = {};
-                  local _, count, _, _ = BNGetNumFriends()
-                  for i = 1, count, 1
-                  do  local numAccounts = C_BattleNet.GetFriendNumGameAccounts(i);
-                      for j = 1, numAccounts, 1
-                      do  local friendData = C_BattleNet.GetFriendGameAccountInfo(i, j)
-                          if friendData.clientProgram == BNET_CLIENT_WOW
-                             and friendData.characterName
-                             and friendData.realmName
-                          then RP_Find.bnetFriendList[
-                                 friendData.characterName .. "-" ..
-                                 friendData.realmName] = true;
-                          end;
-                      end;
-                  end;
-                  RP_Find:SetLast("bnetFriendList");
-             end;
-             return RP_Find.bnetFriendList[fullName];
-           end,
-  },
-
-  { title  = "Have RP Profile", icon = textIC.rpProfile, func   = function(self) return self:HaveRPProfile() end, },
-
-  { title  = "In Character", icon = textIC.isIC, func   = function(self) return self:IsSetIC() end, },
-
-  { title = "Out of Character",
-    icon = textIC.isOOC,
-    func = function(self) local status = self:GetRPStatus(); return status and status == 1 end,
-  },
-
-  { title = "Trial Account", icon = textIC.trial, func = function(self) return self:IsTrial() end, },
-  { title = "Sent LFRP Ad", icon = textIC.hasAd, func = function(self) return self:HaveLFRPAd() end, },
-  { title = "Did Map Scan", icon = textIC.mapScan, func = function(self) return self:Get("mapScan") end, },
-
-  { title = "LGBTQIA+ Friendly",
-    func = function(self)
-             local pat = "lgbtq?i?a?%+?";
-             local curr = self:GetRPCurr();
-             local oocinfo = self:GetRPInfo();
-             return (curr and curr:lower():match(pat)
-                     or oocinfo and oocinfo:lower():match(pat))
-            end,
-    icon = textIC.lgbt,
-  },
-
-  { title = "Walkups Welcome",
-    icon = textIC.walkups,
-    func = function(self)
-             local pat = "walk%-? ?ups?";
-             local curr = self:GetRPCurr();
-             local oocinfo = self:GetRPInfo();
-             return (curr and curr:lower():match(pat)
-                     or oocinfo and oocinfo:lower():match(pat))
-            end,
-  },
-  { title = RP_Find.addOnTitle .. " User",
-    icon = textIC.rpFind,
-    func = function(self) return self:Get("rpFindUser") end,
-  },
+  { title = L["Flag Your Friend"],        icon = textIC.isFriend,      method = "IsFriendOfPlayer", },
+  { title = L["Flag Have RP Profile"],    icon = textIC.rpProfile,     method = "HaveRPProfile",    },
+  { title = L["Flag Is Set IC"],          icon = textIC.isIC,          method = "IsSetIC",          },
+  { title = L["Flag Is Set OOC"],         icon = textIC.isOOC,         method = "IsSetOOC"          },
+  { title = L["Flag Is Set Looking"],     icon = textIC.isLooking,     method = "IsSetLooking"      },
+  { title = L["Flag Is Set Storyteller"], icon = textIC.isStoryteller, method = "IsSetStoryteller"  },
+  { title = L["Flag Is Trial"],           icon = textIC.trial,         method = "IsTrial"           },
+  { title = L["Flag Have Ad"],            icon = textIC.hasAd,         method = "HaveLFRPAd"        },
+  { title = L["Flag Map Scan"],           icon = textIC.mapScan,       method = "SentMapScan"       },
+  { title = L["Flag LGBT Friendly"],      icon = textIC.lgbt,          method = "IsLGBTFriendly",   },
+  { title = L["Flag Walkups"],            icon = textIC.walkups,       method = "WelcomesWalkups",  },
+  { title = L["Flag rpFind User"],        icon = textIC.rpFind,        method = "IsRPFindUser",     },
 };
 
 Finder.filterList =
@@ -2092,9 +2086,7 @@ Finder.filterList =
   ["SentMapScan"] =
     { func =
         function(playerRecord)
-          local  didMapScan = playerRecord:Get("mapScan");
-          return playerRecord:Get("mapScan")
-                 and time() - playerRecord:GetTimestamp("mapScan") < SECONDS_PER_HOUR;
+          return playerRecord:SentMapScan();
         end,
       title = L["Filter Sent Map Scan"],
       enabled = false,
@@ -2175,7 +2167,7 @@ function Finder.MakeFunc.Display(self)
   end;
 
   Finder.SetActiveFilters = Finder.SetActiveFilters or
-  function(self)
+  function()
     local count = 0;
    
     for filterID, filterData in pairs(self.filterList)
@@ -2378,7 +2370,7 @@ function Finder.MakeFunc.Display(self)
   end;
    
   Finder.MakeListHeader = Finder.MakeListHeader or
-  function(self, info)
+  function(info)
     local newHeader = AceGUI:Create("InteractiveLabel");
     newHeader.info = info;
 
@@ -2397,10 +2389,9 @@ function Finder.MakeFunc.Display(self)
     table.insert(headers.list, newHeader);
   end;
 
-  for _, info in ipairs(Finder.displayColumns) do Finder:MakeListHeader(info); end;
   
   Finder.BuildLineFromPlayerRecord = Finder.BuildLineFromPlayerRecord or
-  function(self, playerRecord)
+  function(playerRecord)
 
     local line = AceGUI:Create("SimpleGroup");
           line:SetFullWidth(true);
@@ -2411,9 +2402,9 @@ function Finder.MakeFunc.Display(self)
         local field = AceGUI:Create("InteractiveLabel")
         field:SetRelativeWidth(info.width)
         field:SetFont("Fonts\\ARIALN.TTF", 14);
-        -- field:SetFontObject(GameFontNormal);
 
-        local valueFunc = playerRecord[info.method]
+        print(playerRecord, "info.method", info.method);
+        local valueFunc      = playerRecord[info.method]
         local text, disabled = valueFunc(playerRecord);
 
         field:SetText(text);
@@ -2466,15 +2457,16 @@ function Finder.MakeFunc.Display(self)
     return line;
   end;
 
+  for _, info in ipairs(Finder.displayColumns) do Finder.MakeListHeader(info); end;
+
   local playerList = AceGUI:Create("SimpleGroup");
   playerList:SetFullWidth(true);
   playerList:SetFullHeight(true);
   playerList:SetLayout("Flow");
   panelFrame:AddChild(playerList);
 
-  Finder.UpdatePlayerList = Finder.UpdatePlayerList or
-
-  function(self)
+  Finder.PlayerList_UpdatePlayerList = Finder.PlayerList_UpdatePlayerList or
+  function(playerList)
     playerList:ReleaseChildren();
 
     local function buildNavbar(count, pos)
@@ -2555,7 +2547,7 @@ function Finder.MakeFunc.Display(self)
 
     for i = 1, stop, 1
     do  local index = i + shift;
-        playerList:AddChild(Finder:BuildLineFromPlayerRecord(Finder.playerRecordsList[index]));
+        playerList:AddChild(Finder.BuildLineFromPlayerRecord(Finder.playerRecordsList[index]));
     end;
 
     if not RP_Find:HaveTimer("playerList")
@@ -2569,8 +2561,8 @@ function Finder.MakeFunc.Display(self)
   end;
 
   function panelFrame:Update(...) 
-    Finder:SetActiveFilters();
-    Finder:UpdatePlayerList();
+    Finder.SetActiveFilters();
+    Finder.PlayerList_UpdatePlayerList(playerList);
     Finder:UpdateTitle();
   end;
 
@@ -3477,7 +3469,7 @@ function RP_Find:OnInitialize()
             type           = "range",
             order          = source_order(),
             desc           = L["Config Button Bar Size Tooltip"],
-            width          = 2.1,
+            width          = "full",
             min            = MIN_BUTTON_BAR_SIZE,
             max            = MAX_BUTTON_BAR_SIZE,
             step           = 2,
@@ -3487,58 +3479,6 @@ function RP_Find:OnInitialize()
                                Finder:ResizeButtonBar(value)
                              end,
           },
-          trp3Group        =
-          { name           = L["Config TRP3"],
-            type           = "group",
-            inline         = true,
-            order          = source_order(),
-            args           =
-            {
-              instructTRP3 =
-              { name       = L["Instruct TRP3"],
-                type       = "description",
-                order      = source_order(),
-                width      = "full"
-              },
-              alertTRP3Scan =
-              { name        = L["Config Alert TRP3 Scan"],
-                type        = "toggle",
-                order       = source_order(),
-                desc        = L["Config Alert TRP3 Scan Tooltip"],
-                get         = function() return self.db.profile.config.alertTRP3Scan end,
-                set         = function(info, value) self.db.profile.config.alertTRP3Scan    = value end,
-                disabled    = function() return not self.db.profile.config.monitorTRP3 
-                                         or self.db.profile.config.notifyMethod == "none" end,
-                width       = "full",
-              },
-              spacer1          = optionsSpacer(),
-              alertAllTRP3Scan =
-              { name           = L["Config Alert All TRP3 Scan"],
-                type           = "toggle",
-                order          = source_order(),
-                desc           = L["Config Alert All TRP3 Scan Tooltip"],
-                get            = function() return self.db.profile.config.alertAllTRP3Scan end,
-                set            = function(info, value) self.db.profile.config.alertAllTRP3Scan   = value end,
-                disabled       = function() return not self.db.profile.config.alertTRP3Scan 
-                                            or not self.db.profile.config.alertTRP3Scan
-                                            or self.db.profile.config.notifyMethod == "none"
-                                            end,
-                width          = 1.5,
-              },
-              alertTRP3Connect =
-              { name           = L["Config Alert TRP3 Connect"],
-                type           = "toggle",
-                order          = source_order(),
-                desc           = L["Config Alert TRP3 Connect Tooltip"],
-                get            = function() return self.db.profile.config.alertTRP3Connect end,
-                set            = function(info, value) self.db.profile.config.alertTRP3Connect  = value end,
-                disabled       = function() return not self.db.profile.config.monitorTRP3 
-                                                    or self.db.profile.config.notifyMethod == "none"
-                                                    end,
-                width          = "full",
-              },
-            },
-          }, -- here
         },
       },
       notifyOptions    =
@@ -3640,7 +3580,58 @@ function RP_Find:OnInitialize()
             width     = 1,
             disabled  = function() return self.db.profile.config.notifyMethod == "none" end,
           },
-        },
+          trp3Group        =
+          { name           = L["Config TRP3"],
+            type           = "group",
+            inline         = true,
+            order          = source_order(),
+            args           =
+            {
+              instructTRP3 =
+              { name       = L["Instruct TRP3"],
+                type       = "description",
+                order      = source_order(),
+                width      = "full"
+              },
+              alertTRP3Scan =
+              { name        = L["Config Alert TRP3 Scan"],
+                type        = "toggle",
+                order       = source_order(),
+                desc        = L["Config Alert TRP3 Scan Tooltip"],
+                get         = function() return self.db.profile.config.alertTRP3Scan end,
+                set         = function(info, value) self.db.profile.config.alertTRP3Scan    = value end,
+                disabled    = function() return not self.db.profile.config.monitorTRP3 
+                                         or self.db.profile.config.notifyMethod == "none" end,
+                width       = "full",
+              },
+              spacer1          = optionsSpacer(),
+              alertAllTRP3Scan =
+              { name           = L["Config Alert All TRP3 Scan"],
+                type           = "toggle",
+                order          = source_order(),
+                desc           = L["Config Alert All TRP3 Scan Tooltip"],
+                get            = function() return self.db.profile.config.alertAllTRP3Scan end,
+                set            = function(info, value) self.db.profile.config.alertAllTRP3Scan   = value end,
+                disabled       = function() return not self.db.profile.config.alertTRP3Scan 
+                                            or not self.db.profile.config.alertTRP3Scan
+                                            or self.db.profile.config.notifyMethod == "none"
+                                            end,
+                width          = 1.5,
+              },
+              alertTRP3Connect =
+              { name           = L["Config Alert TRP3 Connect"],
+                type           = "toggle",
+                order          = source_order(),
+                desc           = L["Config Alert TRP3 Connect Tooltip"],
+                get            = function() return self.db.profile.config.alertTRP3Connect end,
+                set            = function(info, value) self.db.profile.config.alertTRP3Connect  = value end,
+                disabled       = function() return not self.db.profile.config.monitorTRP3 
+                                                    or self.db.profile.config.notifyMethod == "none"
+                                                    end,
+                width          = "full",
+              },
+            },
+          },        },
       },
       databaseConfig =
       { name  = function() 
@@ -3720,14 +3711,6 @@ function RP_Find:OnInitialize()
           },
           deleteSpacer = optionsSpacer(),
           --]]
-          deleteDBnow =
-          { name      = L["Button Delete DB Now"],
-            type      = "execute",
-            width     = 1,
-            order     = source_order(),
-            desc      = L["Button Delete DB Now Tooltip"],
-            func      = function() StaticPopup_Show(popup.deleteDBNow) end,
-          },
           configSmartPruning  =
           { name              = L["Config Smart Pruning"],
             type              = "group",
@@ -3739,13 +3722,17 @@ function RP_Find:OnInitialize()
               useSmartPruning =
               { name          = L["Config Use Smart Pruning"],
                 type          = "toggle",
-                width         = 2/3,
+                width         = "full",
                 order         = source_order(),
                 desc          = L["Config Use Smart Pruning Tooltip"],
                 get           = function() return self.db.profile.config.useSmartPruning end,
-                set           = function(info, value) self.db.profile.config.useSmartPruning  = value end,
+                set           = function(info, value) 
+                                  self.db.profile.config.useSmartPruning  = value 
+                                  self:StartOrStopPruningTimer();
+                                end,
                 -- disabled      = function() return self.db.profile.config.deleteDBonLogin end,
               },
+              --[[
               spacer1          = optionsSpacer(),
               repeatSmartPruning =
               { name = L["Config Smart Pruning Repeat"],
@@ -3764,15 +3751,7 @@ function RP_Find:OnInitialize()
                            end,
               },
               spacer2          = optionsSpacer(),
-              smartPruneNow =
-              { name        = L["Button Smart Prune Database"],
-                type        = "execute",
-                width       = 2/3,
-                order       = source_order(),
-                desc        = L["Button Smart Prune Database Tooltip"],
-                func        = function() self:SmartPruneDatabase(true) end, -- true = interactive
-                disabled    = function() return not self.db.profile.config.useSmartPruning end,
-              },
+              --]]
               pruningThreshold =
               { name                = L["Config Smart Pruning Threshold"],
                 type                = "range",
@@ -3785,16 +3764,28 @@ function RP_Find:OnInitialize()
                 max                 = 20,
                 step                = 0.01,
                 order               = source_order(),
-                get                 = function() 
-                                        return 
-                                          self.db.profile.config.smartPruningThreshold 
-                                      end,
-                set                 = function(info, value) 
-                                        self.db.profile.config.smartPruningThreshold = value 
-                                      end,
+                get                 = function() return self.db.profile.config.smartPruningThreshold end,
+                set                 = function(info, value) self.db.profile.config.smartPruningThreshold = value end,
                 disabled            = function() return not self.db.profile.config.useSmartPruning end,
               },
             },
+          },
+          smartPruneNow =
+          { name        = L["Button Smart Prune Database"],
+            type        = "execute",
+            width       = 1,
+            order       = source_order(),
+            desc        = L["Button Smart Prune Database Tooltip"],
+            func        = function() self:SmartPruneDatabase(true) end, -- true = interactive
+            disabled    = function() return not self.db.profile.config.useSmartPruning end,
+          },
+          deleteDBnow =
+          { name      = L["Button Delete DB Now"],
+            type      = "execute",
+            width     = 1,
+            order     = source_order(),
+            desc      = L["Button Delete DB Now Tooltip"],
+            func      = function() StaticPopup_Show(popup.deleteDBNow) end,
           },
         },
       },
