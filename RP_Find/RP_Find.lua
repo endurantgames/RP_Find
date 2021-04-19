@@ -1045,6 +1045,9 @@ RP_Find.PlayerMethods =
 
   ["GetFlags"] = 
     function(self) 
+      local flagString = self:Get("flagString");
+      if time() - self:GetTimestamp("flagString") <= 60 then return flagString end;
+
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
       do  if flag.func(self) 
@@ -1052,7 +1055,10 @@ RP_Find.PlayerMethods =
           end;
       end;
 
-      return table.concat(flags);
+      flagString = table.concat(flags);
+      self:Set("flagString", flagString);
+
+      return table.concat(flagString);
     end,
 
   ["GetFlagsTooltip"] =
@@ -1067,10 +1073,7 @@ RP_Find.PlayerMethods =
       return {}, flags;
     end,
 
-  ["GetInfoColumnTitle"] =
-    function(self)
-      return L[RP_Find.db.profile.config.infoColumn or "Info Server"]
-    end,
+  ["GetInfoColumnTitle"] = function(self) return L[RP_Find.db.profile.config.infoColumn] end,
   
   ["GetInfoColumnTooltip"] =
     function(self)
@@ -1125,20 +1128,12 @@ RP_Find.PlayerMethods =
             return (race and (race .. " ") or "") .. (class or "");
           end,
 
-        ["Info Subzone"] = 
-          function(self) 
-            local zone = self:Get("zoneID");
-            local subzone = self:GetSubzoneName()
-            if subzone ~= ""
-            then return colorize(subzone, 
-                   self:GetTimestamp("zone" .. zone .. "x"));
-            else return "";
-            end
-          end,
+        ["Info Subzone"] = function(self) return self:GetSubzoneName() end,
+
         ["Info Zone Subzone"] =
           function(self)
             local subzone = self:GetSubzoneName()
-            if subzone == ""
+            if    subzone == ""
             then return self:GetZoneName()
             else return self:GetZoneName() .. " (" ..  subzone .. ")"
             end
@@ -1146,7 +1141,8 @@ RP_Find.PlayerMethods =
           
       };
 
-      local func = hash[RP_Find.db.profile.config.infoColumn or "Info Server"];
+      local func = hash[RP_Find.db.profile.config.infoColumn];
+      hash = nil;
       return func(self);
     end,
             
@@ -1184,8 +1180,7 @@ RP_Find.PlayerMethods =
 
       for _, item in ipairs(fields)
       do  if true or RP_Find.db.profile.config.nameTooltip[item.id]
-          then 
-            addCol(item.method, item.label)
+          then addCol(item.method, item.label)
           end;
       end;
 
@@ -1223,28 +1218,12 @@ RP_Find.PlayerMethods =
                or nil;
     end,
       
-  ["GetZoneName"] =
-    function(self)
-      local zoneID = self:Get("zoneID");
-      local zoneInfo;
+  ["GetSubzone"] =
+    function(self, zoneID, x, y)
 
-      if   zoneID 
-      then zoneInfo = C_Map.GetMapInfo(zoneID);
-           if zoneInfo and zoneInfo.name then return zoneInfo.name end;
-      end;
-      return nil;
-    end,
+      if not zoneID or not x or not y then return nil end;
 
-  ["GetSubzoneName"] =
-    function(self)
-      local zoneID = self:Get("zoneID");
-
-      if not zoneID then return "" end;
-      if not pointsOfInterest[zoneID] then return "" end;
-
-      local x = self:Get("zone" .. zoneID .. "x");
-      local y = self:Get("zone" .. zoneID .. "y");
-      if not x or not y then return "" end;
+      if not pointsOfInterest[zoneID] then return nil end;
 
       for _, poi in ipairs(pointsOfInterest[zoneID])
       do  local dist = math.sqrt(
@@ -1253,13 +1232,33 @@ RP_Find.PlayerMethods =
           if dist < poi.r then return poi.title end;
       end;
 
-      return "";
-
+      return nil;
     end,
+
+  ["SetZone"] =
+    function(self, zoneID, x, y)
+
+      local zoneInfo = C_Map.GetMapInfo(zoneID);
+
+      self:Set("zone", 
+            { id = zoneID,
+              name = zoneInfo.name,
+              x = x,
+              y = y,
+              subzone = self:GetSubzone(zoneID, x, y)
+            });
+                
+    end,
+
+  ["GetZoneID"]      = function(self) local zone = self:Get("zone"); return zone and zone.id or nil end,
+  ["GetZoneName"]    = function(self) local zone = self:Get("zone"); return zone and zone.name or ""; end,
+  ["GetSubzoneName"] = function(self) local zone = self:Get("zone"); return zone and zone.subzone or nil; end,
       
   ["LabelViewProfile" ] =
     function(self)
-      return L["Label Open Profile"], not RP_Find:HaveRPClient("MyRolePlay") and not RP_Find:HaveRPClient("totalRP3");
+      return L["Label Open Profile"], 
+         not RP_Find:HaveRPClient("MyRolePlay") and 
+         not RP_Find:HaveRPClient("totalRP3");
     end,
 
   ["CmdViewProfile"] =
@@ -1278,7 +1277,7 @@ RP_Find.PlayerMethods =
     function(self) 
       return L["Label Ping"], 
         not RP_Find:HaveRPClient() or
-        time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
+            time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendPing"] =
@@ -1299,11 +1298,7 @@ RP_Find.PlayerMethods =
       RP_Find:Update("Display");
     end,
 
-  ["HaveLFRPAd"] = 
-    function(self) 
-      local ad = self:Get("ad"); 
-      return ad and ad ~= ""; 
-    end,
+  ["HaveLFRPAd"] = function(self) local ad = self:Get("ad"); return ad and ad ~= ""; end,
 
   ["GetLFRPAd"] = 
     function(self)
@@ -1491,11 +1486,6 @@ function Finder:SetDimensions()
   self.frame:SetMinResize(650, 300);
 end;
 
--- local finderWidth  = math.min(700, UIParent:GetWidth()  * 0.4);
--- local finderHeight = math.min(500, UIParent:GetHeight() * 0.5);
--- Finder:SetWidth(finderWidth);
--- Finder:SetHeight(finderHeight);
---
 Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
@@ -2082,7 +2072,7 @@ Finder.filterList =
   ["MatchesLastMapScan"] =
     { func =
         function(playerRecord)
-          local  zoneID = playerRecord:Get("zoneID")
+          local  zoneID = playerRecord:GetZoneID()
           return zoneID and RP_Find:Last("mapScanZone")
              and time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
              and zoneID == RP_Find:Last("mapScanZone")
@@ -2607,8 +2597,8 @@ function Finder.MakeFunc.Display(self)
 
   function panelFrame:Update(...) 
     setActiveFilters();
-    RP_Find.Finder:UpdateTitle();
     playerList_Update(playerList, ...) 
+    RP_Find.Finder:UpdateTitle();
   end;
 
   return panelFrame;
@@ -2647,51 +2637,33 @@ function Finder.TitleFunc.LFG(self, ...)
   end;
 end;
 
-function Finder.TitleFunc.Ads(self, ...) 
-  self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); 
-end;
+function Finder.TitleFunc.Ads(self, ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
+function Finder.TitleFunc.Tools(self, ...) self:SetTitle(L["Format Finder Title Tools"]); end;
 
-function Finder.TitleFunc.Tools(self, ...) 
-  self:SetTitle(L["Format Finder Title Tools"]); 
-end;
-
-function Finder.UpdateFunc.Display(self, ...) 
-  self.TabGroup.current:Update(); 
-end;
-
-function Finder.UpdateFunc.LFG(self, ...)     
-  self.TabGroup.current:Update();
-end;
-
-function Finder.UpdateFunc.Tools(self, ...)   
-  self.TabGroup.current:Update(); 
-end;
-
-function Finder.UpdateFunc.Ads(self, ...)     
-  self.TabGroup.current:Update(); 
-end;
+function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.LFG(self, ...)     self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Tools(self, ...)   self.TabGroup.current:Update(); end;
+function Finder.UpdateFunc.Ads(self, ...)     self.TabGroup.current:Update(); end;
 
 function Finder:UpdateTitle(event, ...)
-  if self.updatesDisabled then return end;
+  if    not self:IsShown() or self.updatesDisabled then return end;
   local title = self.TitleFunc[self.currentTab]
-  if title then title(self) end;
+  if    title then title(self) end;
 end;
 
 function Finder:UpdateContent(event, ...)
-  if self.updatesDisabled then return end;
+  if not self:IsShown() or self.updatesDisabled then return end;
   self:PauseLayout();
-  local update = self.UpdateFunc[self.currentTab]
-  if update then update(self) end;
+  self.UpdateFunc[self.currentTab](self, ...);
   self:ResumeLayout();
   self:DoLayout();
 end;
 
-function Finder:Update(tab)
-  if self.updatesDisabled then return end;
-  if not self:IsShown()   then return end; -- only update if we're shown
-  if not tab or self.currentTab == tab
-  then self:UpdateContent();
-       self:UpdateTitle();
+function Finder:Update(tab, ...)
+  if   not self:IsShown() or self.updatesDisabled then return end;
+  if   not tab or self.currentTab == tab
+  then self:UpdateContent(...);
+       self:UpdateTitle(...);
   end;
 end;
 
@@ -2702,9 +2674,9 @@ end;
 
 function RP_Find:ShouldSendAdBeDisabled()
   local elapsedTime = time() - (self:Last("sendAd") or 0);
-  if elapsedTime < 1 * SECONDS_PER_MIN then return true end;
-  if self:HaveTimer("autoSend") and self.db.profile.ad.autoSend then return true end;
-  if self:IsAdIncomplete() then return true end;
+  return elapsedTime < 1 * SECONDS_PER_MIN 
+      or (self:HaveTimer("autoSend") and self.db.profile.ad.autoSend)
+      or self:IsAdIncomplete()
 end;
 
 function Finder.MakeFunc.Ads(self)
@@ -3052,17 +3024,12 @@ function Finder.MakeFunc.Tools(self)
         trp3MapScan:SetTitle(L["Tool TRP3 Map Scan"]);
   panelFrame:AddChild(trp3MapScan);
 
-  local zoneID = C_Map.GetBestMapForUnit("player")
+  local zoneID   = C_Map.GetBestMapForUnit("player")
+  local zoneInfo = C_Map.GetMapInfo(zoneID);
  
-  if   not menu.zone[zoneID] and UnitFactionGroup("player") == "Alliance"
-  then zoneID = 84
-  elseif not menu.zone[zoneID]
-  then zoneID = 85;
-  end;
+  if not menu.zone[zoneID] then menu.zone[zoneID] = zoneInfo.name; end;
 
   Finder.scanZone = zoneID;
-
-  local zoneInfo = C_Map.GetMapInfo(zoneID);
 
   local trp3MapScanZone          = AceGUI:Create("Dropdown");
   local trp3MapScanButton        = AceGUI:Create("Button");
@@ -4256,9 +4223,7 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          end;
          
          if time() - (RP_Find:Last("mapScan") or 0) < 60
-         then playerRecord:Set("zoneID", RP_Find:Last("mapScanZone"))
-              playerRecord:Set("zone" .. zoneID .. "x", x * 100);
-              playerRecord:Set("zone" .. zoneID .. "y", y * 100);
+         then playerRecord:SetZone(RP_Find:Last("mapScanZone"), x * 100, y * 100)
          end;
   end;
 end;
