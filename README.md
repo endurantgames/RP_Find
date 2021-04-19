@@ -13,7 +13,7 @@ or can be run without any of those.
   - [x] Improve editor interface
   - [x] Ad viewer
   - [x] Debug why title keeps clearing
-  - [ ] More than one ad per profile
+  - [ ] More than one ad per profile (?)
 - [ ] Database viewer:
   - [x] View ad (see above)
   - [x] Send ping
@@ -25,18 +25,20 @@ or can be run without any of those.
   - [x] Search
   - [x] Rows per page
   - [x] Tooltips
-  - [ ] ~~View data instead of playerRecords (is this even a good idea?)~~
-  - [ ] Get flags / flag tooltip working
-  - [ ] Flags (brainstorming)
+  - [ ] ~~View data instead of playerRecords (is this even a good idea?)~~ (it's not)
+  - [x] Get flags / flag tooltip working
+  - [x] Flags (brainstorming)
     - [x] Have MRP/TRP3
     - [x] is IC
-    - [ ] Online recently (likely)
-    - [ ] Sent scan ping
-    - [ ] Sent ad
-    - [ ] Friend of player
+    - [x] Sent scan ping
+    - [x] Sent ad
+    - [x] Friend of player
+    - [x] Walkups welcome
+    - [x] LGBT friendly
     - [ ] in same zone (likely)
-- [ ] Profiles
-  - [ ] Rebuild frame when loading new / resetting profile
+    - [ ] Online recently (likely)
+- [x] Profiles
+  - [x] Rebuild frame when loading new / resetting profile
 - [ ] Tools:
   - [x] Send map ping request
   - [x] Mass ping / offline player removal
