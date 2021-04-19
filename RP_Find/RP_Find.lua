@@ -50,11 +50,8 @@ local col = {
 
 local addon = {};
 for i = 1, GetNumAddOns()
-do local name, _, _, enabled = GetAddOnInfo(i);
-   if name then addon[name] = enabled; end;
+do  local name, _, _, enabled = GetAddOnInfo(i); if name then addon[name] = enabled; end;
 end;
-
-local questionMark = "Interface\\ICONS\\INV_Misc_QuestionMark";
 
 local IC = -- icons
 { 
@@ -74,6 +71,7 @@ local IC = -- icons
   autosendStart = "Interface\\Icons\\inv_engineering_90_gizmo",
   autosendStop  = "Interface\\Icons\\inv_mechagon_spareparts",
 };
+
 local textIC = -- icons for text
 { rpProfile  = "|A:profession:0:0|a",
   isIC       = "|TInterface\\COMMON\\Indicator-Green:0:0|t",
@@ -247,16 +245,16 @@ local function split(str, pat)
 end;
 
 local function getMSPFieldByPlayerName(playerName, field)
-  local msp = _G["msp"];
+  local  msp = _G["msp"];
   if not msp then return nil end;
-  local char = msp.char;
+  local  char = msp.char;
   if not char then return nil end;
-  local data = char[playerName];
+  local  data = char[playerName];
   if not data then return nil end;
-  local fields = data.field;
+  local  fields = data.field;
   if not fields then return nil end;
-  local value = fields[field];
-  if value == "" then return nil end;
+  local  value = fields[field];
+  if     value == "" then return nil end;
   return value;
 end;
 
@@ -492,17 +490,7 @@ StaticPopupDialogs[popup.deleteDBNow] =
   OnShow         = fixStaticPopup,
 }
 
-function RP_Find:PurgePlayer(name)
-  if name 
-  then self.data.rolePlayers[name]  = nil;
-       self.playerRecords[name]     = nil;
-  end;
-end;
-
-function RP_Find:SoftlyPurgePlayer(name)
-  if name then self.playerRecords[name] = nil;
-  end
-end;
+function RP_Find:PurgePlayer(name) self.playerRecords[name] = nil; end;
 
 function RP_Find:StartOrStopPruningTimer()
   if     self:HaveTimer("pruning") and self.db.profile.config.repeatSmartPruning 
@@ -527,10 +515,13 @@ function RP_Find:SmartPruneDatabase(interactive)
   local now = time();
   local count = 0;
 
-  local function getTimestamp(playerData) return playerData.last and playerData.last.when or 0 end;
+  local function getTimestamp(playerData) 
+    return playerData.last and playerData.last.when 
+    or 0 
+  end;
 
   local secs = math.exp(self.db.profile.config.smartPruningThreshold);
-  for   playerName, playerData in pairs(self.data.rolePlayers)
+  for   playerName, playerData in pairs(self.playerRecords)
   do    
         local delta = now - getTimestamp(playerData)
 
@@ -625,20 +616,12 @@ function RP_Find:Notify(forceChat, ...)
 end;
 
 local function initializeDatabase(wipe)
-  if   wipe 
-    or RP_Find.db.profile.config.deleteDBonLogin
-  then _G[finderDB]     = {};
-  else _G[finderDB]     = _G[finderDB] or {};
-  end;
+  _G[finderDB] = nil;
 
-  local database        = _G[finderDB];
-  database.rolePlayers  = database.rolePlayers or {};
-  RP_Find.data          = database;
   RP_Find.playerRecords = {};
-
 end;
 
-function RP_Find:NewPlayerRecord(playerName, server, playerData)
+function RP_Find:NewPlayerRecord(playerName, server)
   server     = server or self.realm;
   playerName = playerName .. (playerName:match("%-") and "" or ("-" .. server));
 
@@ -650,10 +633,6 @@ function RP_Find:NewPlayerRecord(playerName, server, playerData)
   end;
 
   playerRecord:Initialize();
-
-  if playerData then for field, value in pairs(playerData) 
-  do playerRecord:Set(field, value) end; 
-  end;
 
   if not playerRecord:Get("First Seen") 
   then playerRecord:Set("First Seen", nil, true) 
@@ -709,10 +688,6 @@ function RP_Find:GetAllPlayerRecords(filters, searchPattern)
   return list, filteredCount, totalCount;
 end;
 
-function RP_Find:GetAllPlayerData()
-  return self.data.rolePlayers;
-end;
-
 function RP_Find:GetMemoryUsage(fmt) -- returns value, units, message, bytes
   local value, units, warn;
   local currentUsage = GetAddOnMemoryUsage(self.addOnName);
@@ -734,24 +709,8 @@ end
 
 function RP_Find:CountPlayerRecords()
   local count = 0;
-  if self.playerRecords
+  if   self.playerRecords
   then for _, _ in pairs(self.playerRecords) do count = count + 1; end;
-  end;
-  return count;
-end;
-
-function RP_Find:CountPlayerData()
-  local count = 0
-  if self.data.rolePlayers
-  then for _, _ in pairs(self.data.rolePlayers) do count = count + 1 end;
-  end;
-  return count;
-end;
-
-function RP_Find:CountLFGGroups()
-  local count = 0;
-  if self.groupData
-  then for _, _ in pairs(self.groupData) do count = count + 1 end;
   end;
   return count;
 end;
@@ -855,9 +814,9 @@ end;
 
 function RP_Find:CheckPingResult(playerName)
   local playerRecord = self:GetPlayerRecord(playerName);
-  if not playerRecord then self:SoftlyPurgePlayer(playerName); return; end;
+  if not playerRecord then self:PurgePlayer(playerName); return; end;
   if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
-  then self:SoftlyPurgePlayer(playerName); return;
+  then self:PurgePlayer(playerName); return;
   end;
   self:ClearTimer("sendPing");
   RP_Find:Update("Display");
@@ -877,12 +836,6 @@ RP_Find.PlayerMethods =
 { 
   ["Initialize"] =
     function(self)
-      RP_Find.data.rolePlayers[self.playerName] 
-        = RP_Find.data.rolePlayers[self.playerName] or {};
-      self.data            = RP_Find.data.rolePlayers[self.playerName];
-      self.data.fields     = self.data.fields or {};
-      self.data.last       = self.data.last or {};
-      self.data.last.when  = time();
       self.cache           = {};
       self.cache.fields    = {};
       self.cache.last      = {};
@@ -892,41 +845,15 @@ RP_Find.PlayerMethods =
     end,
 
   ["Set"] =
-    function(self, field, value, permanent)
-      permanent = true;
+    function(self, field, value)
       self.cache.fields[field]       = self.cache.fields[field] or {};
       self.cache.fields[field].value = value;
       self.cache.fields[field].when  = time();
       self.cache.last.when           = time();
-
-      if   permanent
-      then self.data.fields[field]       = self.data.fields[field] or {};
-           self.data.fields[field].value = value;
-           self.data.fields[field].when  = time();
-           self.data.last.when           = time();
-      end;
-      return self;
-    end,
-
-  ["SetGently"] = 
-    function(self, field, value, permanent)
-      if not self:Get(field, permanent)
-      then   self:Set(field, value, permanent);
-      end;
-    end,
-      
-  ["SetCarefully"] =
-    function(self, field, value, permanent)
-      local current = self:Get(field, permanent);
-      if   (not current or current == "")
-           and 
-           (value   and value ~= "")
-      then self:Set(field, value, permanent);
-      end;
     end,
 
   ["SetTimestamp"] =
-    function(self, field, timeStamp, permanent)
+    function(self, field, timeStamp)
       timeStamp = timeStamp or time();
 
       if not field
@@ -937,28 +864,13 @@ RP_Find.PlayerMethods =
       then   self:Set(field, nil, { when = timeStamp });
       end;
 
-      if permanent
-      then 
-        if not field
-        then   self.data.last.when = timeStamp
-        elseif self.data.fields[field]
-        then   self.data.fields[field].when = timeStamp;
-        elseif type(field) == "string"
-        then   self:Set(field, nil, { when = timeStamp }, true);
-        end;
-      end;
-
-      return self;
-
     end,
 
   ["Get"] =
     function(self, field)
-      if            self.cache.fields[field] ~= nil
-      then   return self.cache.fields[field].value
-      elseif        self.data.fields[field]
-      then   return self.data.fields[field].value
-      else   return nil
+      if          self.cache.fields[field] ~= nil
+      then return self.cache.fields[field].value
+      else return nil
       end;
     end,
 
@@ -1436,79 +1348,12 @@ RP_Find.PlayerMethods =
   ["HaveMSPData"  ] = function(self) return getMSPFieldByPlayerName(self.playerName, "NA") end,
   ["HaveRPProfile"] = function(self) return self:HaveTRP3Data() or self:HaveMSPData() end, 
 
-  --[[
-      if not RP_Find:HaveRPClient() then return nil end;
-      local  mspData = _G["msp"].char[self.playerName];
-      if not mspData then return end;
-      if     mspData.field and mspData.field.VA -- the minimum we need to be valid msp data
-      then   for field, value in pairs(mspData.field) 
-             do  self:SetGently("MSP-" .. field, value); 
-             end;
-      end;
-      self:SetCarefully("have_mspData", true);
-      RP_Find:Update("Display");
-    end,
-  --]]
-
   ["SetHaveTRP3Data"] = function(self) self:Set(HAVE_TRP3_DATA, true) end,
-  --[[
-      if not RP_Find:HaveRPClient("totalRP3") then return end;
-
-      local profile = TRP3_API.register.getUnitIDCurrentProfileSafe(self.playerName);
-
-      local ristics = profile.characteristics;
-
-      -- as with :GetRP, we're probably not going to use all of these
-      --
-      local char    = profile.character;
-      if   char
-      then self:SetCarefully("MSP-FC", char.RP)
-           self:SetCarefully("MSP-CO", char.CO);
-           self:SetCarefully("MSP-CU", char.CU);
-           self:SetCarefully("MSP-FR", char.RP);
-      end;
-
-      if ristics
-      then self:SetCarefully("MSP-NA", ristics.FN);
-           self:SetCarefully("MSP-RC", ristics.CL);
-           self:SetCarefully("MSP-RA", ristics.RA);
-           self:SetCarefully("MSP-IC", ristics.IC);
-           self:SetCarefully("MSP-AG", ristics.AG);
-           self:SetCarefully("MSP-AE", ristics.EC);
-           self:SetCarefully("MSP-AH", ristics.HE);
-           self:SetCarefully("MSP-AW", ristics.WE);
-           self:SetCarefully("MSP-HB", ristics.BP);
-           self:SetCarefully("MSP-HH", ristics.RE);
-           self:SetCarefully("MSP-PX", ristics.TI);
-           self:SetCarefully("MSP-RS", ristics.RS);
-           self:SetCarefully("MSP-NT", ristics.FT);
-      
-           if   ristics.MI
-           then local miscRistics = {}
-                for i, item in ipairs(ristics.MI)
-                do miscRistics[item.NA:lower()] = item.VA;
-                end;
-                self:SetCarefully("MSP-MO", miscRistics.motto);
-                self:SetCarefully("MSP-NH", miscRistics["house name"]);
-                self:SetCarefully("MSP-NI", miscRistics.nickname);
-                self:SetCarefully("MSP-PN", miscRistics.pronouns);
-           end;
-      end;
-
-      self:Set("have_trp3Data", true);
-
-      RP_Find:Update("Display");
-    end,
-  --]]
 
   ["GetTimestamp"] =
-    function(self, field, permanent)
-      if     not field and permanent
-      then   return self.data.last.when or time()
-      elseif not field
+    function(self, field)
+      if     not field
       then   return self.cache.last.when or time()
-      elseif self.data.fields[field]  and permanent
-      then   return self.data.fields[field].when or time()
       elseif self.cache.fields[field]
       then   return self.cache.fields[field].when or time()
       else   return time()
