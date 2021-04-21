@@ -50,6 +50,7 @@ local col = {
   addon  = function(str) return     RP_FIND_FONT_COLOR:WrapTextInColorCode(str) end,
 };
 
+-- scan the list of enabled addons
 local addon = {};
 for i = 1, GetNumAddOns()
 do  local name, _, _, enabled = GetAddOnInfo(i); if name then addon[name] = enabled; end;
@@ -87,12 +88,14 @@ local textIC   = -- icons for text
   rpFind        = "|T" .. IC.spotlight .. ":0:0:0:0:64:64:8:56:8:56:85:204:255|t",
   check         = "|TInterface\\COMMON\\Indicator-Green:0:0|t",
   blank         = "|TInterface\\Store\\ServicesAtlas:0::0:0:1024:1024:1023:1024:1023:1024|t",
-  -- inSameZone = "|A:minimap-vignettearrow:0:0|a",
-  -- active     = "",
-  -- horde      = "|A:hordesymbol:0:0|a",
-  -- alliance   = "|A:alliancesymbol:0:0|a",
-  -- looking    = "|A:questdaily:0:0|a",
-}
+--[[
+  inSameZone = "|A:minimap-vignettearrow:0:0|a",
+  active     = "",
+  horde      = "|A:hordesymbol:0:0|a",
+  alliance   = "|A:alliancesymbol:0:0|a",
+  looking    = "|A:questdaily:0:0|a",
+--]]
+};
 
 local htmlCodes   =
   { ["blockquote"]  = "<br /><p>" .. textIC.blank .. "|cffff00ff",
@@ -109,33 +112,27 @@ local htmlCodes   =
     ["list_marker"] = "|TInterface\\COMMON\\Indicator-Yellow.PNG:0|t",
   };
 
-for k, v in pairs(htmlCodes)
-do ACEMARKDOWNWIDGET_CONFIG.LibMarkdownConfig[k] = v;
-end;
+for k, v in pairs(htmlCodes) do ACEMARKDOWNWIDGET_CONFIG.LibMarkdownConfig[k] = v; end;
 
 ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.Spacing = 2;
-ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.red   = 1;
-ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.green = 1;
-ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.blue  = 1;
-
+ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.red     = 1;
+ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.green   = 1;
+ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.blue    = 1;
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.default.Popup =
   { Text = L["Link Text Default"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
-
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.http.Popup =
   { Text = L["Link Text HTTP"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
-
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.https.Popup =
   { Text = L["Link Text HTTPS"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
-
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.mailto.Popup =
   { Text = L["Link Text Mailto"],
     PrefixText = addOnTitle .. "\n\n",
@@ -144,40 +141,35 @@ ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.mailto.Popup =
  
 local zoneList =
 { 1, 7, 10, 18, 21, 22, 23, 27, 37, 47, 49, 52, 57, 64, 71, 76, 80, 83, 84, 85, 87,
-88, 89, 90, 94, 103, 110, 111, 199, 202, 210, 217, 224, 390, 1161, 1259, 1271, 1462,
-1670, };
+  88, 89, 90, 94, 103, 110, 111, 199, 202, 210, 217, 224, 390, 1161, 1259, 1271, 1462,
+  1670, };
 
 local pointsOfInterest =
-{ [84] = 
-  { { x = 48, y = 80, title = "The Mage Quarter", r = 6 },
-    { x = 54, y = 51, title = "Cathedral Square", r = 6 },
-    { x = 42, y = 64, title = "Lion's Rest", r = 8 },
-    { x = 28, y = 36, title = "Stormwind Harbor", r = 16 },
-    { x = 63, y = 70, title = "Trade District", r = 7 },
-    { x = 74, y = 59, title = "Old Town", r = 6 },
-    { x = 80, y = 37, title = "Stormwind Keep", r = 7 },
-    { x = 66, y = 36, title = "The Dwarven District", r = 8 },
-  },
-  [37] =
-  {
-    { x = 42, y = 64, title = "Goldshire", r = 2 },
-  },
-  [85] =
-  { { x = 70, y = 40, title = "Valley of Honor", r = 9 },
-    { x = 53, y = 55, title = "The Drag", r = 8 },
-    { x = 50, y = 75, title = "Valley of Strength", r = 8 },
-    { x = 33, y = 73, title = "Valley of Spirits", r = 10 },
-    { x = 37, y = 32, title = "Valley of Wisdom", r = 12 },
-  },
-  [110] = 
-  { { x = 60, y = 70, title = "The Bazaar", r = 10 },
-    { x = 76, y = 80, title = "Walk of Elders", r = 13 },
-    { x = 90, y = 58, title = "The Royal Exchange", r = 10 },
-    { x = 75, y = 49, title = "Murder Row", r = 7 },
-    { x = 85, y = 25, title = "Farstriders' Square", r = 15 },
-    { x = 68, y = 37, title = "Court of the Sun", r = 9 },
-    { x = 55, y = 20, title = "Sunfury Spire", r = 12 },
-  },
+{ [84] = -- Stormwind
+  { { x = 48, y = 80, title = L["Subzone The Mage Quarter"     ], r  =  6 },
+    { x = 54, y = 51, title = L["Subzone Cathedral Square"     ], r  =  6 },
+    { x = 42, y = 64, title = L["Subzone Lion's Rest"          ], r  =  8 },
+    { x = 28, y = 36, title = L["Subzone Stormwind Harbor"     ], r  = 16 },
+    { x = 63, y = 70, title = L["Subzone Trade District"       ], r  =  7 },
+    { x = 74, y = 59, title = L["Subzone Old Town"             ], r  =  6 },
+    { x = 80, y = 37, title = L["Subzone Stormwind Keep"       ], r  =  7 },
+    { x = 66, y = 36, title = L["Subzone The Dwarven District" ], r  =  8 }, },
+  [37] = -- Elwynn Forest
+  { { x = 42, y = 64, title = L["Subzone Goldshire"            ], r  =  2 }, },
+  [85] = -- Orgrimmar
+  { { x = 70, y = 40, title = L["Subzone Valley of Honor"      ], r  =  9 },
+    { x = 53, y = 55, title = L["Subzone The Drag"             ], r  =  8 },
+    { x = 50, y = 75, title = L["Subzone Valley of Strength"   ], r  =  8 },
+    { x = 33, y = 73, title = L["Subzone Valley of Spirits"    ], r  = 10 },
+    { x = 37, y = 32, title = L["Subzone Valley of Wisdom"     ], r  = 12 }, },
+  [110] = -- Silvermoon City
+  { { x = 60, y = 70, title = L["Subzone The Bazaar"           ], r  = 10 },
+    { x = 76, y = 80, title = L["Subzone Walk of Elders"       ], r  = 13 },
+    { x = 90, y = 58, title = L["Subzone The Royal Exchange"   ], r  = 10 },
+    { x = 75, y = 49, title = L["Subzone Murder Row"           ], r  =  7 },
+    { x = 85, y = 25, title = L["Subzone Farstriders' Square"  ], r  = 15 },
+    { x = 68, y = 37, title = L["Subzone Court of the Sun"     ], r  =  9 },
+    { x = 55, y = 20, title = L["Subzone Sunfury Spire"        ], r  = 12 }, },
 };
 
 local zoneBacklink = {};
@@ -195,12 +187,9 @@ local menu =
     [110985 ] = L["Sound Voice Join"       ], [111368 ] = L["Sound Voice In"         ],
     [111367 ] = L["Sound Voice Out"        ],
   },
-  notifySoundOrder = { 139868, 18871, 12867, 12889, 118460, 5274, 18019,  38326,  31578, 9378, 
-                       3332,   3175, 8959,  39516, 37881, 111370, 110985, 111368, 111367 },
-  zone = {},
-  zoneOrder = {};
-  perPage = {},
-  perPageOrder = {},
+  notifySoundOrder = 
+  { 139868, 18871, 12867, 12889, 118460, 5274, 18019,  38326,  31578, 9378, 
+    3332,   3175, 8959,  39516, 37881, 111370, 110985, 111368, 111367 },
   infoColumn =
   { ["Info Class"           ] = L["Info Class"           ],
     ["Info Race"            ] = L["Info Race"            ],
@@ -208,41 +197,40 @@ local menu =
     ["Info Age"             ] = L["Info Age"             ],
     ["Info Pronouns"        ] = L["Info Pronouns"        ],
     ["Info Zone"            ] = L["Info Zone"            ],
-    ["Info Tags"            ] = L["Info Tags"            ],
     ["Info Status"          ] = L["Info Status"          ],
     ["Info Currently"       ] = L["Info Currently"       ],
     ["Info OOC Info"        ] = L["Info OOC Info"        ],
     ["Info Title"           ] = L["Info Title"           ],
     ["Info Data Timestamp"  ] = L["Info Data Timestamp"  ],
-    -- ["Info Data First Seen" ] = L["Info Data First Seen" ],
     ["Info Server"          ] = L["Info Server"          ],
     ["Info Subzone"         ] = L["Info Subzone"         ],
-    ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ],
-
-  },
+    ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ], },
+    -- ["Info Tags"            ] = L["Info Tags"            ],
+    -- ["Info Data First Seen" ] = L["Info Data First Seen" ],
   infoColumnOrder =
-    { "Info Class", "Info Race", "Info Race Class", "Info Age", 
-      "Info Pronouns", "Info Zone", "Info Zone Subzone",
-      "Info Subzone", "Info Status", "Info Currently", "Info OOC Info", 
-      "Info Title", "Info Server",
-     -- "Info Tags", 
-     -- "Info Data First Seen", 
-    },
+  { "Info Class", "Info Race", "Info Race Class", "Info Age", 
+    "Info Pronouns", "Info Zone", "Info Zone Subzone",
+    "Info Subzone", "Info Status", "Info Currently", "Info OOC Info", 
+    "Info Title", "Info Server", }, -- "Info Tags", -- "Info Data First Seen", 
 
   notifyChatType = 
-    { ["COMBAT_MISC_INFO"]      = COMBAT_MISC_INFO,
-      ["SKILL"]                 = SKILLUPS,
-      ["BN_INLINE_TOAST_ALERT"] = BN_INLINE_TOAST_ALERT,
-      ["SYSTEM"]                = SYSTEM_MESSAGES,
-      ["TRADESKILLS"]           = TRADESKILLS,
-      ["CHANNEL"]               = CHANNEL,
-      ["SAY"]                   = SAY,
-      ["MONSTER_SAY"]           = SAY .. " (" .. CREATURE .. ")",
-    },
+  { ["COMBAT_MISC_INFO"]      = COMBAT_MISC_INFO,
+    ["SKILL"]                 = SKILLUPS,
+    ["BN_INLINE_TOAST_ALERT"] = BN_INLINE_TOAST_ALERT,
+    ["SYSTEM"]                = SYSTEM_MESSAGES,
+    ["TRADESKILLS"]           = TRADESKILLS,
+    ["CHANNEL"]               = CHANNEL,
+    ["SAY"]                   = SAY,
+    ["MONSTER_SAY"]           = SAY .. " (" .. CREATURE .. ")",
+  },
 
   notifyChatTypeOrder =
-    { "COMBAT_MISC_INFO", "SKILL", "BN_INLINE_TOAST_ALERT",
-      "SYSTEM", "TRADESKILLS", "CHANNEL", "SAY", "MONSTER_SAY", }
+  { "COMBAT_MISC_INFO", "SKILL", "BN_INLINE_TOAST_ALERT",
+    "SYSTEM", "TRADESKILLS", "CHANNEL", "SAY", "MONSTER_SAY", }
+  zone = {},
+  zoneOrder = {};
+  perPage = {},
+  perPageOrder = {},
 
 };
 
@@ -4030,8 +4018,8 @@ function adFrame:AddField(field, value, default)
   end;
 
   self.fieldY = self.fieldY 
-                + math.max(fieldString:GetHeight(), valueString:GetHeight())
-                + self.vPadding;
+              + math.max(fieldString:GetHeight(), valueString:GetHeight())
+              + self.vPadding;
 
 end;
 
@@ -4197,23 +4185,12 @@ end;
 
 function RP_Find:SendAddonMessage(prefix, text)
   local channelNum = GetChannelName(addonChannel);
-  AddOn_Chomp.SendAddonMessage(
-                prefix, 
-                text, 
-                "CHANNEL", 
-                channelNum
-              );
+  AddOn_Chomp.SendAddonMessage(prefix, text, "CHANNEL", channelNum);
 end;
   
 function RP_Find:SendSmartAddonMessage(prefix, data)
   local channelNum = GetChannelName(addonChannel);
-  AddOn_Chomp.SmartAddonMessage(
-                prefix, 
-                data, 
-                "CHANNEL", 
-                channelNum, 
-                { serialize = true }
-              );
+  AddOn_Chomp.SmartAddonMessage(prefix, data, "CHANNEL", channelNum, { serialize = true });
 end;
 
 RP_Find.AddonMessageReceived = {};
@@ -4361,7 +4338,6 @@ end;
 function RP_Find:ComposeAd()
 
   local text = addonPrefix.rpfind .. ":AD";
-
   local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
 
   -- if  self:HaveRPClient("totalRP3") then self.my:SetHaveTRP3Data(true); end;
@@ -4453,6 +4429,7 @@ RP_Find.configButton:SetScript("OnEnter",
   end);
 RP_Find.configButton:SetScript("OnLeave", hideTooltip);
 
+--[[
 local function makeColorBar()
   local frameWidth = 240;
   local height = 16;
@@ -4525,7 +4502,8 @@ local function makeColorBar()
   return colorBar;
 end;
 
--- RP_Find.colorBar = makeColorBar();
+RP_Find.colorBar = makeColorBar();
+--]]
 
 -- slash commands
 --
@@ -4553,45 +4531,30 @@ SlashCmdList["RP_FIND"] =
   function(a)
     local  param = { strsplit(" ", a); };
     local  cmd = table.remove(param, 1);
-    if     cmd == "" or cmd == "help"                   
-    then   RP_Find:HelpCommand();
-    elseif cmd:match("^option") or cmd:match("^config") 
-    then   RP_Find:OpenOptions();
-    elseif cmd:match("^toggle")
-    then   if RP_Find.Finder:IsShown()
-           then RP_Find:HideFinder()
-           else RP_Find:ShowFinder()
-           end;
-    elseif cmd:match("^open") or cmd:match("^show")
-    then   RP_Find:ShowFinder();
-    elseif cmd:match("^close") or cmd:match("^hide")
-    then   RP_Find:HideFinder();
-    elseif cmd:match("^database") or cmd:match("^db")
-    then   Finder:LoadTab("Display");
-           RP_Find:ShowFinder();
-    elseif cmd:match("^ad")
-    then   Finder:LoadTab("Ads");
-           RP_Find:ShowFinder();
-    elseif cmd:match("^tool")
-    then   Finder:LoadTab("Tools");
-           RP_Find:ShowFinder();
-    elseif cmd:match("^map") or cmd:match("^scan")
-    then   RP_Find:SendTRP3Scan();
-    elseif cmd:match("^send")
-    then   RP_Find:SendLFRPAd();
-    else   RP_Find:HelpCommand();
+
+    if     cmd == ""              or cmd:match("^help")   then RP_Find:HelpCommand();
+    elseif cmd:match("^option")   or cmd:match("^config") then RP_Find:OpenOptions();
+    elseif cmd:match("^toggle")                           then if RP_Find.Finder:IsShown() then RP_Find:HideFinder() else RP_Find:ShowFinder() end;
+    elseif cmd:match("^open")     or cmd:match("^show")   then RP_Find:ShowFinder();
+    elseif cmd:match("^close")    or cmd:match("^hide")   then RP_Find:HideFinder();
+    elseif cmd:match("^database") or cmd:match("^db")     then Finder:LoadTab("Display"); RP_Find:ShowFinder();
+    elseif cmd:match("^ad")                               then Finder:LoadTab("Ads"); RP_Find:ShowFinder();
+    elseif cmd:match("^tool")                             then Finder:LoadTab("Tools"); RP_Find:ShowFinder();
+    elseif cmd:match("^map")      or cmd:match("^scan")   then RP_Find:SendTRP3Scan();
+    elseif cmd:match("^send")                             then RP_Find:SendLFRPAd();
+                                                          else RP_Find:HelpCommand();
     end;
   end;
 
-_G["BINDING_HEADER_RP_FIND"] = L["Binding Group rpFind"];
-_G["BINDING_NAME_RP_FIND_SHOW"] = L["Binding Show Finder"];
-_G["BINDING_NAME_RP_FIND_HIDE"] = L["Binding Hide Finder"];
-_G["BINDING_NAME_RP_FIND_TOGGLE"] = L["Binding Toggle Finder"];
-_G["BINDING_NAME_RP_FIND_SEND_AD"] = L["Binding Send Ad"];
-_G["BINDING_NAME_RP_FIND_DISPLAY"] = L["Binding Display"];
-_G["BINDING_NAME_RP_FIND_ADS"] = L["Binding Ads"];
-_G["BINDING_NAME_RP_FIND_TOOLS"] = L["Binding Tools"];
-_G["BINDING_NAME_RP_FIND_MAP_SCAN"] = L["Binding Send Map Scan"];
+_G["BINDING_HEADER_RP_FIND"        ] = L["Binding Group rpFind"  ];
+_G["BINDING_NAME_RP_FIND_SHOW"     ] = L["Binding Show Finder"   ];
+_G["BINDING_NAME_RP_FIND_HIDE"     ] = L["Binding Hide Finder"   ];
+_G["BINDING_NAME_RP_FIND_TOGGLE"   ] = L["Binding Toggle Finder" ];
+_G["BINDING_NAME_RP_FIND_SEND_AD"  ] = L["Binding Send Ad"       ];
+_G["BINDING_NAME_RP_FIND_DISPLAY"  ] = L["Binding Display"       ];
+_G["BINDING_NAME_RP_FIND_ADS"      ] = L["Binding Ads"           ];
+_G["BINDING_NAME_RP_FIND_TOOLS"    ] = L["Binding Tools"         ];
+_G["BINDING_NAME_RP_FIND_MAP_SCAN" ] = L["Binding Send Map Scan" ];
 
 
 
