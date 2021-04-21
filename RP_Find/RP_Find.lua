@@ -1769,10 +1769,7 @@ function Finder:CreateButtonBar()
       icon    = IC.sendAd,
       id      = "sendAd",
       tooltip = L["Button Toolbar Send Ad Tooltip"],
-      func    = function(self, event, button) 
-                  RP_Find.db.profile.ad.autoSend = true;
-                  RP_Find:SendLFRPAd(true);  -- true = interactive
-                end,
+      func    = function(self, event, button) RP_Find:SendLFRPAd(true); end, -- true = interactive
       enable  = function() return not RP_Find:ShouldSendAdBeDisabled() end,
     },
 
@@ -1806,9 +1803,7 @@ function Finder:CreateButtonBar()
       icon    = IC.tools,
       id      = "tools",
       tooltip = L["Button Toolbar Tools Tooltip"],
-      func    = function(self, event, button) 
-                  Finder:LoadTab("Tools"); 
-                end,
+      func    = function(self, event, button) Finder:LoadTab("Tools"); end,
       enable = function() return Finder.currentTab ~= "Tools"; end,
     },
 
@@ -1823,7 +1818,6 @@ function Finder:CreateButtonBar()
       enable = function() 
                  return RP_Find.db.profile.config.monitorTRP3 
                     and not RP_Find:LastSince("mapScan", 1, SECONDS_PER_MIN)
-
                     -- and time() - (RP_Find:Last("mapScan") or 0) > SECONDS_PER_MIN
                 end,
     },
@@ -3940,8 +3934,8 @@ end;
 
 -- Ad Display
 --
-local adFrame = CreateFrame("Frame", "RP_Find_AdDisplayFrame", 
-                            UIParent, "PortraitFrameTemplate");
+local adFrame = CreateFrame("Frame", "RP_Find_AdDisplayFrame", UIParent, "PortraitFrameTemplate");
+
 adFrame:SetMovable(true);
 adFrame:EnableMouse(true);
 adFrame:RegisterForDrag("LeftButton");
@@ -3959,7 +3953,8 @@ adFrame.subtitle:SetWordWrap(false);
 adFrame.subtitle:SetJustifyV("TOP");
 adFrame.subtitle:SetJustifyH("CENTER");
 adFrame.subtitle:SetPoint("TOPLEFT", 70, -32);
-adFrame.subtitle:SetWidth(200);
+adFrame.subtitle:SetWidth(250);
+adFrame.subtitle:SetText("placeholder")
 
 adFrame.body = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
 adFrame.body:SetWordWrap(true);
@@ -3984,7 +3979,7 @@ end;
 function adFrame:GetPlayerName() return self.playerName; end;
 
 function adFrame:SetSubtitle(text, default) 
-  if default and (text == "" or not text)
+  if   default and (text == "" or not text)
   then self.subtitle:SetText(default); 
   else self.subtitle:SetText(text);
   end;
