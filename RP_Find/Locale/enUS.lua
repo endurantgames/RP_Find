@@ -106,6 +106,7 @@ L["Button Toolbar Autosend Start Tooltip"  ] = "Send your LFRP ad now, and then 
 L["Button Toolbar Autosend Stop Tooltip"   ] = "Stop your LFRP ad from auto-sending every hour.";
 L["Button Toolbar Scan Results Tooltip"    ] = "View the results of your most recent map scan.";
 L["Field Body Adult Hidden"                ] = "Adult content hidden; to view, enable See Adult Ads in options."
+L["Field Timestamp"                        ] = "Time Sent";
 L["Field Title Adult Hidden"               ] = "Adult content hidden";
 L["Config Alert All TRP3 Scan Tooltip"     ] = "Check this to be notified when someone in any zone does a TRP3 map scan.";
 L["Config Alert All TRP3 Scan"             ] = "Alert All TRP3 Scans";

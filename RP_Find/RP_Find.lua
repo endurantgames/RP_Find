@@ -4191,6 +4191,10 @@ function adFrame:SetPlayerRecord(playerRecord)
   self:AddField(L["Field Race"    ], playerRecord:GetRPRace(),     L["Field Blank"]);
   self:AddField(L["Field Class"   ], class,                        L["Field Blank"]);
   self:AddField(L["Field Pronouns"], playerRecord:GetRPPronouns(), L["Field Blank"]);
+  if self.playerName ~= RP_Find.me
+  then self:AddField(L["Field Timestamp"], playerRecord:GetHumanReadableTimestamp("ad"), L["Field Blank"]);
+  end;
+
   if   playerRecord:Get("ad_adult") 
   then self.backdrop:SetVertexColor(1, 0, 0, 2/3);
        self.isAdult = true;
