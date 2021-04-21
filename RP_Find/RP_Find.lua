@@ -4040,7 +4040,7 @@ function adFrame:Reset()
   self.fieldY     = 70;
   self.fieldWidth = 75;
   self.valueWidth = 220;
-  self.vPadding   = 10;
+  self.vPadding   = 5;
   self.hPadding   = 10;
   self.fieldNum   = 0;
   self.fieldPool  = self.fieldPool or {};
