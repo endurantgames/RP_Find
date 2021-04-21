@@ -26,7 +26,7 @@ local MEMORY_WARN_MB      = 10;
 local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
 local BIG_STRING_LIMIT    = 30;
-local UPDATE_CYCLE_TIME = 10;
+local UPDATE_CYCLE_TIME   = 10;
 local HAVE_MSP_DATA       = "have_mspData";
 local HAVE_TRP3_DATA      = "have_trp3Data";
 local MSP_FIELDS          = "RA RC IC FC AG AH AW CO CU FR NI NT PN PX VA TR GR GS GC"
@@ -39,7 +39,7 @@ local finderFrameName     = "RP_Find_Finder_Frame";
 local addonChannel        = "xtensionxtooltip2";
 local addonPrefix         = { trp3 = "RPB1", rpfind = "LFRP1", };
 local addOnTitle          = GetAddOnMetadata(addOnName, "Title");
-local msp = _G["msp"];
+local msp                 = _G["msp"];
 
 local col = {
   gray   = function(str) return   LIGHTGRAY_FONT_COLOR:WrapTextInColorCode(str) end,
@@ -89,11 +89,11 @@ local textIC   = -- icons for text
   check         = "|TInterface\\COMMON\\Indicator-Green:0:0|t",
   blank         = "|TInterface\\Store\\ServicesAtlas:0::0:0:1024:1024:1023:1024:1023:1024|t",
 --[[
-  inSameZone = "|A:minimap-vignettearrow:0:0|a",
-  active     = "",
-  horde      = "|A:hordesymbol:0:0|a",
-  alliance   = "|A:alliancesymbol:0:0|a",
-  looking    = "|A:questdaily:0:0|a",
+  inSameZone    = "|A:minimap-vignettearrow:0:0|a",
+  active        = "",
+  horde         = "|A:hordesymbol:0:0|a",
+  alliance      = "|A:alliancesymbol:0:0|a",
+  looking       = "|A:questdaily:0:0|a",
 --]]
 };
 
@@ -170,6 +170,15 @@ local pointsOfInterest =
     { x = 85, y = 25, title = L["Subzone Farstriders' Square"  ], r  = 15 },
     { x = 68, y = 37, title = L["Subzone Court of the Sun"     ], r  =  9 },
     { x = 55, y = 20, title = L["Subzone Sunfury Spire"        ], r  = 12 }, },
+  [87] = -- Ironforge
+  { { x = 70, y = 49, title = L["Subzone Tinkertown"           ], r  = 11 },
+    { x = 68, y = 19, title = L["Subzone Hall of Explorers"    ], r  = 17 },
+    { x = 49, y = 11, title = L["Subzone The Forlorn Cavern"   ], r  =  8 },
+    { x = 38, y = 18, title = L["Subzone The Mystic Ward"      ], r  = 14 },
+    { x = 48, y = 49, title = L["Subzone The Great Forge"      ], r  = 25 },
+    { x = 17, y = 83, title = L["Subzone Gates of Ironforge"   ], r  = 10 },
+    { x = 70, y = 88, title = L["Subzone The Military Ward"    ], r  = 18 },
+    { x =  1, y = 75, title = L["Subzone The Commons"          ], r  = 50 }, },
 };
 
 local zoneBacklink = {};
@@ -196,6 +205,7 @@ local menu =
     ["Info Race Class"      ] = L["Info Race Class"      ],
     ["Info Age"             ] = L["Info Age"             ],
     ["Info Pronouns"        ] = L["Info Pronouns"        ],
+    ["Info Height Weight"   ] = L["Info Height Weight"   ],
     ["Info Zone"            ] = L["Info Zone"            ],
     ["Info Status"          ] = L["Info Status"          ],
     ["Info Currently"       ] = L["Info Currently"       ],
@@ -206,12 +216,11 @@ local menu =
     ["Info Subzone"         ] = L["Info Subzone"         ],
     ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ], },
     -- ["Info Tags"            ] = L["Info Tags"            ],
-    -- ["Info Data First Seen" ] = L["Info Data First Seen" ],
   infoColumnOrder =
   { "Info Class", "Info Race", "Info Race Class", "Info Age", 
     "Info Pronouns", "Info Zone", "Info Zone Subzone",
     "Info Subzone", "Info Status", "Info Currently", "Info OOC Info", 
-    "Info Title", "Info Server", }, -- "Info Tags", -- "Info Data First Seen", 
+    "Info Title", "Info Server", }, -- "Info Tags", 
 
   notifyChatType = 
   { ["COMBAT_MISC_INFO"]      = COMBAT_MISC_INFO,
@@ -226,10 +235,10 @@ local menu =
 
   notifyChatTypeOrder =
   { "COMBAT_MISC_INFO", "SKILL", "BN_INLINE_TOAST_ALERT",
-    "SYSTEM", "TRADESKILLS", "CHANNEL", "SAY", "MONSTER_SAY", }
-  zone = {},
-  zoneOrder = {};
-  perPage = {},
+    "SYSTEM", "TRADESKILLS", "CHANNEL", "SAY", "MONSTER_SAY", },
+  zone         = {},
+  zoneOrder    = {};
+  perPage      = {},
   perPageOrder = {},
 
 };
@@ -256,8 +265,6 @@ do  local info = C_Map.GetMapInfo(mapID);
            zoneBacklink[info.name] = mapID;
     end;
 end;
-
---
 
 local function split(str, pat)
   local t = {};
@@ -286,7 +293,7 @@ local function getMSPFieldByPlayerName(playerName, field)
      and msp.char[playerName].field[field]
      or nil;
          
-  --[[
+--[[
   local  msp = _G["msp"];
   if not msp then return nil end;
   local  char = msp.char;
@@ -298,7 +305,7 @@ local function getMSPFieldByPlayerName(playerName, field)
   local  value = fields[field];
   if     value == "" then return nil end;
   return value;
-  --]]
+--]]
 end;
 
 local function stripColor(text)
@@ -332,16 +339,16 @@ end;
 local order = 0;
 local function source_order(reset) order = reset or (order + 1); return order; end;
 
--- info:
-  -- anchor        "ANCHOR_<position>"
-  -- title         text
-  -- titleColor    { r, g, b }
-  -- columns       { { text, text }, { text, text }, ... }
-  -- color1        { r, g, b }
-  -- color2        { r, g, b }
-  -- lines         { text, text, ... }
-  -- color         { r, g, b }
-  --
+--[[ info:
+  anchor        "ANCHOR_<position>"
+  title         text
+  titleColor    { r, g, b }
+  columns       { { text, text }, { text, text }, ... }
+  color1        { r, g, b }
+  color2        { r, g, b }
+  lines         { text, text, ... }
+  color         { r, g, b }
+--]]
 local function showTooltip(frame, info)
   frame = frame.frame or frame;
   GameTooltip:ClearLines();
@@ -988,6 +995,18 @@ local infoColumnFunctionHash =
     end,
   --]]
 
+  ["Info Height Weight"] =
+    function(self)
+      local height = self:GetRPHeight();
+      local weight = self:GetRPWeight();
+      if height and weight
+      then return height .. ", " .. weight
+      elseif height then return height
+      elseif weight then return weight
+      else return ""
+      end;
+    end,
+
   ["Info Game Race Class"] = 
     function(self)
       local class = self:Get("MSP-GC");
@@ -995,7 +1014,18 @@ local infoColumnFunctionHash =
       return (race and (race .. " ") or "") .. (class or "");
     end,
 
-  ["Info Subzone"] = function(self) return self:GetSubzoneName() end,
+  ["Info Subzone"] = 
+    function(self, tooltip) 
+      if   tooltip 
+      then local zone, subzone = self:GetZoneName(), self:GetSubzoneName();
+           if     zone ~= "" and subzone ~= ""
+           then   return self:GetZoneName() .. " (" .. self:GetSubzoneName() .. ")"
+           elseif zone ~= ""
+           then   return zone
+           end;
+      else return self:GetSubzoneName() 
+      end;
+    end,
 
   ["Info Zone Subzone"] =
     function(self)
