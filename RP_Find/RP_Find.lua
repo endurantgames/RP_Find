@@ -353,6 +353,7 @@ local function showTooltip(frame, info)
   frame = frame.frame or frame;
   GameTooltip:ClearLines();
   GameTooltip:SetOwner(frame, info.anchor or "ANCHOR_BOTTOM");
+  if info.anchorPreserve then GameTooltip:SetOwner(frame, "ANCHOR_PRESERVE"); end;
 
   local r,  g,  b  = 1, 1, 0;
   local r2, g2, b2 = 1, 1, 1;
@@ -1480,10 +1481,7 @@ RP_Find.playerRecordMethods =
   ["LabelReadAd"] = function(self) return L["Label Read Ad"], not self:HaveLFRPAd(); end,
 
   ["CmdReadAd"] = function(self) 
-      if self:Get("ad")
-      then RP_Find.adFrame:SetPlayerRecord(self); 
-           RP_Find.adFrame:Show(); 
-      end;
+      if self:Get("ad") then RP_Find.adFrame:SetPlayerRecord(self); RP_Find.adFrame:Show(); end;
     end,
 
   ["LabelInvite"] = function(self) return L["Label Invite"], RP_Find:LastSince("sendInvite", 1, SECONDS_PER_MIN) end,
@@ -2766,6 +2764,12 @@ function Finder.MakeFunc.Ads(self)
 
   local currentProfile;
 
+  local function updatePreviewIfShown()
+    if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+    then RP_Find.adFrame:UpdatePreview() 
+    end;
+  end;
+
   local function enableOrDisableButtons(dontUpdateButtonBar)
     local autoSendActive = RP_Find:HaveTimer("autoSend") and RP_Find.db.profile.ad.autoSend;
     local disableSend = RP_Find:ShouldSendAdBeDisabled();
@@ -2791,9 +2795,9 @@ function Finder.MakeFunc.Ads(self)
   local function adultContentCheck()
     local adult = RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.text)
                   or RP_Find:ScanForAdultContent(RP_Find.db.profile.ad.body);
-    if   adult
-    then RP_Find.db.profile.ad.adult = true;
-         adultToggle:SetValue(true);
+    if   adult 
+    then RP_Find.db.profile.ad.adult = true; adultToggle:SetValue(true); 
+         updatePreviewIfShown();
     end;
   end;
 
@@ -2806,9 +2810,9 @@ function Finder.MakeFunc.Ads(self)
          adultContentCheck();
          enableOrDisableButtons();
          currentProfile = RP_Find.db:GetCurrentProfile();
+         updatePreviewIfShown();
     end;
   end;
-
 
   clearAdButton:SetText(L["Button Clear Ad"]);
   clearAdButton:SetRelativeWidth(0.19);
@@ -2818,6 +2822,7 @@ function Finder.MakeFunc.Ads(self)
       bodyField:ResetValue();
       adultToggle:ResetValue();
       enableOrDisableButtons();
+      updatePreviewIfShown();
       RP_Find:Notify(L["Notify Ad Cleared"]);
     end);
 
@@ -2837,7 +2842,7 @@ function Finder.MakeFunc.Ads(self)
 
   previewAdButton:SetText(L["Button Preview Ad"]);
   previewAdButton:SetRelativeWidth(0.19);
-  previewAdButton:SetCallback("OnClick", RP_Find.adFrame.showPreview);
+  previewAdButton:SetCallback("OnClick", RP_Find.adFrame.ShowPreview);
 
   previewAdButton:SetCallback("OnEnter",
     function(self, event, ...)
@@ -2878,7 +2883,7 @@ function Finder.MakeFunc.Ads(self)
     end);
   autoSendStartButton:SetCallback("OnEnter",
     function(self, event, button)
-      showTooltip(self, { title = L["Button Toolbar Autosend Start"], lines = { L["Button Bar Toolbar Autosend Start Tooltip"] } })
+      showTooltip(self, { title = L["Button Toolbar Autosend Start"], lines = { L["Button Toolbar Autosend Start Tooltip"] } })
     end);
   autoSendStartButton:SetCallback("OnLeave", hideTooltip)
 
@@ -2911,6 +2916,7 @@ function Finder.MakeFunc.Ads(self)
       RP_Find.db.profile.ad.title = value;
       adultContentCheck();
       enableOrDisableButtons();
+      updatePreviewIfShown();
     end);
 
   function titleField:ResetValue()
@@ -2927,7 +2933,11 @@ function Finder.MakeFunc.Ads(self)
   adultToggle:SetLabel(L["Field Adult Ad"]);
   adultToggle:SetRelativeWidth(0.38);
   adultToggle:SetValue(RP_Find.db.profile.ad.adult)
-  adultToggle:SetCallback("OnValueChanged", function(self, event, value) RP_Find.db.profile.ad.adult = value; end);
+  adultToggle:SetCallback("OnValueChanged", 
+    function(self, event, value) 
+      RP_Find.db.profile.ad.adult = value; 
+      updatePreviewIfShown();
+    end);
 
   function adultToggle:ResetValue()
      RP_Find.db.profile.ad.adult = RP_Find.defaults.profile.ad.adult;
@@ -2948,6 +2958,7 @@ function Finder.MakeFunc.Ads(self)
       RP_Find.db.profile.ad.body = value;
       adultContentCheck();
       enableOrDisableButtons();
+      updatePreviewIfShown();
     end);
 
   function bodyField:ResetValue()
@@ -3266,7 +3277,13 @@ function RP_Find:OnInitialize()
             order          = source_order(),
             desc           = L["Config See Adult Ads Tooltip"],
             get            = function() return self.db.profile.config.seeAdultAds end,
-            set            = function(info, value) self.db.profile.config.seeAdultAds = value end,
+            set            = function(info, value) 
+                               self.db.profile.config.seeAdultAds = value 
+                               if self.adFrame:IsShown()
+                               then self.adFrame:SetPlayerRecord(
+                                      self:GetPlayerRecord( self.adFrame:GetPlayerName() ));
+                               end;
+                             end,
             width          = "full",
           },
 
@@ -3942,6 +3959,7 @@ adFrame:EnableMouse(true);
 adFrame:RegisterForDrag("LeftButton");
 adFrame:SetScript("OnDragStart", adFrame.StartMoving);
 adFrame:SetScript("OnDragStop",  adFrame.StopMovingOrSizing);
+adFrame:SetClampedToScreen(true);
 
 adFrame:SetPoint("RIGHT", Finder.frame, "LEFT", 0, 0);
 table.insert(UISpecialFrames, "RP_Find_AdDisplayFrame");
@@ -3949,18 +3967,70 @@ adFrame:Hide();
 
 RP_Find.adFrame = adFrame;
 
-adFrame.subtitle = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
-adFrame.subtitle:SetWordWrap(false);
-adFrame.subtitle:SetJustifyV("TOP");
-adFrame.subtitle:SetJustifyH("CENTER");
-adFrame.subtitle:SetPoint("TOPLEFT", 65, -32);
-adFrame.subtitle:SetWidth(265);
-adFrame.subtitle:SetText("placeholder")
+adFrame.backdrop = RP_Find_AdDisplayFrameBg;
 
-adFrame.body = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
-adFrame.body:SetWordWrap(true);
-adFrame.body:SetJustifyV("TOP");
-adFrame.body:SetJustifyH("LEFT");
+adFrame.pictureOverlay = CreateFrame("Frame", nil, adFrame);
+adFrame.pictureOverlay:SetPoint("TOPLEFT", adFrame, "TOPLEFT", -4, 8);
+adFrame.pictureOverlay:SetPoint("BOTTOMRIGHT", adFrame, "TOPLEFT", 54, -52);
+
+adFrame.pictureOverlay:SetScript("OnEnter",
+  function(self)
+    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetPlayerName());
+    local _, columns = playerRecord:GetFlagsTooltip(); 
+    showTooltip(self, 
+      { title   = playerRecord:GetFlags(),
+        columns = columns
+      });
+  end);
+adFrame.pictureOverlay:SetScript("OnLeave", hideTooltip);
+        
+adFrame.titleOverlay = CreateFrame("Frame", nil, adFrame);
+adFrame.titleOverlay:SetPoint("TOPLEFT", adFrame, "TOPLEFT", 60, 0);
+adFrame.titleOverlay:SetPoint("BOTTOMRIGHT", adFrame, "TOPRIGHT", -20, -20);
+adFrame.titleOverlay:EnableMouse(true);
+adFrame.titleOverlay:SetScript("OnMouseDown", function() adFrame:StartMoving() end);
+adFrame.titleOverlay:SetScript("OnMouseUp", function() adFrame:StopMovingOrSizing() end);
+
+adFrame.titleOverlay:SetScript("OnEnter",
+  function(self)
+    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetPlayerName());
+    local lines, columns, _ = playerRecord:GetNameTooltip(); -- don't need to show the icon
+    showTooltip(self, 
+      { title   = playerRecord:GetRPNameColorFixed(),
+        columns = columns, 
+        lines   = lines, }
+    );
+  end);
+adFrame.titleOverlay:SetScript("OnLeave", hideTooltip);
+
+adFrame.subtitle = CreateFrame("Frame", nil, adFrame)
+adFrame.subtitle:SetPoint("TOPLEFT", adFrame, "TOPLEFT", 65, -32);
+adFrame.subtitle:SetWidth(265);
+adFrame.subtitle:SetHeight(30);
+adFrame.subtitle:SetScript("OnEnter", 
+    function(self) 
+      showTooltip(self, { title = "Ad Title", lines = { self.text:GetText() } }) 
+    end);
+adFrame.subtitle:SetScript("OnLeave", hideTooltip);
+
+adFrame.subtitle.text = adFrame.subtitle:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge");
+adFrame.subtitle.text:SetWordWrap(false);
+adFrame.subtitle.text:SetJustifyV("TOP");
+adFrame.subtitle.text:SetJustifyH("CENTER");
+adFrame.subtitle.text:SetAllPoints();
+
+adFrame.body = CreateFrame("Frame", nil, adFrame);
+adFrame.body.text = adFrame.body:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
+adFrame.body.text:SetWordWrap(true);
+adFrame.body.text:SetJustifyV("TOP");
+adFrame.body.text:SetJustifyH("LEFT");
+adFrame.body.text:SetAllPoints();
+adFrame.body:SetScript("OnEnter",
+  function(self)
+    showTooltip(self, { anchor = "ANCHOR_CURSOR", anchorPreserve = true, 
+                        title = "Ad Body", lines = { self.text:GetText() } })
+  end);
+adFrame.body:SetScript("OnLeave", hideTooltip);
 
 function adFrame:Reset()
   self.fieldMaxY  = 300;
@@ -3973,26 +4043,23 @@ function adFrame:Reset()
   self.fieldNum   = 0;
   self.fieldPool  = self.fieldPool or {};
   self.valuePool  = self.valuePool or {};
-  for _, string in ipairs(self.fieldPool) do string:Hide(); end;
-  for _, string in ipairs(self.valuePool) do string:Hide(); end;
+  for _, field in ipairs(self.fieldPool) do field:Hide(); end;
+  for _, value in ipairs(self.valuePool) do value:Hide(); end;
+  self.backdrop:SetVertexColor(0, 0, 0, 2/3);
+  self.isAdult = false;
 end;
 
 function adFrame:GetPlayerName() return self.playerName; end;
 
 function adFrame:SetSubtitle(text, default) 
   if   default and (text == "" or not text)
-  then self.subtitle:SetText(default); 
-  else self.subtitle:SetText(text);
+  then self.subtitle.text:SetSubtitle(default); 
+  else self.subtitle.text:SetText(text);
   end;
 end;
 
-function adFrame.ShowPreview()
-  if   RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
-  then RP_Find.adFrame:Hide(); return
-  end;
-
+function adFrame.UpdatePreview()
   local myRecord = RP_Find:LoadSelfRecord();
-  -- if     RP_Find:HaveRPAddon("totalRP3") then   myRecord:SetHaveTRP3Data(true); end;
 
   local race = myRecord:GetRPRace();
   if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
@@ -4007,44 +4074,92 @@ function adFrame.ShowPreview()
   RP_Find.adFrame:Show();
 end;
 
-function adFrame:AddField(field, value, default)
-  if self.fieldY > 300 then return end;
-  local fieldString, valueString;
-  self.fieldNum = self.fieldNum + 1;
-  if self.fieldNum > #self.fieldPool
-  then fieldString = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
-       table.insert(self.fieldPool, fieldString);
-       valueString = self:CreateFontString(nil, "OVERLAY", "GameFontNormal");
-       table.insert(self.valuePool, valueString);
-  else fieldString = self.fieldPool[self.fieldNum];
-       valueString = self.valuePool[self.fieldNum];
+function adFrame.ShowPreview()
+  if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+  then RP_Find.adFrame:Hide();
+  else adFrame:UpdatePreview()
+  end;
+end;
+
+function adFrame:CreatePanels()
+  local field = CreateFrame("Frame", nil, self);
+  field:SetHeight(20);
+  field:SetWidth(self.fieldWidth);
+  field.text = field:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+  field.text:SetJustifyH("LEFT");
+  field.text:SetJustifyV("TOP");
+  field.text:SetAllPoints();
+
+  function field:SetText(text) 
+    self.text:SetText(text); 
+    self:SetHeight(self.text:GetHeight()); 
+  end;
+  function field:GetText() return self.text:GetText(); end;
+
+  local value = CreateFrame("Frame", nil, self);
+  value.text = value:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+  value:SetHeight(20);
+  value:SetWidth(self.valueWidth);
+  value.text = value:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+  value.text:SetJustifyH("LEFT");
+  value.text:SetJustifyV("TOP");
+  value.text:SetAllPoints();
+  function value:SetText(text) 
+    self.text:SetText(text); 
+    self:SetHeight(self.text:GetHeight()); 
+  end;
+  function value:GetText() return self.text:GetText(); end;
+  
+  field.value = value;
+  field.field = field;
+  value.value = value;
+  value.field = field;
+
+  local function tooltip(self)
+    showTooltip(self.field, { anchor = "ANCHOR_BOTTOMRIGHT", title = self.field:GetText(), lines = { self.value:GetText() } });
   end;
 
-  fieldString:Show();
-  valueString:Show();
+  field:SetScript("OnEnter", tooltip);
+  field:SetScript("OnLeave", hideTooltip);
+  value:SetScript("OnEnter", tooltip);
+  value:SetScript("OnLeave", hideTooltip);
 
-  fieldString:ClearAllPoints();
-  valueString:ClearAllPoints();
+  return field, value;
+end;
 
-  fieldString:SetJustifyH("LEFT");
-  fieldString:SetJustifyV("TOP");
-  valueString:SetJustifyH("LEFT");
-  valueString:SetJustifyV("TOP");
+function adFrame:AddField(field, value, default)
+  if    self.fieldY > 300 then return end;
+  local fieldPanel, valuePanel;
+  self.fieldNum = self.fieldNum + 1;
 
-  fieldString:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY);
-  fieldString:SetWidth(self.fieldWidth);
-  valueString:SetPoint("TOPLEFT", self.fieldX + self.fieldWidth + self.hPadding, 0 - self.fieldY);
-  valueString:SetWidth(self.valueWidth);
+  if   self.fieldNum > #self.fieldPool
+  then fieldPanel, valuePanel = self:CreatePanels();
+       table.insert(self.fieldPool, fieldPanel);
+       table.insert(self.valuePool, valuePanel);
+  else fieldPanel = self.fieldPool[self.fieldNum];
+       valuePanel = self.valuePool[self.fieldNum];
+  end;
 
-  fieldString:SetText(field);
+  fieldPanel:Show();
+  valuePanel:Show();
+
+  fieldPanel:ClearAllPoints();
+  valuePanel:ClearAllPoints();
+
+  fieldPanel:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY);
+  fieldPanel:SetWidth(self.fieldWidth);
+  valuePanel:SetPoint("TOPLEFT", self.fieldX + self.fieldWidth + self.hPadding, 0 - self.fieldY);
+  valuePanel:SetWidth(self.valueWidth);
+
+  fieldPanel:SetText(field);
 
   if   default and (value == "" or not value)
-  then valueString:SetText(default)
-  else valueString:SetText(value);
+  then valuePanel:SetText(default)
+  else valuePanel:SetText(value);
   end;
 
   self.fieldY = self.fieldY 
-              + math.max(fieldString:GetHeight(), valueString:GetHeight())
+              + math.max(fieldPanel:GetHeight(), valuePanel:GetHeight())
               + self.vPadding;
 
 end;
@@ -4053,9 +4168,9 @@ function adFrame:SetBodyText(text, default)
   self.body:ClearAllPoints();
   self.body:SetPoint("TOPLEFT", self.fieldX, 0 - self.fieldY)
   self.body:SetPoint("BOTTOMRIGHT", -20, 16)
-  if default and (text == "" or not text)
-  then self.body:SetText(default)
-  else self.body:SetText(text) 
+  if   default and (text == "" or not text)
+  then self.body.text:SetText(default)
+  else self.body.text:SetText(text) 
   end;
 end;
 
@@ -4065,13 +4180,25 @@ function adFrame:SetPlayerRecord(playerRecord)
   self.playerName = playerRecord:GetPlayerName();
 
   self:SetPortraitToAsset(playerRecord:GetIcon());
-  self:SetTitle(playerRecord:GetRPName());
+  self:SetTitle(RP_Find:FixColor(playerRecord:GetRPName()));
 
-  self:SetSubtitle(playerRecord:Get("ad_title"),                   L["Field Title Blank"]);
   self:AddField(L["Field Race"],     playerRecord:GetRPRace(),     L["Field Blank"]);
   self:AddField(L["Field Class"],    playerRecord:GetRPClass(),    L["Field Blank"]);
   self:AddField(L["Field Pronouns"], playerRecord:GetRPPronouns(), L["Field Blank"]);
-  self:SetBodyText(playerRecord:Get("ad_body"),                    L["Field Body Blank" ]);
+  if   playerRecord:Get("ad_adult") 
+  then self.backdrop:SetVertexColor(1, 0, 0, 2/3);
+       self.isAdult = true;
+       if   RP_Find.db.profile.config.seeAdultAds
+        --  or self.playerName == RP_Find.me 
+       then self:SetBodyText(playerRecord:Get("ad_body"), L["Field Body Blank" ]);
+            self:SetSubtitle(playerRecord:Get("ad_title"), L["Field Title Blank"]);
+       else self:SetBodyText(L["Field Body Adult Hidden"]);
+            self:SetSubtitle(L["Field Title Adult Hidden"]);
+       end;
+  else self.isAdult = false;
+       self:SetBodyText(playerRecord:Get("ad_body"), L["Field Body Blank" ]);
+       self:SetSubtitle(playerRecord:Get("ad_title"), L["Field Title Blank"]);
+  end;
 end;
 
 function RP_Find:StartOrStopAutoSend(interactive)
@@ -4079,9 +4206,7 @@ function RP_Find:StartOrStopAutoSend(interactive)
   then   -- all is running as it should be
   elseif self.db.profile.ad.autoSend
   then   self:SendLFRPAd(false);
-         if   interactive 
-         then self:Notify(L["Notify Auto Send Start"]); 
-         end;
+         if   interactive then self:Notify(L["Notify Auto Send Start"]); end;
          self:SaveTimer("autoSend", self:ScheduleRepeatingTimer("SendLFRPAd", SECONDS_PER_HOUR));
          self.Finder:UpdateButtonBar();
          self.Finder:Update("Ads");
