@@ -8,7 +8,8 @@ or can be run without any of those.
 
 ## To Do:
 
-- [x] Localization strings
+- [ ] Localization strings
+  - [ ] Need localization strings for recent changes
 - [ ] Ads
   - [x] Improve editor interface
   - [x] Ad viewer
