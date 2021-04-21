@@ -2868,7 +2868,7 @@ function Finder.MakeFunc.Ads(self)
     end);
   sendAdButton:SetCallback("OnLeave", hideTooltip);
 
-  autoSendStartButton:SetText("Autosend Ad");
+  autoSendStartButton:SetText(L["Button Toolbar Autosend Start"]);
   autoSendStartButton:SetRelativeWidth(0.19);
   autoSendStartButton:SetCallback("OnClick",
     function(self, event, button)
@@ -2878,7 +2878,7 @@ function Finder.MakeFunc.Ads(self)
     end);
   autoSendStartButton:SetCallback("OnEnter",
     function(self, event, button)
-      showTooltip(self, { title = "Autosend Ad", lines = { "Click to start sending your ad once per hour." } })
+      showTooltip(self, { title = L["Button Toolbar Autosend Start"], lines = { L["Button Bar Toolbar Autosend Start Tooltip"] } })
     end);
   autoSendStartButton:SetCallback("OnLeave", hideTooltip)
 
@@ -2895,8 +2895,9 @@ function Finder.MakeFunc.Ads(self)
     function(self, event, button)
       showTooltip(self, 
         { title = "Cancel Autosend", 
-          lines = { "Click to cancel your ad that is currently autosent every hour." } }
-        );
+          lines = { L["Button Toolbar Autosend Stop Tooltip"] } 
+        }
+      );
     end);
   autoSendStopButton:SetCallback("OnLeave", hideTooltip);
 
@@ -3952,8 +3953,8 @@ adFrame.subtitle = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge
 adFrame.subtitle:SetWordWrap(false);
 adFrame.subtitle:SetJustifyV("TOP");
 adFrame.subtitle:SetJustifyH("CENTER");
-adFrame.subtitle:SetPoint("TOPLEFT", 70, -32);
-adFrame.subtitle:SetWidth(250);
+adFrame.subtitle:SetPoint("TOPLEFT", 65, -32);
+adFrame.subtitle:SetWidth(265);
 adFrame.subtitle:SetText("placeholder")
 
 adFrame.body = adFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
