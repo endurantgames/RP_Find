@@ -4018,6 +4018,7 @@ adFrame.subtitle.text:SetWordWrap(false);
 adFrame.subtitle.text:SetJustifyV("TOP");
 adFrame.subtitle.text:SetJustifyH("CENTER");
 adFrame.subtitle.text:SetAllPoints();
+adFrame.subtitle.text:SetTextColor(1, 1, 1, 1);
 
 adFrame.body = CreateFrame("Frame", nil, adFrame);
 adFrame.body.text = adFrame.body:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall");
@@ -4025,6 +4026,7 @@ adFrame.body.text:SetWordWrap(true);
 adFrame.body.text:SetJustifyV("TOP");
 adFrame.body.text:SetJustifyH("LEFT");
 adFrame.body.text:SetAllPoints();
+adFrame.body.text:SetTextColor(1, 1, 1, 1);
 adFrame.body:SetScript("OnEnter",
   function(self)
     showTooltip(self, { anchor = "ANCHOR_CURSOR", anchorPreserve = true, 
@@ -4043,10 +4045,10 @@ function adFrame:Reset()
   self.fieldNum   = 0;
   self.fieldPool  = self.fieldPool or {};
   self.valuePool  = self.valuePool or {};
+  self.isAdult    = false;
   for _, field in ipairs(self.fieldPool) do field:Hide(); end;
   for _, value in ipairs(self.valuePool) do value:Hide(); end;
   self.backdrop:SetVertexColor(0, 0, 0, 2/3);
-  self.isAdult = false;
 end;
 
 function adFrame:GetPlayerName() return self.playerName; end;
@@ -4086,6 +4088,7 @@ function adFrame:CreatePanels()
   field:SetHeight(20);
   field:SetWidth(self.fieldWidth);
   field.text = field:CreateFontString(nil, "OVERLAY", "GameFontNormal");
+  field.text:SetTextColor(1, 1, 1, 1);
   field.text:SetJustifyH("LEFT");
   field.text:SetJustifyV("TOP");
   field.text:SetAllPoints();
@@ -4182,14 +4185,17 @@ function adFrame:SetPlayerRecord(playerRecord)
   self:SetPortraitToAsset(playerRecord:GetIcon());
   self:SetTitle(RP_Find:FixColor(playerRecord:GetRPName()));
 
-  self:AddField(L["Field Race"],     playerRecord:GetRPRace(),     L["Field Blank"]);
-  self:AddField(L["Field Class"],    playerRecord:GetRPClass(),    L["Field Blank"]);
+  local class = playerRecord:GetRPClass();
+  if class then class = RP_Find:FixColor(class); end;
+
+  self:AddField(L["Field Race"    ], playerRecord:GetRPRace(),     L["Field Blank"]);
+  self:AddField(L["Field Class"   ], class,                        L["Field Blank"]);
   self:AddField(L["Field Pronouns"], playerRecord:GetRPPronouns(), L["Field Blank"]);
   if   playerRecord:Get("ad_adult") 
   then self.backdrop:SetVertexColor(1, 0, 0, 2/3);
        self.isAdult = true;
        if   RP_Find.db.profile.config.seeAdultAds
-        --  or self.playerName == RP_Find.me 
+            or self.playerName == RP_Find.me 
        then self:SetBodyText(playerRecord:Get("ad_body"), L["Field Body Blank" ]);
             self:SetSubtitle(playerRecord:Get("ad_title"), L["Field Title Blank"]);
        else self:SetBodyText(L["Field Body Adult Hidden"]);
