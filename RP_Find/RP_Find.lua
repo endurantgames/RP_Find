@@ -655,15 +655,23 @@ function RP_Find:NewPlayerRecord(playerName, server)
   local playerRecord = {}
   playerRecord.playerName = playerName;
 
+  function playerRecord:M(method, ...)
+    local func = RP_Find.playerRecordMethods[method]
+    if func then return func(self, ...)
+    else return print("missing method", method) and nil;
+    end;
+  end;
+
+  --[[
   for   methodName, _ in pairs(RP_Find.playerRecordMethods)
   do    playerRecord[methodName] 
           = function(self, ...) 
               return RP_Find.playerRecordMethods[methodName](self, ...)
             end;
   end;
+  --]]
 
-  playerRecord:Initialize();
-
+  playerRecord:M("Initialize");
 
   self.playerRecords[playerName] = playerRecord;
   return playerRecord;
@@ -689,8 +697,8 @@ function RP_Find:GetAllPlayerNames(filters, searchPattern)
 
   local function nameMatch(playerRecord, pattern)
     pattern = pattern:lower();
-    return playerRecord:GetRPNameStripped():lower():match(pattern)
-        or playerRecord:GetPlayerName():lower():match(pattern)
+    return playerRecord:M("GetRPNameStripped"):lower():match(pattern)
+        or playerRecord:M("GetPlayerName"):lower():match(pattern)
   end;
 
   local list = {};
@@ -706,7 +714,7 @@ function RP_Find:GetAllPlayerNames(filters, searchPattern)
 
       if   pass 
       then filteredCount = filteredCount + 1;
-           table.insert(list, record:GetPlayerName()); 
+           table.insert(list, record:M("GetPlayerName")); 
       end
       
       totalCount = totalCount + 1;
@@ -727,8 +735,8 @@ function RP_Find:OldGetAllPlayerRecords(filters, searchPattern)
 
   local function nameMatch(playerRecord, pattern)
     pattern = pattern:lower();
-    return playerRecord:GetRPNameStripped():lower():match(pattern)
-        or playerRecord:GetPlayerName():lower():match(pattern)
+    return playerRecord:M("GetRPNameStripped"):lower():match(pattern)
+        or playerRecord:M("GetPlayerName"):lower():match(pattern)
   end;
 
   local list = {};
@@ -906,43 +914,43 @@ local genderHash = { ["2"] = "Male", ["3"] = "Female", };
 
 local infoColumnFunctionHash = 
 { 
-  ["Info Class"          ] = function(self) return self:GetRPClass()    or "" end,
-  ["Info Race"           ] = function(self) return self:GetRPRace()     or "" end,
-  ["Info Age"            ] = function(self) return self:GetRPAge()      or "" end,
-  ["Info Pronouns"       ] = function(self) return self:GetRPPronouns() or "" end,
-  ["Info Title"          ] = function(self) return self:GetRPTitle()    or "" end,
+  ["Info Class"          ] = function(self) return self:M("GetRPClass")    or "" end,
+  ["Info Race"           ] = function(self) return self:M("GetRPRace")     or "" end,
+  ["Info Age"            ] = function(self) return self:M("GetRPAge")      or "" end,
+  ["Info Pronouns"       ] = function(self) return self:M("GetRPPronouns") or "" end,
+  ["Info Title"          ] = function(self) return self:M("GetRPTitle")    or "" end,
   ["Info Currently"      ] = 
     function(self, tooltip) 
-      local curr = self:GetRPCurr();
+      local curr = self:M("GetRPCurr");
       if   tooltip then return curr or ""
       else return curr and menu.infoColumn["Info Currently"] or ""
       end;
     end,
   ["Info OOC Info"       ] = 
     function(self, tooltip) 
-      local oocinfo = self:GetRPInfo()
+      local oocinfo = self:M("GetRPInfo")
       if   tooltip then return oocinfo or ""
       else return oocinfo and menu.infoColumn["Info OOC Info"] or ""
       end;
     end,
-  ["Info Zone"           ] = function(self) return self:GetZoneName()   or "" end,
-  ["Info Server"         ] = function(self) return self:GetServerName() or "" end,
+  ["Info Zone"           ] = function(self) return self:M("GetZoneName")   or "" end,
+  ["Info Server"         ] = function(self) return self:M("GetServerName") or "" end,
 
-  ["Info Data Timestamp" ] = function(self) return self:GetTimestamp() end,
+  ["Info Data Timestamp" ] = function(self) return self:M("GetTimestamp") end,
 
   ["Info Race Class"] =
     function(self)
-      local class = self:GetRPClass();
-      local race = self:GetRPRace();
+      local class = self:M("GetRPClass");
+      local race = self:M("GetRPRace");
       return (race and (race .. " ") or "") .. (class or "");
     end,
 
-  ["Info Status"] = function(self) return self:GetRPStatusWord() end,
+  ["Info Status"] = function(self) return self:M("GetRPStatusWord") end,
 
   ["Info Height Weight"] =
     function(self)
-      local height = self:GetRPHeight();
-      local weight = self:GetRPWeight();
+      local height = self:M("GetRPHeight");
+      local weight = self:M("GetRPWeight");
       if height and weight
       then return height .. ", " .. weight
       elseif height then return height
@@ -953,30 +961,30 @@ local infoColumnFunctionHash =
 
   ["Info Game Race Class"] = 
     function(self)
-      local class = self:Get("MSP-GC");
-      local race = self:Get("MSP-GR");
+      local class = self:M("Get", "MSP-GC");
+      local race = self:M("Get", "MSP-GR");
       return (race and (race .. " ") or "") .. (class or "");
     end,
 
   ["Info Subzone"] = 
     function(self, tooltip) 
       if   tooltip 
-      then local zone, subzone = self:GetZoneName(), self:GetSubzoneName();
+      then local zone, subzone = self:M("GetZoneName"), self:M("GetSubzoneName");
            if     zone ~= "" and subzone ~= ""
-           then   return self:GetZoneName() .. " (" .. self:GetSubzoneName() .. ")"
+           then   return self:M("GetZoneName") .. " (" .. self:M("GetSubzoneName") .. ")"
            elseif zone ~= ""
            then   return zone
            end;
-      else return self:GetSubzoneName() 
+      else return self:M("GetSubzoneName") 
       end;
     end,
 
   ["Info Zone Subzone"] =
     function(self)
-      local subzone = self:GetSubzoneName()
+      local subzone = self:M("GetSubzoneName")
       if    subzone == ""
-      then return self:GetZoneName()
-      else return self:GetZoneName() .. " (" ..  subzone .. ")"
+      then return self:M("GetZoneName")
+      else return self:M("GetZoneName") .. " (" ..  subzone .. ")"
       end
     end,
     
@@ -1010,7 +1018,7 @@ RP_Find.playerRecordMethods =
       elseif self.cache.fields[field]
       then   self.cache.fields[field].when = timeStamp;
       elseif type(field) == "string"
-      then   self:Set(field, nil, { when = timeStamp });
+      then   self:M("Set", field, nil, { when = timeStamp });
       end;
 
     end,
@@ -1034,7 +1042,7 @@ RP_Find.playerRecordMethods =
            then for _, item in pairs(profile.characteristics.MI)
                 do if item.NA:lower() == "pronouns" 
                    then profile = nil;
-                        self:Set("rp_pronouns", item.VA);
+                        self:M("Set", "rp_pronouns", item.VA);
                         return item.VA end;
                 end;
            end;
@@ -1061,18 +1069,18 @@ RP_Find.playerRecordMethods =
 
   ["GetRP"] = 
     function(self, field, mspField)
-      local rp   = self:Get("rp_" .. field);
-      local trp3 = self:GetTRP3(field, mspField);
-      local msp  = self:GetMSP( field, mspField);
+      local rp   = self:M("Get", "rp_" .. field);
+      local trp3 = self:M("GetTRP3", field, mspField);
+      local msp  = self:M("GetMSP", field, mspField);
       return rp or trp3 or msp 
     end,
 
   ["GetRPStatus"] =
     function(self)
       if     RP_Find:HaveRPClient("totalRP3")
-      then   return 3 - tonumber(self:GetTRP3("status") or 3)
+      then   return 3 - tonumber(self:M("GetTRP3", "status") or 3)
       elseif RP_Find:HaveRPClient()
-      then   return tonumber(self:GetMSP("status", "FC"))
+      then   return tonumber(self:M("GetMSP", "status", "FC"))
       else   return 0
       end;
     end,
@@ -1094,59 +1102,59 @@ RP_Find.playerRecordMethods =
   ["GetServerName"] = 
     function(self) 
       if self.serverName then return self.serverName end;
-      local server = self:GetServer();
+      local server = self:M("GetServer");
       _, self.serverName = LibRealmInfo:GetRealmInfo(server);
       return self.serverName;
     end,
 
   ["GetRPName"] = 
     function(self) 
-      local name = self:GetRP("name", "NA")
-      return (not name or name == "") and self:GetPlayerName(true) or name;
+      local name = self:M("GetRP", "name", "NA")
+      return (not name or name == "") and self:M("GetPlayerName", true) or name;
     end,
     
   ["GetRPNameStripped"] =
     function(self)
-      local  name = self:GetRPName();
+      local  name = self:M("GetRPName");
       local  stripped, color = stripColor(name);
       return stripped;
     end,
 
-  ["GetRPNameColorFixed"] = function(self) return RP_Find:FixColor(self:GetRPName()); end,
+  ["GetRPNameColorFixed"] = function(self) return RP_Find:FixColor(self:M("GetRPName")); end,
 
   -- we probably aren't going to use all of these
-  ["GetRPClass"      ] = function(self) return self:GetRP("class",       "RC")   end,
-  ["GetRPRace"       ] = function(self) return self:GetRP("race",        "RA")   end,
-  ["GetRPIcon"       ] = function(self) return self:GetRP("icon",        "IC")   end,
-  -- ["GetRPStatus"     ] = function(self) return self:GetRP("status",      "FC")   end,
-  ["GetRPAge"        ] = function(self) return self:GetRP("age",         "AG")   end,
-  -- ["GetRPEyeColor"   ] = function(self) return self:GetRP("eyecolor",    "AE")   end,
-  ["GetRPHeight"     ] = function(self) return self:GetRP("height",      "AH")   end,
-  ["GetRPWeight"     ] = function(self) return self:GetRP("weight",      "AW")   end,
-  ["GetRPInfo"       ] = function(self) return self:GetRP("oocinfo",     "CO")   end,
-  ["GetRPCurr"       ] = function(self) return self:GetRP("currently",   "CU")   end,
-  -- ["GetRPStyle"      ] = function(self) return self:GetRP("style",       "FR")   end,
-  -- ["GetRPBirthplace" ] = function(self) return self:GetRP("birthplace",  "HB")   end,
-  -- ["GetRPHome"       ] = function(self) return self:GetRP("home",        "HH")   end,
-  -- ["GetRPMotto"      ] = function(self) return self:GetRP("motto",       "MO")   end,
-  -- ["GetRPHouse"      ] = function(self) return self:GetRP("house",       "NH")   end,
-  -- ["GetRPNickname"   ] = function(self) return self:GetRP("nick",        "NI")   end,
-  ["GetRPTitle"      ] = function(self) return self:GetRP("title",       "NT")   end,
-  ["GetRPPronouns"   ] = function(self) return self:GetRP("pronouns",    "PN")   end,
-  -- ["GetRPHonorific"  ] = function(self) return self:GetRP("honorific",   "PX")   end,
-  ["GetRPAddon"      ] = function(self) return self:GetRP("addon",       "VA")   end,
-  ["GetRPTrial"      ] = function(self) return self:GetRP("trial",       "TR")   end,
-  ["IsSetIC"         ] = function(self) return tonumber(self:GetRPStatus() or 0) == 2 end,
-  ["IsSetOOC"        ] = function(self) return tonumber(self:GetRPStatus() or 0) == 1 end,
-  ["IsSetLooking"    ] = function(self) return tonumber(self:GetRPStatus() or 0) == 3 end,
-  ["IsSetStoryteller"] = function(self) return tonumber(self:GetRPStatus() or 0) == 4 end,
-  ["IsTrial"         ] = function(self) return tonumber(self:GetRPTrial()  or 0) == 1 end,
+  ["GetRPClass"      ] = function(self) return self:M("GetRP", "class",       "RC")   end,
+  ["GetRPRace"       ] = function(self) return self:M("GetRP", "race",        "RA")   end,
+  ["GetRPIcon"       ] = function(self) return self:M("GetRP", "icon",        "IC")   end,
+  ["GetRPAge"        ] = function(self) return self:M("GetRP", "age",         "AG")   end,
+  ["GetRPHeight"     ] = function(self) return self:M("GetRP", "height",      "AH")   end,
+  ["GetRPWeight"     ] = function(self) return self:M("GetRP", "weight",      "AW")   end,
+  ["GetRPInfo"       ] = function(self) return self:M("GetRP", "oocinfo",     "CO")   end,
+  ["GetRPCurr"       ] = function(self) return self:M("GetRP", "currently",   "CU")   end,
+  ["GetRPTitle"      ] = function(self) return self:M("GetRP", "title",       "NT")   end,
+  ["GetRPPronouns"   ] = function(self) return self:M("GetRP", "pronouns",    "PN")   end,
+  ["GetRPAddon"      ] = function(self) return self:M("GetRP", "addon",       "VA")   end,
+  ["GetRPTrial"      ] = function(self) return self:M("GetRP", "trial",       "TR")   end,
+  ["IsSetIC"         ] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 2 end,
+  ["IsSetOOC"        ] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 1 end,
+  ["IsSetLooking"    ] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 3 end,
+  ["IsSetStoryteller"] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 4 end,
+  ["IsTrial"         ] = function(self) return tonumber(self:M("GetRPTrial")  or 0) == 1 end,
+  -- ["GetRPHonorific"  ] = function(self) return self:M("GetRP", "honorific",   "PX")   end,
+  -- ["GetRPStatus"     ] = function(self) return self:M("GetRP", "status",      "FC")   end,
+  -- ["GetRPEyeColor"   ] = function(self) return self:M("GetRP", "eyecolor",    "AE")   end,
+  -- ["GetRPStyle"      ] = function(self) return self:M("GetRP", "style",       "FR")   end,
+  -- ["GetRPBirthplace" ] = function(self) return self:M("GetRP", "birthplace",  "HB")   end,
+  -- ["GetRPHome"       ] = function(self) return self:M("GetRP", "home",        "HH")   end,
+  -- ["GetRPMotto"      ] = function(self) return self:M("GetRP", "motto",       "MO")   end,
+  -- ["GetRPHouse"      ] = function(self) return self:M("GetRP", "house",       "NH")   end,
+  -- ["GetRPNickname"   ] = function(self) return self:M("GetRP", "nick",        "NI")   end,
 
   ["IsLGBTFriendly"] =
     function(self)
       local pat = L["Pattern LGBT Friendly"];
-      local curr = self:GetRPCurr();
-      local oocinfo = self:GetRPInfo();
+      local curr = self:M("GetRPCurr");
+      local oocinfo = self:M("GetRPInfo");
       return (curr and curr:lower():match(pat)
               or oocinfo and oocinfo:lower():match(pat))
     end,
@@ -1154,19 +1162,19 @@ RP_Find.playerRecordMethods =
   ["WelcomesWalkups"] = 
     function(self)
       local pat = "walk%-? ?ups?";
-      local curr = self:GetRPCurr();
-      local oocinfo = self:GetRPInfo();
+      local curr = self:M("GetRPCurr");
+      local oocinfo = self:M("GetRPInfo");
       return (curr and curr:lower():match(pat)
               or oocinfo and oocinfo:lower():match(pat))
     end,
 
-  ["SentMapScan"]  = function(self) return self:Get("mapScan") ~= nil end,
-  ["IsRPFindUser"] = function(self) return self:Get("rpFindUser")     end,
+  ["SentMapScan"]  = function(self) return self:M("Get", "mapScan") ~= nil end,
+  ["IsRPFindUser"] = function(self) return self:M("Get", "rpFindUser")     end,
 
   ["IsFriendOfPlayer"] =
     function(self) 
-      local fullName = self:GetPlayerName();
-      local name = self:GetPlayerName(true);
+      local fullName = self:M("GetPlayerName");
+      local name = self:M("GetPlayerName", true);
       if C_FriendList.GetFriendInfo(name) then return true end;
       if not BNConnected() then return false end;
       RP_Find.bnetFriendList = RP_Find.bnetFriendList or {};
@@ -1194,7 +1202,7 @@ RP_Find.playerRecordMethods =
 
   ["GetRPStatusWord" ] = 
     function(self)
-      local  status = self:GetRPStatus()
+      local  status = self:M("GetRPStatus")
       local  statusNum = tonumber(status);
 
       if     statusNum == 1 then return "Out of Character"
@@ -1209,11 +1217,11 @@ RP_Find.playerRecordMethods =
 
   ["GetIcon"] =
     function(self)
-      local rpIcon = self:GetRPIcon();
+      local rpIcon = self:M("GetRPIcon");
       if rpIcon and rpIcon ~= "" then return "Interface\\ICONS\\" .. rpIcon, true end;
 
-      local gameRace = self:GetRP("gameRace", "GR");
-      local gameSex  = self:GetRP("gameSex",  "GS");
+      local gameRace = self:M("GetRP", "gameRace", "GR");
+      local gameSex  = self:M("GetRP", "gameSex",  "GS");
 
       if   not genderHash[gameSex] or gameRace == ""
       then return "Interface\\CHARACTERFRAME\\TempPortrait", false
@@ -1226,7 +1234,7 @@ RP_Find.playerRecordMethods =
     function(self)
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
-      do  if self[flag.method](self) then table.insert(flags, flag.icon) end;
+      do  if self:M(flag.method) then table.insert(flags, flag.icon) end;
       end;
 
       return table.concat(flags)
@@ -1234,11 +1242,11 @@ RP_Find.playerRecordMethods =
 
   ["GetFlags"] = 
     function(self) 
-      local flagString = self:Get("flagString");
-      if    flagString and time() - self:GetTimestamp("flagString") < UPDATE_CYCLE_TIME
+      local flagString = self:M("Get", "flagString");
+      if    flagString and time() - self:M("GetTimestamp", "flagString") < UPDATE_CYCLE_TIME
       then  return flagString 
-      else  flagString = self:GetFlagString();
-            self:Set("flagString", flagString);
+      else  flagString = self:M("GetFlagString");
+            self:M("Set", "flagString", flagString);
             return flagString;
       end;
     end,
@@ -1247,7 +1255,7 @@ RP_Find.playerRecordMethods =
     function(self)
       local flags = {};
       for _, flag in ipairs(RP_Find.Finder.flagList)
-      do if self[flag.method](self) then table.insert(flags, { flag.icon, flag.title}) end;
+      do if self:M(flag.method) then table.insert(flags, { flag.icon, flag.title}) end;
       end;
 
       return {}, flags;
@@ -1256,7 +1264,7 @@ RP_Find.playerRecordMethods =
   ["GetInfoColumnTitle"] = function(self) return L[RP_Find.db.profile.config.infoColumn] 
     end,
 
-  ["GetInfoColumnTooltip"] = function(self) return { self:GetInfoColumn(true) } end,
+  ["GetInfoColumnTooltip"] = function(self) return { self:M("GetInfoColumn", true) } end,
 
   ["GetInfoColumn"] = 
     function(self, tooltip)
@@ -1271,7 +1279,7 @@ RP_Find.playerRecordMethods =
       local temp;
 
       local function addCol(method, label)
-        local value = self[method](self);
+        local value = self:M(method);
         if    value and value ~= ""
         then  value = RP_Find:FixColor(value);
               table.insert(
@@ -1292,13 +1300,13 @@ RP_Find.playerRecordMethods =
       end;
 
       if RP_Find.db.profile.config.nameTooltip.trial
-      then temp = self:IsTrial();
+      then temp = self:M("IsTrial");
            if temp then table.insert(columns, { "Trial Status", "Trial" });
            end;
       end;
 
       if RP_Find.db.profile.config.nameTooltip.currently
-      then temp = self:GetRPCurr();
+      then temp = self:M("GetRPCurr");
            if temp and temp ~= ""
            then table.insert(lines, " ");
                 table.insert(lines, "Currently:");
@@ -1308,7 +1316,7 @@ RP_Find.playerRecordMethods =
       end;
 
       if RP_Find.db.profile.config.nameTooltip.oocinfo
-      then temp = self:GetRPInfo();
+      then temp = self:M("GetRPInfo");
            if temp and temp ~= ""
            then table.insert(lines, " ");
                 table.insert(lines, "OOC Info:");
@@ -1316,7 +1324,7 @@ RP_Find.playerRecordMethods =
             end;
       end;
 
-      local icon, iconFound = self:GetIcon();
+      local icon, iconFound = self:M("GetIcon");
 
       temp = nil;
 
@@ -1349,19 +1357,19 @@ RP_Find.playerRecordMethods =
 
       local zoneInfo = C_Map.GetMapInfo(zoneID);
 
-      self:Set("zone", 
+      self:M("Set", "zone", 
             { id = zoneID,
               name = zoneInfo.name,
               x = x,
               y = y,
-              subzone = self:GetSubzone(zoneID, x, y)
+              subzone = self:M("GetSubzone", zoneID, x, y)
             });
                 
     end,
 
-  ["GetZoneID"     ] = function(self) local zone = self:Get("zone"); return zone and zone.id      or nil end,
-  ["GetZoneName"   ] = function(self) local zone = self:Get("zone"); return zone and zone.name    or ""; end,
-  ["GetSubzoneName"] = function(self) local zone = self:Get("zone"); return zone and zone.subzone or ""; end,
+  ["GetZoneID"     ] = function(self) local zone = self:M("Get", "zone"); return zone and zone.id      or nil end,
+  ["GetZoneName"   ] = function(self) local zone = self:M("Get", "zone"); return zone and zone.name    or ""; end,
+  ["GetSubzoneName"] = function(self) local zone = self:M("Get", "zone"); return zone and zone.subzone or ""; end,
       
   ["LabelViewProfile" ] =
     function(self)
@@ -1384,7 +1392,9 @@ RP_Find.playerRecordMethods =
 
   ["LabelSendTell"] = 
     function(self) 
-      return L["Label Whisper"], RP_Find:LastSince("sendWhisper", 1, SECONDS_PER_MIN);
+      return L["Label Whisper"], 
+        self.playerName == RP_Find.me or
+        RP_Find:LastSince("sendWhisper", 1, SECONDS_PER_MIN);
     end,
 
   ["CmdSendTell"] = 
@@ -1393,26 +1403,28 @@ RP_Find.playerRecordMethods =
       RP_Find:Update("Display");
     end,
 
-  ["HaveLFRPAd"] = function(self) local ad = self:Get("ad"); return ad and ad ~= {}; end,
+  ["HaveLFRPAd"] = function(self) local ad = self:M("Get", "ad"); return ad and ad ~= {}; end,
 
   ["GetLFRPAd"] = 
     function(self)
-      local  ad = self:HaveLFRPAd()
+      local  ad = self:M("HaveLFRPAd")
       if not ad then return nil end;
-      return { title = self:Get("ad_title"),
-               body = self:Get("ad_body"),
-               adult     = self:Get("ad_adult"),
-               timestamp = self:GetTimestamp("ad") }
+      return { title = self:M("Get", "ad_title"),
+               body = self:M("Get", "ad_body"),
+               adult     = self:M("Get", "ad_adult"),
+               timestamp = self:M("GetTimestamp", "ad") }
     end,             
 
-  ["LabelReadAd"] = function(self) return L["Label Read Ad"], not self:HaveLFRPAd(); end,
+  ["LabelReadAd"] = function(self) return L["Label Read Ad"], not self:M("HaveLFRPAd"); end,
 
   ["CmdReadAd"] = function(self) 
-      if self:Get("ad") then RP_Find.adFrame:SetPlayerRecord(self); RP_Find.adFrame:Show(); end;
+      if self:M("Get", "ad") then RP_Find.adFrame:SetPlayerRecord(self); RP_Find.adFrame:Show(); end;
     end,
 
-  ["LabelInvite"] = function(self) return L["Label Invite"], RP_Find:LastSince("sendInvite", 1, SECONDS_PER_MIN) end,
-      -- time() - (RP_Find:Last("sendInvite") or 0) < SECONDS_PER_MIN
+  ["LabelInvite"] = function(self) 
+    return L["Label Invite"], 
+      self.playerName == RP_Find.me or 
+      RP_Find:LastSince("sendInvite", 1, SECONDS_PER_MIN) end,
 
   ["CmdInvite"] =
     function(self)
@@ -1428,7 +1440,7 @@ RP_Find.playerRecordMethods =
     end,
 
   ["HaveMSPData"]   = function(self) return getMSPFieldByPlayerName(self.playerName, "VA") end,
-  ["HaveRPProfile"] = function(self) return self:HaveTRP3Data() or self:HaveMSPData()      end, 
+  ["HaveRPProfile"] = function(self) return self:M("HaveTRP3Data") or self:M("HaveMSPData")      end, 
 
   ["GetTimestamp"] =
     function(self, field)
@@ -1443,7 +1455,7 @@ RP_Find.playerRecordMethods =
   ["GetHumanReadableTimestamp"] =
     function(self, field, format)
       local now              = time();
-      local integerTimestamp = self:GetTimestamp(field);
+      local integerTimestamp = self:M("GetTimestamp", field);
       local delta            = now - integerTimestamp;
 
       if     format 
@@ -1593,7 +1605,7 @@ end;
 local function dontBreakOnResize()
   Finder:DisableUpdates(true);
   Finder:PauseLayout();
-  RP_Find.playerList:Hide();
+  if RP_Find.playerList then RP_Find.playerList:Hide() end;
 end;
 
 local function restoreOnResize() 
@@ -1606,8 +1618,12 @@ local function restoreOnResize()
   end;
   Finder:ResumeLayout();
   Finder:DisableUpdates(false);
-  RP_Find:RecalculateColumnWidths(Finder.TabGroup);
-  RP_Find.playerList:Show();
+  if   RP_Find.playerList
+  then RP_Find:RecalculateColumnWidths(Finder.TabGroup);
+       if Finder.currentTab == "Display"
+       then RP_Find.playerList:Show()
+       end;
+  end;
 end;
 
 hooksecurefunc(Finder.frame, "StartSizing",        dontBreakOnResize);
@@ -1657,7 +1673,7 @@ function Finder:CreateButtonBar()
                 end,
        enable = 
          function() 
-           local function haveAd(playerRecord) return playerRecord:HaveLFRPAd() end;
+           local function haveAd(playerRecord) return playerRecord:M("HaveLFRPAd") end;
            local _, count = RP_Find:GetAllPlayerNames({ haveAd });
            return count > 0
          end,
@@ -1687,7 +1703,7 @@ function Finder:CreateButtonBar()
       tooltip = L["Button Toolbar Preview Ad Tooltip"],
       func    = function(self, event, button) 
                   if   RP_Find.adFrame:IsShown() 
-                   and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+                   and RP_Find.adFrame:M("GetPlayerName") == RP_Find.me
                   then RP_Find.adFrame:Hide()
                   else Finder:LoadTab("Ads"); 
                        RP_Find.adFrame.ShowPreview();
@@ -2018,7 +2034,10 @@ function Finder:CreateTabGroup()
 
   tabGroup:SetCallback("OnGroupSelected", function(self, event, group) self:LoadTab(group); end);
 
-  function self:LoadTab(...) tabGroup:LoadTab(...) end; 
+  function self:LoadTab(...) 
+    _ = RP_Find.playerList and RP_Find.playerList:Hide();
+    tabGroup:LoadTab(...) 
+  end; 
 
   self:AddChild(tabGroup);
   self.TabGroup = tabGroup;
@@ -2056,15 +2075,15 @@ Finder.filterList =
       title   = L["Filter Is Set IC"],
       enabled = false,
       func    = function(playerRecord)
-                  return playerRecord:GetRPStatus() == 2 or
-                         playerRecord:GetRPStatus() == "2"
+                  return playerRecord:M("GetRPStatus") == 2 or
+                         playerRecord:M("GetRPStatus") == "2"
                 end,
     },
 
   ["InfoColumnNotEmpty"] =
     { func =
         function(playerRecord)
-          local info = playerRecord:GetInfoColumn()
+          local info = playerRecord:M("GetInfoColumn")
           return info and info ~= "^%s&$"
         end,
       title = L["Filter Info Not Empty"],
@@ -2074,7 +2093,7 @@ Finder.filterList =
   ["MatchesLastMapScan"] =
     { func =
         function(playerRecord)
-          local  zoneID = playerRecord:GetZoneID()
+          local  zoneID = playerRecord:M("GetZoneID")
           return zoneID and RP_Find:Last("mapScanZone")
              and RP_Find:LastSince("mapScan", 1, SECONDS_PER_HOUR)
              -- time() - (RP_Find:Last("mapScan") or 0) < SECONDS_PER_HOUR
@@ -2087,7 +2106,7 @@ Finder.filterList =
   ["ContactInLastHour"] =
     { func =
         function(playerRecord)
-          return time() - playerRecord:GetTimestamp() < SECONDS_PER_HOUR
+          return time() - playerRecord:M("GetTimestamp") < SECONDS_PER_HOUR
         end,
       title = L["Filter Active Last Hour"],
       enabled = false,
@@ -2096,33 +2115,33 @@ Finder.filterList =
   ["SentMapScan"] =
     { func =
         function(playerRecord)
-          return playerRecord:SentMapScan();
+          return playerRecord:M("SentMapScan");
         end,
       title = L["Filter Sent Map Scan"],
       enabled = false,
     },
 
   ["HaveAd"] =
-    { func = function(playerRecord) return playerRecord:HaveLFRPAd() end,
+    { func = function(playerRecord) return playerRecord:M("HaveLFRPAd") end,
       title = L["Filter Have LFRP Ad"],
       enabled = false,
     },
 
   ["HaveRPProfile"] =
-    { func = function(playerRecord) return playerRecord:HaveRPProfile() end,
+    { func = function(playerRecord) return playerRecord:M("HaveRPProfile") end,
       title = L["Filter RP Profile Loaded"],
       enabled = false,
     },
 
   ["UsesRpFind"] =
-    { func = function(playerRecord) return playerRecord:IsRPFindUser() end,
+    { func = function(playerRecord) return playerRecord:M("IsRPFindUser") end,
       title = RP_Find.addOnTitle .. " User",
       enabled = false,
     },
 
   ["FlagsColumnNotEmpty"] =
     { func = function(playerRecord)
-               local flags = playerRecord:GetFlags();
+               local flags = playerRecord:M("GetFlags");
                return flags and flags ~= ""
              end,
       title = "Flags Column Not Empty",
@@ -2240,16 +2259,16 @@ RP_Find.DisplayColumns = displayColumns;
       local info   = displayColumns[sortbycol];
 
       if   info.sorting and RP_Find.playerRecordMethods[info.sorting]
-      then func = info.sorting
-      else func = info.method;
+      then func = RP_Find.playerRecordMethods[info.sorting]
+      else func = RP_Find.playerRecordMethods[info.method];
       end;
 
       local useridA = self:GetCell(rowA, 1).value;
       local useridB = self:GetCell(rowB, 1).value;
       local recordA = RP_Find:GetPlayerRecord(useridA);
       local recordB = RP_Find:GetPlayerRecord(useridB);
-      valA = recordA[func](recordA) or "";
-      valB = recordB[func](recordB) or "";
+      valA = func(recordA) or "";
+      valB = func(recordB) or "";
 
       local result = valA:lower():gsub("[^%a ]+","") < valB:lower():gsub("[^%a ]+","")
 
@@ -2289,26 +2308,26 @@ RP_Find.DisplayColumns = displayColumns;
         if not realrow or not column then return end;
         local unitid = data[realrow].cols[1].value;
         local info = displayColumns[column];
-        local playerRecord = RP_Find:GetPlayerRecord(unitid);
+        local  playerRecord = RP_Find:GetPlayerRecord(unitid);
         if     info.tooltip
         then   local tooltip = 
                { anchor = "ANCHOR_BOTTOM", 
                  lines = { info.tooltip },
                  title = info.ttTitleMethod 
-                         and playerRecord[info.ttTitleMethod](playerRecord)
+                         and playerRecord:M(info.ttTitleMethod)
                           or info.ttTitle
                           or info.title,
                }
                showTooltip(cellFrame, tooltip);
                tooltip = nil;
-        elseif info.ttMethod and playerRecord[info.ttMethod]
+        elseif info.ttMethod and RP_Find.playerRecordMethods[info.ttMethod]
         then   local tooltip = 
                { title = info.ttTitleMethod 
-                         and playerRecord[info.ttTitleMethod](playerRecord)
+                         and playerRecord:M(info.ttTitleMethod)
                           or info.ttTitle,
                  anchor = "ANCHOR_BOTTOM",
                };
-               tooltip.lines, tooltip.columns, tooltip.icon = playerRecord[info.ttMethod](playerRecord);
+               tooltip.lines, tooltip.columns, tooltip.icon = playerRecord:M(info.ttMethod);
                showTooltip(cellFrame, tooltip);
                tooltip = nil;
         end;
@@ -2321,7 +2340,7 @@ RP_Find.DisplayColumns = displayColumns;
         local info = displayColumns[column];
         local playerRecord = RP_Find:GetPlayerRecord(unitid);
         if   info.callback and RP_Find.playerRecordMethods[info.callback]
-        then playerRecord[info.callback](playerRecord, ...) 
+        then playerRecord:M(info.callback);
         end;
       end,
   };
@@ -2373,8 +2392,8 @@ function Finder.MakeFunc.Display(self)
 
     local function nameMatch(playerRecord, pattern)
       pattern = pattern:lower();
-      return playerRecord:GetRPNameStripped():lower():match(pattern)
-          or playerRecord:GetPlayerName():lower():match(pattern)
+      return playerRecord:M("GetRPNameStripped"):lower():match(pattern)
+          or playerRecord:M("GetPlayerName"):lower():match(pattern)
     end;
 
     local unitid = row.cols[1].value;
@@ -2543,7 +2562,7 @@ function Finder.MakeFunc.Display(self)
         local columns = {};
         for _, col in ipairs(displayColumns)
         do  local cell = {};
-            local valueFunc      = playerRecord[col.method];
+            local valueFunc      = RP_Find.playerRecordMethods[col.method];
             local text, disabled = valueFunc(playerRecord);
             cell.value = text or "";
             if disabled then cell.color = { r = 0.5, g = 0.5, b = 0.5, a = 1 }
@@ -3014,7 +3033,7 @@ RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
   self.my = self:GetPlayerRecord(self.me, self.realm); 
-  self.my:Set("rpFindUser", true);
+  self.my:M("Set", "rpFindUser", true);
   return self.my;
 end;
 
@@ -3117,7 +3136,7 @@ function RP_Find:OnInitialize()
                                self.db.profile.config.seeAdultAds = value 
                                if self.adFrame:IsShown()
                                then self.adFrame:SetPlayerRecord(
-                                      self:GetPlayerRecord( self.adFrame:GetPlayerName() ));
+                                      self:GetPlayerRecord( self.adFrame:M("GetPlayerName") ));
                                end;
                              end,
             width          = "full",
@@ -3755,10 +3774,10 @@ adFrame.pictureOverlay:SetPoint("BOTTOMRIGHT", adFrame, "TOPLEFT", 54, -52);
 
 adFrame.pictureOverlay:SetScript("OnEnter",
   function(self)
-    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetPlayerName());
-    local _, columns = playerRecord:GetFlagsTooltip(); 
+    local playerRecord = RP_Find:GetPlayerRecord(adFrame(GetPlayerName));
+    local _, columns = playerRecord:M("GetFlagsTooltip"); 
     showTooltip(self, 
-      { title   = playerRecord:GetFlags(),
+      { title   = playerRecord:M("GetFlags"),
         columns = columns
       });
   end);
@@ -3774,9 +3793,9 @@ adFrame.titleOverlay:SetScript("OnMouseUp", function() adFrame:StopMovingOrSizin
 adFrame.titleOverlay:SetScript("OnEnter",
   function(self)
     local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetPlayerName());
-    local lines, columns, _ = playerRecord:GetNameTooltip(); -- don't need to show the icon
+    local lines, columns, _ = playerRecord:M("GetNameTooltip"); -- don't need to show the icon
     showTooltip(self, 
-      { title   = playerRecord:GetRPNameColorFixed(),
+      { title   = playerRecord:M("GetRPNameColorFixed"),
         columns = columns, 
         lines   = lines, }
     );
@@ -3843,15 +3862,15 @@ end;
 function adFrame.UpdatePreview()
   local myRecord = RP_Find:LoadSelfRecord();
 
-  local race = myRecord:GetRPRace();
-  if race == "" then race, _, _ = UnitRace("player"); myRecord:Set("MSP-RA", race); end;
+  local race = myRecord:M("GetRPRace");
+  if race == "" then race, _, _ = UnitRace("player"); myRecord:M("Set", "MSP-RA", race); end;
 
-  local class = myRecord:GetRPClass();
-  if class == "" then class, _, _ = UnitClass("player"); myRecord:Set("MSP-RC", class); end;
+  local class = myRecord:M("GetRPClass");
+  if class == "" then class, _, _ = UnitClass("player"); myRecord:M("Set", "MSP-RC", class); end;
 
-  myRecord:Set("ad_title", RP_Find.db.profile.ad.title);
-  myRecord:Set("ad_body",  RP_Find.db.profile.ad.body);
-  myRecord:Set("ad_adult", RP_Find.db.profile.ad.adult);
+  myRecord:M("Set", "ad_title", RP_Find.db.profile.ad.title);
+  myRecord:M("Set", "ad_body",  RP_Find.db.profile.ad.body);
+  myRecord:M("Set", "ad_adult", RP_Find.db.profile.ad.adult);
   RP_Find.adFrame:SetPlayerRecord(myRecord);
   RP_Find.adFrame:Show();
 end;
@@ -3960,34 +3979,34 @@ end;
 function adFrame:SetPlayerRecord(playerRecord)
   self:Reset();
 
-  self.playerName = playerRecord:GetPlayerName();
+  self.playerName = playerRecord:M("GetPlayerName");
 
-  self:SetPortraitToAsset(playerRecord:GetIcon());
-  self:SetTitle(RP_Find:FixColor(playerRecord:GetRPName()));
+  self:SetPortraitToAsset(playerRecord:M("GetIcon"));
+  self:SetTitle(RP_Find:FixColor(playerRecord:M("GetRPName")));
 
-  local class = playerRecord:GetRPClass();
+  local class = playerRecord:M("GetRPClass");
   if class then class = RP_Find:FixColor(class); end;
 
-  self:AddField(L["Field Race"    ], playerRecord:GetRPRace(),     L["Field Blank"]);
+  self:AddField(L["Field Race"    ], playerRecord:M("GetRPRace"),     L["Field Blank"]);
   self:AddField(L["Field Class"   ], class,                        L["Field Blank"]);
-  self:AddField(L["Field Pronouns"], playerRecord:GetRPPronouns(), L["Field Blank"]);
+  self:AddField(L["Field Pronouns"], playerRecord:M("GetRPPronouns"), L["Field Blank"]);
   if self.playerName ~= RP_Find.me
-  then self:AddField(L["Field Timestamp"], playerRecord:GetHumanReadableTimestamp("ad"), L["Field Blank"]);
+  then self:AddField(L["Field Timestamp"], playerRecord:M("GetHumanReadableTimestamp", "ad"), L["Field Blank"]);
   end;
 
-  if   playerRecord:Get("ad_adult") 
+  if   playerRecord:M("Get", "ad_adult") 
   then self.backdrop:SetVertexColor(1, 0, 0, 2/3);
        self.isAdult = true;
        if   RP_Find.db.profile.config.seeAdultAds
             or self.playerName == RP_Find.me 
-       then self:SetBodyText(playerRecord:Get("ad_body"), L["Field Body Blank" ]);
-            self:SetSubtitle(playerRecord:Get("ad_title"), L["Field Title Blank"]);
+       then self:SetBodyText(playerRecord:M("Get", "ad_body"), L["Field Body Blank" ]);
+            self:SetSubtitle(playerRecord:M("Get", "ad_title"), L["Field Title Blank"]);
        else self:SetBodyText(L["Field Body Adult Hidden"]);
             self:SetSubtitle(L["Field Title Adult Hidden"]);
        end;
   else self.isAdult = false;
-       self:SetBodyText(playerRecord:Get("ad_body"), L["Field Body Blank" ]);
-       self:SetSubtitle(playerRecord:Get("ad_title"), L["Field Title Blank"]);
+       self:SetBodyText(playerRecord:M("Get", "ad_body"), L["Field Body Blank" ]);
+       self:SetSubtitle(playerRecord:M("Get", "ad_title"), L["Field Title Blank"]);
   end;
 end;
 
@@ -4082,8 +4101,8 @@ function RP_Find:RegisterTRP3Received()
     function(unitID, profile, dataType)
       if unitID
       then local playerRecord = RP_Find:GetPlayerRecord(unitID);
-           if not playerRecord:Get("flagString")
-           then playerRecord:Set("flagString", playerRecord:GetFlagString());
+           if not playerRecord:M("Get", "flagString")
+           then playerRecord:M("Set", "flagString", playerRecord:M("GetFlagString"));
            end;
       end;
     end
@@ -4099,7 +4118,7 @@ function RP_Find:RegisterMspReceived()
       if   RP_Find.db.profile.config.monitorMSP 
       then local playerRecord = self:GetPlayerRecord(playerName);
            if   RP_Find.db.profile.config.autoSendPing
-           and  not playerRecord:HaveRPProfile()
+           and  not playerRecord:M("HaveRPProfile")
            then RP_Find:SendPing(playerName)
            end;
 
@@ -4144,7 +4163,7 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
   elseif text:find("^RPB1~TRP3HI")
   then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
+          and not playerRecord:M("HaveRPProfile")
          then RP_Find:SendPing(sender)
          end;
          
@@ -4157,10 +4176,10 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
   then   local playerRecord = RP_Find:GetPlayerRecord(sender, nil);
          local zoneID = tonumber(text:match("~(%d+)$"));
 
-         playerRecord:Set("mapScan", zoneID);
+         playerRecord:M("Set", "mapScan", zoneID);
 
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
+          and not playerRecord:M("HaveRPProfile")
          then RP_Find:SendPing(sender)
          end;
          
@@ -4181,13 +4200,13 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
          local x, y = text:match("^C_SCAN~(%d+%.%d+)~(%d+%.%d+)")
 
          if   RP_Find.db.profile.config.autoSendPing
-          and not playerRecord:HaveRPProfile()
+          and not playerRecord:M("HaveRPProfile")
          then RP_Find:SendPing(sender)
          end;
          
          if RP_Find:LastSince("mapScan", 1, SECONDS_PER_MIN)
          -- time() - (RP_Find:Last("mapScan") or 0) < 60
-         then playerRecord:SetZone(RP_Find:Last("mapScanZone"), x * 100, y * 100)
+         then playerRecord:M("SetZone", RP_Find:Last("mapScanZone"), x * 100, y * 100)
          end;
   end;
 end;
@@ -4204,14 +4223,14 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
            end;
        end;
        local playerRecord = RP_Find:GetPlayerRecord(sender);
-       playerRecord:Set("rpFindUser", true);
+       playerRecord:M("Set", "rpFindUser", true);
        if count > 0
        then 
-            playerRecord:Set("ad", true)
+            playerRecord:M("Set", "ad", true)
             for field, value in pairs(ad)
             do if field:match("^rp_") or field:match("^MSP-")
-               then playerRecord:Set(field, value)
-               else playerRecord:Set("ad_" .. field, value)
+               then playerRecord:M("Set", field, value)
+               else playerRecord:M("Set", "ad_" .. field, value)
                end;
             end;
 
@@ -4228,7 +4247,7 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
   then   local receivedVersion = text:match(":HELO|||version=(.-)|||")
 
          local playerRecord = RP_Find:GetPlayerRecord(sender);
-         playerRecord:Set("rpFindUser", true);
+         playerRecord:M("Set", "rpFindUser", true);
 
          if   calcVersion(receivedVersion) > calcVersion(RP_Find.addOnVersion)
          then RP_Find:Notify(string.format(L["Format New Version Available"], receivedVersion))
@@ -4303,33 +4322,38 @@ end;
 function RP_Find:ComposeAd()
 
   local text = chompPrefix.rpfind .. ":AD";
-  local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
+  local function add(f, v) 
+    text = text .. "|||" 
+           .. (f or "") 
+           .. "=" 
+           .. (v or ""); 
+    end;
 
   -- if  self:HaveRPClient("totalRP3") then self.my:SetHaveTRP3Data(true); end;
 
-  add("rp_name", self.my:GetRPName())
+  add("rp_name", self.my:M("GetRPName"))
 
-  local race = self.my:GetRPRace();
+  local race = self.my:M("GetRPRace");
   if race == "" then race, _, _ = UnitRace("player"); end;
   add("rp_race", race);
 
-  local class = self.my:GetRPClass();
+  local class = self.my:M("GetRPClass");
   if class == "" then class, _, _ = UnitClass("player") end;
   add("rp_class", class);
 
-  add("rp_title",    self.my:GetRPTitle());
-  add("rp_pronouns", self.my:GetRPPronouns());
-  add("rp_age",      self.my:GetRPAge());
-  add("rp_addon",    self.my:GetRPAddon());
+  add("rp_title",    self.my:M("GetRPTitle"));
+  add("rp_pronouns", self.my:M("GetRPPronouns"));
+  add("rp_age",      self.my:M("GetRPAge"));
+  add("rp_addon",    self.my:M("GetRPAddon"));
 
-  local trial = self.my:GetRPTrial();
+  local trial = self.my:M("GetRPTrial");
   if trial == "" then trial = IsTrialAccount() and "1" or "0" end;
 
   add("rp_trial", trial);
 
   add("title", self.db.profile.ad.title);
   add("body",  self.db.profile.ad.body);
-  add("adult", self.db.profile.ad.adult);
+  add("adult", self.db.profile.ad.adult and "1" or "");
 
   return text;
 end;
