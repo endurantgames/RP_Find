@@ -222,13 +222,14 @@ local menu =
     ["Info Data Timestamp"  ] = L["Info Data Timestamp"  ],
     ["Info Server"          ] = L["Info Server"          ],
     ["Info Subzone"         ] = L["Info Subzone"         ],
-    ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ], },
+    ["Info Zone Subzone"    ] = L["Info Zone Subzone"    ],
+    ["Info User ID"         ] = L["Info User ID"         ], },
     -- ["Info Tags"            ] = L["Info Tags"            ],
   infoColumnOrder =
   { "Info Class", "Info Race", "Info Race Class", "Info Age", 
     "Info Pronouns", "Info Zone", "Info Zone Subzone",
     "Info Subzone", "Info Status", "Info Currently", "Info OOC Info", 
-    "Info Title", "Info Server", }, -- "Info Tags", 
+    "Info Title", "Info Server", "Info User ID" }, -- "Info Tags", 
 
   notifyChatType = 
   { ["COMBAT_MISC_INFO"]      = COMBAT_MISC_INFO,
@@ -935,6 +936,7 @@ local infoColumnFunctionHash =
     end,
   ["Info Zone"           ] = function(self) return self:M("GetZoneName")   or "" end,
   ["Info Server"         ] = function(self) return self:M("GetServerName") or "" end,
+  ["Info User ID"        ] = function(self) return self.playerName         or "" end,
 
   ["Info Data Timestamp" ] = function(self) return self:M("GetTimestamp") end,
 
@@ -2067,7 +2069,7 @@ Finder.filterList =
   ["OnThisServer"] =
     { title   = L["Filter On This Server"],
       enabled = false,
-      func    = function(playerRecord) return playerRecord.server == RP_Find.realm end,
+      func    = function(playerRecord) return playerRecord:M("GetServer") == RP_Find.realm end,
     },
 
   ["IsSetIC"] =
@@ -2406,8 +2408,8 @@ function Finder.MakeFunc.Display(self)
     if success then pass = funcReturnValue else pass = true end;
 
     for filterID, func in pairs(activeFilters)
-    do  local result = func(record)
-        pass = pass and result;
+    do local result = func(record)
+       pass = pass and result;
     end 
 
     return pass;
