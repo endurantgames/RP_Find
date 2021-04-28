@@ -34,7 +34,9 @@ local DEFAULT_FINDER_WIDTH = 700;
 local DEFAULT_FINDER_HEIGHT = 500;
 local HAVE_MSP_DATA       = "have_mspData";
 local HAVE_TRP3_DATA      = "have_trp3Data";
-local MSP_FIELDS          = "RA RC IC FC AG AH AW CO CU FR NI NT PN PX VA TR GR GS GC"
+local MSP_FIELDS          = { "RA", "RC", "IC", "FC", "AG", "AH", "AW", "CO", "CU", 
+                              "FR", "NI", "NT", "PN", "PX", "VA", "TR", "GR", "GS", 
+                              "GC" };
 local ARROW_UP            = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
 local ARROW_DOWN          = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
 local SLASH               = "/rpfind|/lfrp";
@@ -454,7 +456,7 @@ RP_Find.addOnIcon    = IC.spotlight;
 RP_Find.addOnToast   = "RP_Find_notify";
 RP_Find.addOnTimers  = {};
 RP_Find.addonList    = addon;
-RP_Find.mspFields    = { split(MSP_FIELDS, " ") };
+RP_Find.mspFields    = MSP_FIELDS;
 
 -- Last counters
 function RP_Find:ClearLast(name)               self.db.global.last[name] = nil;                      end;
@@ -848,20 +850,21 @@ end;
 
 function RP_Find:SendPing(player, interactive)
   local pingSent = false;
-  local playerName, server = unpack(split(player, "%-"));
 
   if     self:HaveRPClient("totalRP3")
   then   TRP3_API.r.sendMSPQuery(player);
          TRP3_API.r.sendQuery(player);
          pingSent = "trp3";
   elseif self:HaveRPClient()
-  then   msp:Request(playerName, server, self.mspFields);
-         pingSent = "msp";
+  then   
+         pingSent= msp:Request(player, self.mspFields) and msp or false
   end;
 
   if     pingSent and interactive
   then   RP_Find:Notify(string.format(L["Format Ping Sent"], playerName));
          RP_Find:SetLast("pingPlayer");
+  elseif interactive
+  then   RP_Find:Notify("Unable to send profile request to " .. player .. ".");
   end;
 end;
 
