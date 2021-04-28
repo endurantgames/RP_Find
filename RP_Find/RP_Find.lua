@@ -20,6 +20,7 @@ local LibDataBroker     = LibStub("LibDataBroker-1.1");
 local LibColor          = LibStub("LibColorManipulation-1.0");
 local LibRealmInfo      = LibStub("LibRealmInfo");
 local LibMarkdown       = LibStub("LibMarkdown-1.0");
+local LibScrollingTable = LibStub("ScrollingTable");
 local L                 = AceLocale:GetLocale(addOnName);
 
 local MEMORY_WARN_MB      = 10;
@@ -743,7 +744,9 @@ function RP_Find:GetAllPlayerNames(filters, searchPattern)
   return list, filteredCount, totalCount;
 end;
 
-function RP_Find:GetAllPlayerRecords(filters, searchPattern)
+function RP_Find:GetAllPlayerRecords() return self.playerRecords; end;
+
+function RP_Find:OldGetAllPlayerRecords(filters, searchPattern)
  
   local filteredCount = 0;
   local totalCount    = 0;
@@ -1664,6 +1667,7 @@ end;
 local function dontBreakOnResize()
   Finder:DisableUpdates(true);
   Finder:PauseLayout();
+  RP_Find.playerList:Hide();
 end;
 
 local function restoreOnResize() 
@@ -1676,6 +1680,8 @@ local function restoreOnResize()
   end;
   Finder:ResumeLayout();
   Finder:DisableUpdates(false);
+  RP_Find:RecalculateColumnWidths(Finder.TabGroup);
+  RP_Find.playerList:Show();
 end;
 
 hooksecurefunc(Finder.frame, "StartSizing",        dontBreakOnResize);
@@ -2060,7 +2066,6 @@ function Finder:CreateTabGroup()
     tab = tab or Finder.currentTab;
     RP_Find:ClearTimer("playerList");
     self:ReleaseChildren();
-
     local scrollContainer = AceGUI:Create("SimpleGroup");
           scrollContainer:SetFullWidth(true);
           scrollContainer:SetFullHeight(true);
@@ -2077,6 +2082,11 @@ function Finder:CreateTabGroup()
     self.current = panelFrame;
     Finder.currentTab = tab;
 
+    if     RP_Find.playerList and tab == "Display"
+    then   RP_Find.playerList:Show()
+    elseif RP_Find.playerList
+    then   RP_Find.playerList:Hide();
+    end;
     if self:IsShown() then Finder:Update() end;
   end;
 
@@ -2200,6 +2210,187 @@ Finder.filterListOrder = {
 
 table.sort(Finder.filterListOrder, sortFilters);
 table.insert(Finder.filterListOrder, "ClearAllFilters");
+ 
+local displayColumns = 
+{ { title       = "",
+    method      = "GetPlayerName",
+    id          = "unitid",
+    width       = 0.0001,
+  },
+  
+  { title       = L["Display Header Name"],
+    method      = "GetRPNameColorFixed",
+    sorting     = "GetRPNameStripped",
+    ttMethod    = "GetNameTooltip",
+    ttTitleMethod = "GetRPNameColorFixed",
+    width       = 0.25,
+    id          = "name",
+  },
+  { title       = L["Display Header Info"],
+    titleFunc   = function() return menu.infoColumn[RP_Find.db.profile.config.infoColumn]; end,
+    method      = "GetInfoColumn",
+    ttMethod    = "GetInfoColumnTooltip",
+    -- ttTitle     = L["Display Header Info"],
+    ttTitleMethod = "GetInfoColumnTitle",
+    width       = 0.22,
+    id          = "info",
+  },
+  { title       = L["Display Header Flags"],
+    method      = "GetFlags",
+    ttMethod    = "GetFlagsTooltip",
+    ttTitle     = L["Display Header Flags"],
+    width       = 0.19,
+    id          = "flags",
+  },
+  { title       = L["Display Header Tools"],
+    ttTitle     = L["Display Column Title Profile"],
+    method      = "LabelViewProfile",
+    callback    = "CmdViewProfile",
+    tooltip     = L["Display View Profile Tooltip"],
+    disableSort = true,
+    width       = 0.08,
+    id          = "profile",
+  },
+  { ttTitle     = L["Display Column Title Whisper"],
+    title       = "",
+    method      = "LabelSendTell",
+    callback    = "CmdSendTell",
+    disableSort = true,
+    tooltip     = L["Display Send Tell Tooltip"],
+    width       = 0.09,
+    id          = "whisper",
+  },
+  --[[
+  { ttTitle     = L["Display Column Title Ping"],
+    title       = "",
+    method      = "LabelSendPing",
+    callback    = "CmdSendPing",
+    tooltip     = L["Display Send Ping Tooltip"],
+    disableSort = true,
+    width       = 0.06,
+    id          = "ping",
+  },
+  --]]
+  { ttTitle     = L["Display Column Title Ad"],
+    title       = "",
+    method      = "LabelReadAd",
+    callback    = "CmdReadAd",
+    tooltip     = L["Display Read Ad Tooltip"],
+    disableSort = true,
+    width       = 0.09,
+    id          = "ad",
+  },
+  { ttTitle     = L["Display Column Title Invite"],
+    title       = "",
+    method      = "LabelInvite",
+    callback    = "CmdInvite",
+    tooltip     = L["Display Send Invite Tooltip"],
+    disableSort = true,
+    width       = 0.08,
+    id          = "invite",
+  },
+}; -- here
+  
+
+function RP_Find:MakePlayerList(parentFrame)
+  parentFrame = parentFrame.frame or parentFrame;
+  if   self.playerList 
+  then self.playerList.frame:SetParent(parentFrame);
+       return 
+  end;
+
+  self.stColumns = {};
+  local baseWidth = 600;
+
+  for i, col in ipairs(displayColumns)
+  do local column  =
+     { name        = col.titleFunc and col.titleFunc() or col.title,
+       width       = col.width * baseWidth,
+       align       = "LEFT",
+       color       = { r = 1, g = 1, b = 1, a = 0 },
+       bgcolor     = { r = 0, g = 0, b = 0, a = 0 },
+       defaultsort = "dsc",
+       -- comparesort = sortPlayerRecords,
+     };
+     table.insert(self.stColumns, column);
+  end;
+
+  self.playerList = LibScrollingTable:CreateST(self.stColumns, 10, nil, 
+      { r = 0, g = 0, b = 0, a = 0 }, parentFrame)
+
+  self.playerList.frame:SetFrameLevel(100);
+
+  local cellMethods =
+  { ["OnEnter"] =
+      function(rowFrame, cellFrame, data, cols, row, realrow, column, scrollingTable, ...)
+        if not realrow or not column then return end;
+        local unitid = data[realrow].cols[1].value;
+        local info = displayColumns[column];
+        local playerRecord = RP_Find:GetPlayerRecord(unitid);
+        if     info.tooltip
+        then   local tooltip = 
+               { anchor = "ANCHOR_BOTTOM", 
+                 lines = { info.tooltip },
+                 title = info.ttTitleMethod 
+                         and playerRecord[info.ttTitleMethod](playerRecord)
+                          or info.ttTitle
+                          or info.title,
+               }
+               showTooltip(cellFrame, tooltip);
+               tooltip = nil;
+        elseif info.ttMethod and playerRecord[info.ttMethod]
+        then   local tooltip = 
+               { title = info.ttTitleMethod 
+                         and playerRecord[info.ttTitleMethod](playerRecord)
+                          or info.ttTitle,
+                 anchor = "ANCHOR_BOTTOM",
+               };
+               tooltip.lines, tooltip.columns, tooltip.icon = playerRecord[info.ttMethod](playerRecord);
+               showTooltip(cellFrame, tooltip);
+               tooltip = nil;
+        end;
+      end,
+    ["OnLeave"] = hideTooltip,
+    ["OnClick"] =
+      function(rowFrame, cellFrame, data, cols, row, realrow, column, scrollingTable, button, ...)
+        if not realrow or not column then return end;
+        local unitid = data[realrow].cols[1].value;
+        local info = displayColumns[column];
+        local playerRecord = RP_Find:GetPlayerRecord(unitid);
+        if   info.callback and RP_Find.playerRecordMethods[info.callback]
+        then playerRecord[info.callback](playerRecord, ...) 
+        end;
+      end,
+  };
+
+  self.playerList:RegisterEvents(cellMethods);
+
+end;
+
+function RP_Find:RecalculateColumnWidths(parentFrame, rowsPerPage)
+  local  baseWidth;
+  if     type(parentFrame) == "number" 
+  then   baseWidth = parentFrame
+  elseif type(parentFrame) == "table" and parentFrame.frame
+  then   baseWidth = parentFrame.frame:GetWidth()
+         baseHeight = parentFrame.frame:GetHeight();
+  elseif type(parentFrame) == "table"
+  then   baseWidth = parentFrame:GetWidth()
+         baseHeight = parentFrame:GetHeight();
+  end;
+
+  baseWidth = baseWidth - 60;
+  if   not rowsPerPage and baseHeight
+  then rowsPerPage = math.floor((baseHeight - 120) / 15)
+       self.playerList:SetDisplayRows(math.max(1, rowsPerPage), 15);
+  end;
+
+  for i, col in ipairs(displayColumns)
+  do  self.stColumns[i].width = col.width * baseWidth;
+  end;
+
+  self.playerList:SetDisplayCols(self.stColumns);
+end;
 
 function Finder.MakeFunc.Display(self)
 
@@ -2210,6 +2401,33 @@ function Finder.MakeFunc.Display(self)
         panelFrame:SetFullWidth(true);
         panelFrame:SetLayout("Flow");
   
+  local function applyCurrentFilters(self, row)
+    if not RP_Find.playerList or not row then return end;
+
+    local function nameMatch(playerRecord, pattern)
+      pattern = pattern:lower();
+      return playerRecord:GetRPNameStripped():lower():match(pattern)
+          or playerRecord:GetPlayerName():lower():match(pattern)
+    end;
+
+    local unitid = row.cols[1].value;
+    if not unitid then return end;
+    local record = RP_Find:GetPlayerRecord(unitid);
+
+    local pass;
+
+    local success, funcReturnValue = pcall(nameMatch, record, searchPattern);
+    if success then pass = funcReturnValue else pass = true end;
+
+    for filterID, func in pairs(activeFilters)
+    do  local result = func(record)
+        pass = pass and result;
+    end 
+
+    return pass;
+  end;
+
+  local searchBarReset = AceGUI:Create("InteractiveLabel");
   local searchBar = AceGUI:Create("EditBox");
         searchBar:SetRelativeWidth(0.38)
         searchBar.editbox:SetTextColor(0.5, 0.5, 0.5);
@@ -2219,7 +2437,9 @@ function Finder.MakeFunc.Display(self)
           function(self, event, text)
             searchPattern = text;
             Finder.searchPattern = searchPattern;
+            -- applyCurrentFilters()
             Finder:Update("Display"); 
+            searchBarReset:SetDisabled(text == "");
           end);
         searchBar:SetCallback("OnEnter",
           function(self, event)
@@ -2233,10 +2453,23 @@ function Finder.MakeFunc.Display(self)
 
   panelFrame:AddChild(searchBar);
 
+        searchBarReset:SetRelativeWidth(0.10);
+        searchBarReset:SetText("  " .. RESET);
+        searchBarReset:SetCallback("OnClick",
+          function(self, event, button)
+            searchPattern = "";
+            searchBar:SetText("");
+            Finder.searchPattern = "";
+            Finder:Update();
+          end);
+  searchBarReset:SetDisabled(true);
+
+  panelFrame:AddChild(searchBarReset);
   local space1 = AceGUI:Create("Label"); 
   space1:SetRelativeWidth(0.01); 
   panelFrame:AddChild(space1);
 
+  local filterSelectorReset = AceGUI:Create("InteractiveLabel");
   local filterSelector = AceGUI:Create("Dropdown");
         filterSelector:SetMultiselect(true);
         filterSelector:SetRelativeWidth(0.38);
@@ -2269,6 +2502,7 @@ function Finder.MakeFunc.Display(self)
            )
          );
     end;
+    filterSelectorReset:SetDisabled(count == 0);
     RP_Find.Finder.activeFilters = activeFilters;
   end;
 
@@ -2307,8 +2541,23 @@ function Finder.MakeFunc.Display(self)
 
   filterSelector:SetCallback("OnLeave", hideTooltip);
 
-  panelFrame:AddChild(filterSelector);
+  filterSelectorReset:SetText("  " .. RESET)
+  filterSelectorReset:SetRelativeWidth(0.1);
+  filterSelectorReset:SetCallback("OnClick",
+    function(self, event, button)
+      for filterID, filterData in pairs(Finder.filterList)
+      do filterData.enabled = false;
+      end;
+      RP_Find:Notify(L["Notify Filters Cleared"]);
+      Finder:SetActiveFilters();
+      Finder:Update("Display");
+    end
+  );
 
+  panelFrame:AddChild(filterSelector);
+  panelFrame:AddChild(filterSelectorReset);
+
+  --[[
   local space2 = AceGUI:Create("Label"); 
         space2:SetRelativeWidth(0.01); 
   panelFrame:AddChild(space2);
@@ -2352,83 +2601,10 @@ function Finder.MakeFunc.Display(self)
   panelFrame:AddChild(headers);
  
   headers.list = {};
-  
-  local displayColumns = 
-  { { title       = L["Display Header Name"],
-      method      = "GetRPNameColorFixed",
-      sorting     = "GetRPNameStripped",
-      ttMethod    = "GetNameTooltip",
-      ttTitleMethod = "GetRPNameColorFixed",
-      width       = 0.25,
-      id          = "name",
-    },
-    { title       = L["Display Header Info"],
-      titleFunc   = function() return menu.infoColumn[RP_Find.db.profile.config.infoColumn]; end,
-      method      = "GetInfoColumn",
-      ttMethod    = "GetInfoColumnTooltip",
-      -- ttTitle     = L["Display Header Info"],
-      ttTitleMethod = "GetInfoColumnTitle",
-      width       = 0.22,
-      id          = "info",
-    },
-    { title       = L["Display Header Flags"],
-      method      = "GetFlags",
-      ttMethod    = "GetFlagsTooltip",
-      ttTitle     = L["Display Header Flags"],
-      width       = 0.19,
-      id          = "flags",
-    },
-    { title       = L["Display Header Tools"],
-      ttTitle     = L["Display Column Title Profile"],
-      method      = "LabelViewProfile",
-      callback    = "CmdViewProfile",
-      tooltip     = L["Display View Profile Tooltip"],
-      disableSort = true,
-      width       = 0.08,
-      id          = "profile",
-    },
-    { ttTitle     = L["Display Column Title Whisper"],
-      title       = "",
-      method      = "LabelSendTell",
-      callback    = "CmdSendTell",
-      disableSort = true,
-      tooltip     = L["Display Send Tell Tooltip"],
-      width       = 0.09,
-      id          = "whisper",
-    },
-    --[[
-    { ttTitle     = L["Display Column Title Ping"],
-      title       = "",
-      method      = "LabelSendPing",
-      callback    = "CmdSendPing",
-      tooltip     = L["Display Send Ping Tooltip"],
-      disableSort = true,
-      width       = 0.06,
-      id          = "ping",
-    },
-    --]]
-    { ttTitle     = L["Display Column Title Ad"],
-      title       = "",
-      method      = "LabelReadAd",
-      callback    = "CmdReadAd",
-      tooltip     = L["Display Read Ad Tooltip"],
-      disableSort = true,
-      width       = 0.09,
-      id          = "ad",
-    },
-    { ttTitle     = L["Display Column Title Invite"],
-      title       = "",
-      method      = "LabelInvite",
-      callback    = "CmdInvite",
-      tooltip     = L["Display Send Invite Tooltip"],
-      disableSort = true,
-      width       = 0.08,
-      id          = "invite",
-    },
-  };
 
   Finder.sortField         = Finder.sortField         or displayColumns[1].sorting or displayColumns[1].method;
   Finder.previousSortField = Finder.previousSortField or displayColumns[1].sorting or displayColumns[1].method;
+  --]]
 
   function sortPlayerRecords(a, b)
     local aval = a[Finder.sortField](a);
@@ -2444,6 +2620,14 @@ function Finder.MakeFunc.Display(self)
     else return aval < bval;
     end;
   end;
+
+  --[[
+  local playerListContainer = AceGUI:Create("SimpleGroup");
+  playerListContainer:SetFullWidth(true);
+  playerListContainer:SetAutoAdjustHeight(true);
+ -- playerList:SetFullHeight(true);
+  playerListContainer:SetLayout("Flow");
+  panelFrame:AddChild(playerListContainer);
 
   local function ListHeader_SetOwnTitle(self)
     local  title = self.info.titleFunc and self.info.titleFunc() or self.info.title;
@@ -2494,7 +2678,7 @@ function Finder.MakeFunc.Display(self)
 
     table.insert(headers.list, newHeader);
   end;
-  
+
   local function buildLineFromPlayerRecord(playerRecord)
 
     local line = AceGUI:Create("SimpleGroup");
@@ -2511,6 +2695,7 @@ function Finder.MakeFunc.Display(self)
 
         local valueFunc      = playerRecord[info.method];
         local text, disabled = valueFunc(playerRecord);
+
         field:SetText(text);
         field:SetDisabled(disabled);
 
@@ -2554,23 +2739,16 @@ function Finder.MakeFunc.Display(self)
                 end);
         end;
 
-        line:AddChild(field)
+        -- line:AddChild(field)
     end;
 
     return line;
   end;
+    --]]
 
-  for _, info in ipairs(displayColumns) do makeListHeader(info); end;
+  -- for _, info in ipairs(displayColumns) do makeListHeader(info); end;
 
-  local playerList = AceGUI:Create("SimpleGroup");
-  playerList:SetFullWidth(true);
-  playerList:SetFullHeight(true);
-  playerList:SetLayout("Flow");
-  panelFrame:AddChild(playerList);
-
-  local function PlayerList_UpdatePlayerList(playerList)
-    playerList:ReleaseChildren();
-
+    --[[
     local function buildNavbar(count, pos)
       if count == 0 then return end;
 
@@ -2622,12 +2800,46 @@ function Finder.MakeFunc.Display(self)
 
       playerList:AddChild(navbar);
     end;
+    --]]
+
+  local function PlayerList_UpdatePlayerList(playerList)
+    RP_Find:MakePlayerList(Finder);
+    RP_Find:RecalculateColumnWidths(Finder.TabGroup)
+
+    RP_Find.playerList.frame:ClearAllPoints();
+    RP_Find.playerList.frame:SetPoint("TOPLEFT",     searchBar.frame, "BOTTOMLEFT", 0, -30 );
+    -- RP_Find.playerList.frame:SetPoint("BOTTOMRIGHT", Finder.TabGroup.frame, "BOTTOMRIGHT", -15, 15);
 
     local totalCount = 0;
 
-    local playerRecordsList;
+    local playerRecordsList = RP_Find:GetAllPlayerRecords();
 
-    playerRecordsList, Finder.filteredCount, Finder.totalCount = 
+    local data = {}
+    
+    for playerName, playerRecord in pairs(playerRecordsList)
+    do  
+        local columns = {};
+        for _, col in ipairs(displayColumns)
+        do  local cell = {};
+            local valueFunc      = playerRecord[col.method];
+            local text, disabled = valueFunc(playerRecord);
+            cell.value = text;
+            if disabled then cell.color = { r = 0.5, g = 0.5, b = 0.5, a = 1 }
+                        else cell.color = { r = 1,   g = 1,   b = 1,   a = 1 }
+            end;
+            table.insert(columns, cell);
+        end;
+        local row = {
+          cols = columns,
+          color = { r = 0, g = 0, b = 0, a = 1 },
+        };
+        table.insert(data, row);
+    end;
+
+    RP_Find.playerList:SetData(data);
+    RP_Find.playerList:SetFilter(applyCurrentFilters);
+
+    --[[ playerRecordsList, Finder.filteredCount, Finder.totalCount = 
       RP_Find:GetAllPlayerRecords(activeFilters, searchPattern);
 
     if   Finder.filteredCount == 0
@@ -2655,12 +2867,13 @@ function Finder.MakeFunc.Display(self)
     do  local index = i + shift;
         playerList:AddChild(buildLineFromPlayerRecord(playerRecordsList[index]));
     end;
+    --]]
+
+    -- buildNavbar(div, Finder.pos);
 
     if not RP_Find:HaveTimer("playerList")
     then   RP_Find:SaveTimer("playerList", RP_Find:ScheduleRepeatingTimer("Update", UPDATE_CYCLE_TIME)); 
     end;
-
-    buildNavbar(div, Finder.pos);
 
     playerRecordsList = nil;
 
@@ -2668,7 +2881,7 @@ function Finder.MakeFunc.Display(self)
 
   function panelFrame:Update(...) 
     Finder.SetActiveFilters();
-    for _, header in ipairs(headers.list) do ListHeader_SetOwnTitle(header) end;
+    -- for _, header in ipairs(headers.list) do ListHeader_SetOwnTitle(header) end;
     PlayerList_UpdatePlayerList(playerList, ...);
     self:DoLayout();
     Finder:UpdateTitle();
