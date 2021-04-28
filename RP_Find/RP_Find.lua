@@ -2027,7 +2027,8 @@ function Finder:CreateTabGroup()
     Finder.currentTab = tab;
 
     if     RP_Find.playerList and tab == "Display"
-    then   RP_Find.playerList:Show()
+    then   RP_Find:SetDisplayColumnHeaders();
+           RP_Find.playerList:Show()
     elseif RP_Find.playerList
     then   RP_Find.playerList:Hide();
     end;
@@ -2353,6 +2354,13 @@ RP_Find.DisplayColumns = displayColumns;
   self.playerList.cols[2].sort = LibScrollingTable.SORT_ASC;
   self.playerList:RegisterEvents(cellMethods);
 
+end;
+
+function RP_Find:SetDisplayColumnHeaders()
+  for i, info in ipairs(displayColumns)
+  do  self.stColumns[i].name = info.titleFunc and info.titleFunc() or info.title;
+  end;
+  self.playerList:SetDisplayCols(self.stColumns);
 end;
 
 function RP_Find:RecalculateColumnWidths(parentFrame, rowsPerPage)
@@ -3166,6 +3174,7 @@ function RP_Find:OnInitialize()
             get = function() return self.db.profile.config.infoColumn end,
             set = function(info, value) 
                     self.db.profile.config.infoColumn = value 
+                    self:SetDisplayColumnHeaders();
                     self:Update("Display");
                   end,
             sorting = menu.infoColumnOrder,
