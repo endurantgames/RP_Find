@@ -37,7 +37,8 @@ local configDB            = "RP_Find_ConfigDB";
 local finderDB            = "RP_FindDB";
 local finderFrameName     = "RP_Find_Finder_Frame";
 local addonChannel        = "xtensionxtooltip2";
-local addonPrefix         = { trp3 = "RPB1", rpfind = "LFRP1", };
+local chompPrefix         = { rpfind = "LFRP1", }; -- handled by chomp
+local addonPrefix         = { trp3   = "RPB1",  }; -- handled by native code
 local addOnTitle          = GetAddOnMetadata(addOnName, "Title");
 local msp                 = _G["msp"];
 
@@ -2669,6 +2670,7 @@ function Finder.MakeFunc.Display(self)
     Finder.SetActiveFilters();
     for _, header in ipairs(headers.list) do ListHeader_SetOwnTitle(header) end;
     PlayerList_UpdatePlayerList(playerList, ...);
+    self:DoLayout();
     Finder:UpdateTitle();
   end;
 
@@ -2710,10 +2712,7 @@ end;
 
 function Finder:UpdateContent(...)
   if not self:IsShown() or self.updatesDisabled then return end;
-  self:PauseLayout();
   self.UpdateFunc[self.currentTab](self, ...);
-  self:ResumeLayout();
-  self:DoLayout();
 end;
 
 function Finder:Update(tab, ...)
@@ -4247,8 +4246,8 @@ function RP_Find:HideFinder() self.Finder:Hide(); end;
 function RP_Find:SendVersionCheck()
   local channelNum = GetChannelName(addonChannel);
   RP_Find:SendSmartAddonMessage(
-      addonPrefix.rpfind,
-      addonPrefix.rpfind .. ":HELO|||version=" .. RP_Find.addOnVersion .. "|||")
+      chompPrefix.rpfind,
+      chompPrefix.rpfind .. ":HELO|||version=" .. RP_Find.addOnVersion .. "|||")
 end;
 
 function RP_Find:OnEnable()
@@ -4263,7 +4262,7 @@ function RP_Find:OnEnable()
 
   self:RegisterMspReceived();
   self:RegisterTRP3Received();
-  self:RegisterAddonChannel();
+  self:InitAddonChannel();
 
   self:SendVersionCheck();
 
@@ -4413,7 +4412,7 @@ function RP_Find.AddonMessageReceived.trp3(prefix, text, channelType, sender, ch
 end;
 
 function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, channelname, ...)
-  if   text:match(addonPrefix.rpfind .. ":AD")
+  if   text:match(chompPrefix.rpfind .. ":AD")
   then local count = 0;
        local ad = {};
        for _, rawData in ipairs(split(text, "|||"))
@@ -4442,7 +4441,7 @@ function RP_Find.AddonMessageReceived.rpfind(prefix, text, channelType, sender, 
             end;
             RP_Find.Finder:Update("Display");
        end;
-  elseif text:match(addonPrefix.rpfind .. ":HELO") 
+  elseif text:match(chompPrefix.rpfind .. ":HELO") 
          and RP_Find.db.profile.config.versionCheck 
          and not RP_Find.versionCheck
   then   local receivedVersion = text:match(":HELO|||version=(.-)|||")
@@ -4466,9 +4465,33 @@ function RP_Find:MoveAddonChannelToEndOfList()
   end;
 end;
 
-function RP_Find:RegisterAddonChannel()
-  for addon, prefix in pairs(addonPrefix)
+local chatMsgAddonEventRegistered = false;
+local chatMsgAddonHandlers = {};
+
+function RP_Find:RegisterAddonPrefix(prefix, callback)
+  local success = C_ChatInfo.RegisterAddonMessagePrefix(prefix);
+  if   success 
+  then 
+       if not chatMsgAddonEventRegistered
+       then self:RegisterEvent("CHAT_MSG_ADDON", "AddonMessageReceivedNoChomp")
+       end;
+       
+       chatMsgAddonHandlers[prefix] = callback;
+       chatMsgAddonEventRegistered = true;
+  end;
+end;
+
+function RP_Find:AddonMessageReceivedNoChomp(event, prefix, ...)
+  if chatMsgAddonHandlers[prefix] then chatMsgAddonHandlers[prefix](prefix, ...) end;
+end;
+
+function RP_Find:InitAddonChannel()
+  for addon, prefix in pairs(chompPrefix)
   do  AddOn_Chomp.RegisterAddonPrefix(prefix, self.AddonMessageReceived[addon]);
+  end;
+
+  for addon, prefix in pairs(addonPrefix)
+  do  self:RegisterAddonPrefix(prefix, self.AddonMessageReceived[addon]);
   end;
 
   local  haveJoinedAddonChannel, channelCount = haveJoinedChannel(addonChannel);
@@ -4498,7 +4521,7 @@ end;
 
 function RP_Find:ComposeAd()
 
-  local text = addonPrefix.rpfind .. ":AD";
+  local text = chompPrefix.rpfind .. ":AD";
   local function add(f, v) text = text .. "|||" .. (f or "") .. "=" .. (v or ""); end;
 
   -- if  self:HaveRPClient("totalRP3") then self.my:SetHaveTRP3Data(true); end;
@@ -4537,7 +4560,7 @@ function RP_Find:SendLFRPAd(interactive)
   then if   interactive 
        then self:Notify(string.format(L["Format Send Ad Failed"], 60)); 
        end;
-  else self:SendSmartAddonMessage(addonPrefix.rpfind, message);
+  else self:SendSmartAddonMessage(chompPrefix.rpfind, message);
        self:SetLast("sendAd");
        if   interactive 
        then self:Notify(L["Notify Send Ad"]); 

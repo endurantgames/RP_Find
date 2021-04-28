@@ -21,6 +21,7 @@
         <Include file="LibColorManipulation-1.0\lib.xml"            />
         <Include file="LibRealmInfo\LibRealmInfo.lua"               />
         <Include file="LibMarkdown\LibMarkdown.xml"                 />
+        <Include file="lib-st\lib-st.xml"                           />
 
 
 </Ui>
