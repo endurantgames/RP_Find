@@ -27,7 +27,7 @@ local MEMORY_WARN_MB      = 10;
 local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
 local BIG_STRING_LIMIT    = 30;
-local UPDATE_CYCLE_TIME   = 10;
+local UPDATE_CYCLE_TIME   = 3;
 local MIN_FINDER_WIDTH    = 675;
 local MIN_FINDER_HEIGHT   = 345;
 local DEFAULT_FINDER_WIDTH = 700;
@@ -39,7 +39,7 @@ local MSP_FIELDS          = { "RA", "RC", "IC", "FC", "AG", "AH", "AW", "CO", "C
                               "GC" };
 local ARROW_UP            = " |TInterface\\Buttons\\Arrow-Up-Up:0:0|t";
 local ARROW_DOWN          = " |TInterface\\Buttons\\Arrow-Down-Up:0:0|t";
-local SLASH               = "/rpfind|/lfrp";
+local SLASH               = "/rpfind|/lfrp|/rpfi";
 local configDB            = "RP_Find_ConfigDB";
 local finderDB            = "RP_FindDB";
 local finderFrameName     = "RP_Find_Finder_Frame";
@@ -655,8 +655,11 @@ function RP_Find:NewPlayerRecord(playerName, server)
   local playerRecord = {}
   playerRecord.playerName = playerName;
 
-  for   methodName, func in pairs(RP_Find.playerRecordMethods)
-  do    playerRecord[methodName] = func;
+  for   methodName, _ in pairs(RP_Find.playerRecordMethods)
+  do    playerRecord[methodName] 
+          = function(self, ...) 
+              return RP_Find.playerRecordMethods[methodName](self, ...)
+            end;
   end;
 
   playerRecord:Initialize();
@@ -1487,8 +1490,6 @@ RP_Find.defaults =
       alertTRP3Connect   = false,
       notifySound        = 37881,
       useSmartPruning    = true,
-      -- repeatSmartPruning = false,
-      -- deleteDBonLogin    = false,
       smartPruningThreshold = 10,
       notifyLFRP         = true,
       seeAdultAds        = false,
@@ -1553,15 +1554,18 @@ function Finder:SetDimensions()
   else self:SetPoint("CENTER", UIParent, "CENTER");
   end;
 
+  local UIParent_Width = UIParent:GetWidth();
+  local UIParent_Height = UIParent:GetHeight();
   if   RP_Find.db.profile.finder.width
   and  RP_Find.db.profile.finder.height
-  then self:SetWidth(math.max(RP_Find.db.profile.finder.width, MIN_FINDER_WIDTH));
-       self:SetHeight(math.max(RP_Find.db.profile.finder.height, MIN_FINDER_HEIGHT));
+  then self:SetWidth(math.min(math.max(RP_Find.db.profile.finder.width, MIN_FINDER_WIDTH), UIParent_Width));
+       self:SetHeight(math.min(math.max(RP_Find.db.profile.finder.height, MIN_FINDER_HEIGHT), UIParent_Height));
   else self:SetWidth(DEFAULT_FINDER_WIDTH);
        self:SetHeight(DEFAULT_FINDER_HEIGHT);
   end;
 
   self.frame:SetMinResize(MIN_FINDER_WIDTH, MIN_FINDER_HEIGHT);
+  self.frame:SetMaxResize(UIParent_Width, UIParent_Height);
 
 end;
 
@@ -1569,8 +1573,10 @@ Finder:SetLayout("Flow");
 
 Finder:SetCallback("OnClose",
   function(self, event, ...)
+    if RP_Find.playerList then RP_Find.playerList:SetData({}); end;
     local cancelTimers = { "playerList" };
     for _, t in ipairs(cancelTimers) do RP_Find:CancelTimer(t); end;
+    
   end);
 
 _G[finderFrameName] = Finder.frame;
@@ -1624,7 +1630,7 @@ function Finder:CreateButtonBar()
 
   local buttonBar = AceGUI:Create("SimpleGroup");
   buttonBar:SetLayout("Flow");
-  buttonBar:SetRelativeWidth(0.5);
+  buttonBar:SetFullWidth(true);
   self:AddChild(buttonBar);
 
   local buttonInfo =
@@ -2144,130 +2150,126 @@ table.sort(Finder.filterListOrder, sortFilters);
 table.insert(Finder.filterListOrder, "ClearAllFilters");
  
 local displayColumns = 
-{ { title       = "",
-    method      = "GetPlayerName",
-    id          = "unitid",
-    width       = 0.0001, -- has to be non-zero or the entire table won't display
-  },
-  
-  { title       = L["Display Header Name"],
-    method      = "GetRPNameColorFixed",
-    sorting     = "GetRPNameStripped",
-    ttMethod    = "GetNameTooltip",
-    ttTitleMethod = "GetRPNameColorFixed",
-    width       = 0.25,
-    id          = "name",
-  },
-  { title       = L["Display Header Info"],
-    titleFunc   = function() return menu.infoColumn[RP_Find.db.profile.config.infoColumn]; end,
-    method      = "GetInfoColumn",
-    ttMethod    = "GetInfoColumnTooltip",
-    ttTitleMethod = "GetInfoColumnTitle",
-    width       = 0.22,
-    id          = "info",
-  },
-  { title       = L["Display Header Flags"],
-    method      = "GetFlags",
-    ttMethod    = "GetFlagsTooltip",
-    ttTitle     = L["Display Header Flags"],
-    width       = 0.19,
-    id          = "flags",
-  },
-  { title       = L["Display Header Tools"],
-    ttTitle     = L["Display Column Title Profile"],
-    method      = "LabelViewProfile",
-    callback    = "CmdViewProfile",
-    tooltip     = L["Display View Profile Tooltip"],
-    disableSort = true,
-    width       = 0.08,
-    id          = "profile",
-  },
-  { ttTitle     = L["Display Column Title Whisper"],
-    title       = "",
-    method      = "LabelSendTell",
-    callback    = "CmdSendTell",
-    disableSort = true,
-    tooltip     = L["Display Send Tell Tooltip"],
-    width       = 0.09,
-    id          = "whisper",
-  },
-  { ttTitle     = L["Display Column Title Ad"],
-    title       = "",
-    method      = "LabelReadAd",
-    callback    = "CmdReadAd",
-    tooltip     = L["Display Read Ad Tooltip"],
-    disableSort = true,
-    width       = 0.09,
-    id          = "ad",
-  },
-  { ttTitle     = L["Display Column Title Invite"],
-    title       = "",
-    method      = "LabelInvite",
-    callback    = "CmdInvite",
-    tooltip     = L["Display Send Invite Tooltip"],
-    disableSort = true,
-    width       = 0.08,
-    id          = "invite",
-  },
-}; -- here
-  
+{ {   title       = "",
+      method      = "GetPlayerName",
+      id          = "unitid",
+      sorting     = "GetRPNameStripped",
+      initialSort = false,
+      width       = 0.0001, -- has to be non-zero or the entire table won't display
+    },
+    
+    { title       = L["Display Header Name"],
+      method      = "GetRPNameColorFixed",
+      sorting     = "GetRPNameStripped",
+      ttMethod    = "GetNameTooltip",
+      ttTitleMethod = "GetRPNameColorFixed",
+      width       = 0.25,
+      initialSort = true,
+      id          = "name",
+    },
+    { title       = L["Display Header Info"],
+      titleFunc   = function() return menu.infoColumn[RP_Find.db.profile.config.infoColumn]; end,
+      method      = "GetInfoColumn",
+      ttMethod    = "GetInfoColumnTooltip",
+      ttTitleMethod = "GetInfoColumnTitle",
+      width       = 0.22,
+      id          = "info",
+    },
+    { title       = L["Display Header Flags"],
+      method      = "GetFlags",
+      ttMethod    = "GetFlagsTooltip",
+      ttTitle     = L["Display Header Flags"],
+      width       = 0.19,
+      id          = "flags",
+    },
+    { title       = L["Display Header Tools"],
+      ttTitle     = L["Display Column Title Profile"],
+      method      = "LabelViewProfile",
+      callback    = "CmdViewProfile",
+      tooltip     = L["Display View Profile Tooltip"],
+      disableSort = true,
+      width       = 0.08,
+      id          = "profile",
+    },
+    { ttTitle     = L["Display Column Title Whisper"],
+      title       = "",
+      method      = "LabelSendTell",
+      callback    = "CmdSendTell",
+      disableSort = true,
+      tooltip     = L["Display Send Tell Tooltip"],
+      width       = 0.09,
+      id          = "whisper",
+    },
+    { ttTitle     = L["Display Column Title Ad"],
+      title       = "",
+      method      = "LabelReadAd",
+      callback    = "CmdReadAd",
+      tooltip     = L["Display Read Ad Tooltip"],
+      disableSort = true,
+      width       = 0.09,
+      id          = "ad",
+    },
+    { ttTitle     = L["Display Column Title Invite"],
+      title       = "",
+      method      = "LabelInvite",
+      callback    = "CmdInvite",
+      tooltip     = L["Display Send Invite Tooltip"],
+      disableSort = true,
+      width       = 0.08,
+      id          = "invite",
+    },
+  }; -- here
 
-function RP_Find:MakePlayerList(parentFrame)
-  parentFrame = parentFrame.frame or parentFrame;
-  if   self.playerList 
-  then self.playerList.frame:SetParent(parentFrame);
-       return 
-  end;
+RP_Find.DisplayColumns = displayColumns;
+    
 
-  self.stColumns = {};
-  local baseWidth = 600;
-
-  local function sortPlayerRecords(self, rowA, rowB, sortbycol)
-    print(rowA, rowB);
-
-    local valA, valB;
-    local column = self.cols[sortbycol];
-    local info = displayColumns[sortbycol];
-
-    if     info.sorting and RP_Find.playerRecordMethods[info.sorting]
-    then   func = info.sorting
-    else   func = info.method;
+  function RP_Find:MakePlayerList(parentFrame)
+    parentFrame = parentFrame.frame or parentFrame;
+    if   self.playerList 
+    then self.playerList.frame:SetParent(parentFrame);
+         return 
     end;
 
-    local useridA = self:GetCell(rowA, 1).value;
-    local useridB = self:GetCell(rowB, 1).value;
-    local recordA = RP_Find:GetPlayerRecord(useridA);
-    local recordB = RP_Find:GetPlayerRecord(useridB);
-    valA = recordA[func](recordA) or "";
-    valB = recordB[func](recordB) or "";
+    self.stColumns = {};
+    local baseWidth = 600;
 
-    local result;
-    if     valA == "" and valB ~= ""
-    then   result = true
-    elseif valA ~= "" and valB == ""
-    then   result = false
-    elseif valA == "" and valB == ""
-    then   result = true
-    else   result = valA < valB
+    local function sortPlayerRecords(self, rowA, rowB, sortbycol)
+
+      local valA, valB;
+      local column = self.cols[sortbycol];
+      local info   = displayColumns[sortbycol];
+
+      if   info.sorting and RP_Find.playerRecordMethods[info.sorting]
+      then func = info.sorting
+      else func = info.method;
+      end;
+
+      local useridA = self:GetCell(rowA, 1).value;
+      local useridB = self:GetCell(rowB, 1).value;
+      local recordA = RP_Find:GetPlayerRecord(useridA);
+      local recordB = RP_Find:GetPlayerRecord(useridB);
+      valA = recordA[func](recordA) or "";
+      valB = recordB[func](recordB) or "";
+
+      local result = valA:lower():gsub("[^%a ]+","") < valB:lower():gsub("[^%a ]+","")
+
+      local direction = column.sort or column.defaultsort or LibScrollingTable.SORT_DSC;
+      if    direction == LibScrollingTable.SORT_ASC
+      then  return     result
+      else  return not result
+      end;
     end;
 
-    local direction = column.sort or column.defaultsort or LibScrollingTable.SORT_DSC;
-    if    direction == LibScrollingTable.SORT_ASC
-    then  return result
-    else  return not result
-    end;
-  end;
-
-  for i, info in ipairs(displayColumns)
-  do local column  =
-     { name        = info.titleFunc and info.titleFunc() or info.title,
-       width       = info.width * baseWidth,
-       align       = "LEFT",
-       color       = { r = 1, g = 1, b = 1, a = 0 },
-       bgcolor     = { r = 0, g = 0, b = 0, a = 0 },
-       defaultsort = "dsc",
-     };
-     if not info.disableSort then column.comparesort = sortPlayerRecords; end;
+    for i, info in ipairs(displayColumns)
+    do local column  =
+       { name        = info.titleFunc and info.titleFunc() or info.title,
+         width       = info.width * baseWidth,
+         align       = "LEFT",
+         color       = { r = 1, g = 1, b = 1, a = 0 },
+         bgcolor     = { r = 0, g = 0, b = 0, a = 0 },
+         defaultsort = "dsc",
+         comparesort = info.sorting and sortPlayerRecords or LibScrollingTable.CompareSort,
+       };
      table.insert(self.stColumns, column);
   end;
 
@@ -2324,6 +2326,10 @@ function RP_Find:MakePlayerList(parentFrame)
       end,
   };
 
+  self.playerList.frame:SetBackdropColor(      0,   0,   0,   0);
+  self.playerList.frame:SetBackdropBorderColor(0.5, 0.5, 0.5, 1);
+
+  self.playerList.cols[2].sort = LibScrollingTable.SORT_ASC;
   self.playerList:RegisterEvents(cellMethods);
 
 end;
@@ -2531,7 +2537,6 @@ function Finder.MakeFunc.Display(self)
     local playerRecordsList = RP_Find:GetAllPlayerRecords();
 
     local data = {}
-    
     for playerName, playerRecord in pairs(playerRecordsList)
     do  
         Finder.totalCount = Finder.totalCount + 1;
