@@ -2219,21 +2219,62 @@ function RP_Find:MakePlayerList(parentFrame)
   self.stColumns = {};
   local baseWidth = 600;
 
-  for i, col in ipairs(displayColumns)
+  local function sortPlayerRecords(self, rowA, rowB, sortbycol)
+    print(rowA, rowB);
+
+    local valA, valB;
+    local column = self.cols[sortbycol];
+    local info = displayColumns[sortbycol];
+
+    if     info.sorting and RP_Find.playerRecordMethods[info.sorting]
+    then   func = info.sorting
+    else   func = info.method;
+    end;
+
+    local useridA = self:GetCell(rowA, 1).value;
+    local useridB = self:GetCell(rowB, 1).value;
+    local recordA = RP_Find:GetPlayerRecord(useridA);
+    local recordB = RP_Find:GetPlayerRecord(useridB);
+    valA = recordA[func](recordA) or "";
+    valB = recordB[func](recordB) or "";
+
+    local result;
+    if     valA == "" and valB ~= ""
+    then   result = true
+    elseif valA ~= "" and valB == ""
+    then   result = false
+    elseif valA == "" and valB == ""
+    then   result = true
+    else   result = valA < valB
+    end;
+
+    local direction = column.sort or column.defaultsort or LibScrollingTable.SORT_DSC;
+    if    direction == LibScrollingTable.SORT_ASC
+    then  return result
+    else  return not result
+    end;
+  end;
+
+  for i, info in ipairs(displayColumns)
   do local column  =
-     { name        = col.titleFunc and col.titleFunc() or col.title,
-       width       = col.width * baseWidth,
+     { name        = info.titleFunc and info.titleFunc() or info.title,
+       width       = info.width * baseWidth,
        align       = "LEFT",
        color       = { r = 1, g = 1, b = 1, a = 0 },
        bgcolor     = { r = 0, g = 0, b = 0, a = 0 },
        defaultsort = "dsc",
-       -- comparesort = sortPlayerRecords,
      };
+     if not info.disableSort then column.comparesort = sortPlayerRecords; end;
      table.insert(self.stColumns, column);
   end;
 
-  self.playerList = LibScrollingTable:CreateST(self.stColumns, 10, nil, 
-      { r = 0, g = 0, b = 0, a = 0 }, parentFrame)
+  self.playerList = LibScrollingTable:CreateST(
+      self.stColumns, 
+      10,  -- initial columns
+      nil, -- column height
+      { r = 0, g = 0, b = 0, a = 0 }, 
+      parentFrame
+  );
 
   self.playerList.frame:SetFrameLevel(100);
 
@@ -2496,7 +2537,7 @@ function Finder.MakeFunc.Display(self)
         do  local cell = {};
             local valueFunc      = playerRecord[col.method];
             local text, disabled = valueFunc(playerRecord);
-            cell.value = text;
+            cell.value = text or "";
             if disabled then cell.color = { r = 0.5, g = 0.5, b = 0.5, a = 1 }
                         else cell.color = { r = 1,   g = 1,   b = 1,   a = 1 }
             end;
