@@ -23,7 +23,7 @@ local LibMarkdown       = LibStub("LibMarkdown-1.0");
 local LibScrollingTable = LibStub("ScrollingTable");
 local L                 = AceLocale:GetLocale(addOnName);
 
-local MEMORY_WARN_MB      = 10;
+local MEMORY_WARN_MB      = 12;
 local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
 local BIG_STRING_LIMIT    = 30;
