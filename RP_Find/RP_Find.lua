@@ -28,6 +28,10 @@ local MIN_BUTTON_BAR_SIZE = 8;
 local MAX_BUTTON_BAR_SIZE = 64;
 local BIG_STRING_LIMIT    = 30;
 local UPDATE_CYCLE_TIME   = 10;
+local MIN_FINDER_WIDTH    = 675;
+local MIN_FINDER_HEIGHT   = 345;
+local DEFAULT_FINDER_WIDTH = 700;
+local DEFAULT_FINDER_HEIGHT = 500;
 local HAVE_MSP_DATA       = "have_mspData";
 local HAVE_TRP3_DATA      = "have_trp3Data";
 local MSP_FIELDS          = "RA RC IC FC AG AH AW CO CU FR NI NT PN PX VA TR GR GS GC"
@@ -295,19 +299,6 @@ local function getMSPFieldByPlayerName(playerName, field)
      and msp.char[playerName].field[field]
      or nil;
          
---[[
-  local  msp = _G["msp"];
-  if not msp then return nil end;
-  local  char = msp.char;
-  if not char then return nil end;
-  local  data = char[playerName];
-  if not data then return nil end;
-  local  fields = data.field;
-  if not fields then return nil end;
-  local  value = fields[field];
-  if     value == "" then return nil end;
-  return value;
---]]
 end;
 
 local function stripColor(text)
@@ -472,8 +463,6 @@ function RP_Find:GetLast(name)                 return self.db.global.last[name] 
 function RP_Find:LastElapsed(name)             return time() - (self:GetLast(name) or 0);            end;
 function RP_Find:LastSince(name, value, units) return self:LastElapsed(name) < value * (units or 1); end;
 RP_Find.Last = RP_Find.GetLast;
---[[ function RP_Find:Last(name, value)    return value and self:SetLast(name, value) 
-                                          or self:GetLast(name)                   end; --]]
 
 -- timer management
 function RP_Find:ClearTimer(name)
@@ -518,29 +507,6 @@ local popup =
   };
 
 local function fixPopup(self) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3); end;
-
---[[
-StaticPopupDialogs[popup.deleteDBonLogin] =
-{ 
-  showAlert      = true,
-  text           = L["Popup Delete DB on Login"],
-  button1        = YES,
-  button2        = NO,
-  exclusive      = true,
-  OnAccept       = function() RP_Find.db.profile.config.deleteDBonLogin = true end,
-  OnCancel       = function() 
-                     RP_Find:Notify(L["Notify Setting Cleared"]); 
-                     RP_Find.db.profile.config.deleteDBonLogin = false
-                   end,
-  timeout        = 60,
-  whileDead      = true,
-  hideOnEscape   = true,
-  hideOnCancel   = true,
-  preferredIndex = 3,
-  wide           = true,
-  OnShow         = fixStaticPopup,
-}
---]]
 
 StaticPopupDialogs[popup.deleteDBNow] =
 { showAlert      = true,
@@ -899,28 +865,6 @@ function RP_Find:SendPing(player, interactive)
   end;
 end;
 
---[[
-function RP_Find:CheckPingResult(playerName)
-  local playerRecord = self:GetPlayerRecord(playerName);
-  if not playerRecord then self:PurgePlayer(playerName); return; end;
-  if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
-  then self:PurgePlayer(playerName); return;
-  end;
-  self:ClearTimer("sendPing");
-  RP_Find:Update("Display");
-end;
-
-function RP_Find:CheckAllPings()
-  for _, playerRecord in ipairs(self:GetAllPlayerRecords())
-  do  if time() - (playerRecord:GetTimestamp() or 0) > 2 * SECONDS_PER_MIN
-      then self:PurgePlayer(playerRecord:GetPlayerName())
-      end;
-  end;
-  self:ClearTimer("sendPing");
-  RP_Find:Update("Display");
-end;
---]]
-
 local nameTooltipFields = 
 { { id = "race",     method = "GetRPRace",       label = "Race",    },
   { id = "class",    method = "GetRPClass",      label = "Class",   },
@@ -979,7 +923,6 @@ local infoColumnFunctionHash =
   ["Info Server"         ] = function(self) return self:GetServerName() or "" end,
 
   ["Info Data Timestamp" ] = function(self) return self:GetTimestamp() end,
-  -- ["Info Data First Seen"] = function(self) return self:GetTimestamp("First Seen") end,
 
   ["Info Race Class"] =
     function(self)
@@ -989,16 +932,6 @@ local infoColumnFunctionHash =
     end,
 
   ["Info Status"] = function(self) return self:GetRPStatusWord() end,
-
-  --[[
-  ["Info Tags"] = 
-    function(self)
-      if not RP_Find.addonList.RP_Tags then return "" end;
-      return RPTAGS.utils.tags.eval(
-        RP_Find.db.profile.config.infoConfigTags,
-        self.playerName, self.playerName);
-    end,
-  --]]
 
   ["Info Height Weight"] =
     function(self)
@@ -1443,25 +1376,9 @@ RP_Find.playerRecordMethods =
       end;
     end,
 
-  --[[
-  ["LabelSendPing"] = 
-    function(self) 
-      return L["Label Ping"], 
-        not RP_Find:HaveRPClient() or RP_Find:LastSince("pingPlayer", 1, SECOND_PER_MIN)
-            -- time() - (RP_Find:Last("pingPlayer") or 0) < SECONDS_PER_MIN
-    end,
-
-  ["CmdSendPing"] =
-    function(self)
-      RP_Find:SendPing(self.playerName, true); -- true == interactive
-      RP_Find:Update("Display");
-    end,
-  --]]
-
   ["LabelSendTell"] = 
     function(self) 
       return L["Label Whisper"], RP_Find:LastSince("sendWhisper", 1, SECONDS_PER_MIN);
-        -- time() - (RP_Find:Last("sendWhisper") or 0) < SECONDS_PER_MIN
     end,
 
   ["CmdSendTell"] = 
@@ -1635,13 +1552,13 @@ function Finder:SetDimensions()
 
   if   RP_Find.db.profile.finder.width
   and  RP_Find.db.profile.finder.height
-  then self:SetWidth(RP_Find.db.profile.finder.width);
-       self:SetHeight(RP_Find.db.profile.finder.height);
-  else self:SetWidth(700);
-       self:SetHeight(500);
+  then self:SetWidth(math.max(RP_Find.db.profile.finder.width, MIN_FINDER_WIDTH));
+       self:SetHeight(math.max(RP_Find.db.profile.finder.height, MIN_FINDER_HEIGHT));
+  else self:SetWidth(DEFAULT_FINDER_WIDTH);
+       self:SetHeight(DEFAULT_FINDER_HEIGHT);
   end;
 
-  self.frame:SetMinResize(650, 300);
+  self.frame:SetMinResize(MIN_FINDER_WIDTH, MIN_FINDER_HEIGHT);
 
 end;
 
@@ -2188,6 +2105,21 @@ Finder.filterList =
       enabled = false,
     },
 
+  ["UsesRpFind"] =
+    { func = function(playerRecord) return playerRecord:IsRPFindUser() end,
+      title = RP_Find.addOnTitle .. " User",
+      enabled = false,
+    },
+
+  ["FlagsColumnNotEmpty"] =
+    { func = function(playerRecord)
+               local flags = playerRecord:GetFlags();
+               return flags and flags ~= ""
+             end,
+      title = "Flags Column Not Empty",
+      enabled = false,
+    },
+
   ["ClearAllFilters"] = 
     { func = function(playerRecord) return true end,
       title = L["Filter Clear All Filters"],
@@ -2198,14 +2130,11 @@ Finder.filterList =
 local function sortFilters(a, b) return Finder.filterList[a].title < Finder.filterList[b].title end;
 
 Finder.filterListOrder = { 
-  "ContactInLastHour",
-  "SentMapScan", 
-  "InfoColumnNotEmpty", 
-  "IsSetIC",
-  "MatchesLastMapScan", 
-  "OnThisServer", 
-  "HaveRPProfile", 
-  "HaveAd", 
+  "ContactInLastHour",  "SentMapScan", 
+  "InfoColumnNotEmpty", "IsSetIC",
+  "MatchesLastMapScan", "OnThisServer", 
+  "HaveRPProfile",      "HaveAd", 
+  "UsesRpFind",         "FlagsColumnNotEmpty",
 };
 
 table.sort(Finder.filterListOrder, sortFilters);
@@ -2215,7 +2144,7 @@ local displayColumns =
 { { title       = "",
     method      = "GetPlayerName",
     id          = "unitid",
-    width       = 0.0001,
+    width       = 0.0001, -- has to be non-zero or the entire table won't display
   },
   
   { title       = L["Display Header Name"],
@@ -2230,7 +2159,6 @@ local displayColumns =
     titleFunc   = function() return menu.infoColumn[RP_Find.db.profile.config.infoColumn]; end,
     method      = "GetInfoColumn",
     ttMethod    = "GetInfoColumnTooltip",
-    -- ttTitle     = L["Display Header Info"],
     ttTitleMethod = "GetInfoColumnTitle",
     width       = 0.22,
     id          = "info",
@@ -2260,17 +2188,6 @@ local displayColumns =
     width       = 0.09,
     id          = "whisper",
   },
-  --[[
-  { ttTitle     = L["Display Column Title Ping"],
-    title       = "",
-    method      = "LabelSendPing",
-    callback    = "CmdSendPing",
-    tooltip     = L["Display Send Ping Tooltip"],
-    disableSort = true,
-    width       = 0.06,
-    id          = "ping",
-  },
-  --]]
   { ttTitle     = L["Display Column Title Ad"],
     title       = "",
     method      = "LabelReadAd",
@@ -2379,7 +2296,7 @@ function RP_Find:RecalculateColumnWidths(parentFrame, rowsPerPage)
          baseHeight = parentFrame:GetHeight();
   end;
 
-  baseWidth = baseWidth - 60;
+  baseWidth = baseWidth - 55;
   if   not rowsPerPage and baseHeight
   then rowsPerPage = math.floor((baseHeight - 120) / 15)
        self.playerList:SetDisplayRows(math.max(1, rowsPerPage), 15);
@@ -2557,250 +2474,6 @@ function Finder.MakeFunc.Display(self)
   panelFrame:AddChild(filterSelector);
   panelFrame:AddChild(filterSelectorReset);
 
-  --[[
-  local space2 = AceGUI:Create("Label"); 
-        space2:SetRelativeWidth(0.01); 
-  panelFrame:AddChild(space2);
-
-  local perPageSelector = AceGUI:Create("Dropdown");
-        perPageSelector:SetList(menu.perPage, menu.perPageOrder);
-
-        perPageSelector:SetText(
-          string.format(
-            L["Format Per Page"],
-            RP_Find.db.profile.config.rowsPerPage
-          )
-        );
-
-        perPageSelector:SetRelativeWidth(0.20);
-
-        perPageSelector:SetCallback("OnValueChanged",
-          function(self, event, value)
-            local old = RP_Find.db.profile.config.rowsPerPage;
-
-            local start = (Finder.pos or 0) * old + 1;
-            Finder.pos = math.floor(start / value);
-
-            RP_Find.db.profile.config.rowsPerPage = value;
-            RP_Find:Update("Display");
-          end);
-        perPageSelector:SetCallback("OnEnter",
-          function(self, event)
-            showTooltip(self, { title = "Entries per Page",
-              lines = { "Set the number of players per page in the database viewer." },
-            });
-          end);
-        perPageSelector:SetCallback("OnLeave", hideTooltip);
-
-  panelFrame:AddChild(perPageSelector);
-
-  local headers = AceGUI:Create("SimpleGroup");
-        headers:SetLayout("Flow");
-        headers:SetFullWidth(true);
-
-  panelFrame:AddChild(headers);
- 
-  headers.list = {};
-
-  Finder.sortField         = Finder.sortField         or displayColumns[1].sorting or displayColumns[1].method;
-  Finder.previousSortField = Finder.previousSortField or displayColumns[1].sorting or displayColumns[1].method;
-  --]]
-
-  function sortPlayerRecords(a, b)
-    local aval = a[Finder.sortField](a);
-    local bval = b[Finder.sortField](b);
-
-    if   aval == bval
-    then aval = a[Finder.previousSortField](a);
-         bval = a[Finder.previousSortField](b);
-    end;
-
-    if   Finder.reverseSort
-    then return aval > bval;
-    else return aval < bval;
-    end;
-  end;
-
-  --[[
-  local playerListContainer = AceGUI:Create("SimpleGroup");
-  playerListContainer:SetFullWidth(true);
-  playerListContainer:SetAutoAdjustHeight(true);
- -- playerList:SetFullHeight(true);
-  playerListContainer:SetLayout("Flow");
-  panelFrame:AddChild(playerListContainer);
-
-  local function ListHeader_SetOwnTitle(self)
-    local  title = self.info.titleFunc and self.info.titleFunc() or self.info.title;
-    if     Finder.sortField == self.sortField
-    and    Finder.reverseSort
-    then   self:SetText(title .. ARROW_UP)
-    elseif Finder.sortField == self.sortField
-    then   self:SetText(title .. ARROW_DOWN)
-    else   self:SetText(title)
-    end;
-    title = nil;
-  end;
-
-  local function ListHeader_SetSortField(self, event, button)
-    if   Finder.sortField        == self.sortField
-    then Finder.reverseSort       = not Finder.reverseSort;
-    else Finder.previousSortField = Finder.sortField;
-         Finder.sortField         = self.sortField;
-         Finder.reverseSort       = false;
-    end;
-
-    Finder:Update("Display");
-  end;
-   
-  local function makeListHeader(info)
-    local newHeader = AceGUI:Create("InteractiveLabel");
-    newHeader.info = info;
-
-    newHeader:SetRelativeWidth(info.width);
-    newHeader.sortField = info.sorting or info.method;
-    -- newHeader.title     = title;
-    -- newHeader.titleFunc = info.titleFunc;
-    ListHeader_SetOwnTitle(newHeader);
-    newHeader:SetFont("Fonts\\ARIALN.TTF", 14);
-    newHeader:SetColor(1, 1, 0);
-    if not info.disableSort 
-    then newHeader:SetCallback("OnClick", ListHeader_SetSortField); 
-         newHeader:SetCallback("OnEnter",
-           function(self, event, ...)
-             showTooltip(self, { title = self.title,
-               anchor = "ANCHOR_TOPRIGHT",
-               lines = { "Click to sort by this column." }, });
-           end);
-         newHeader:SetCallback("OnLeave", hideTooltip);
-    end;
-
-    headers:AddChild(newHeader);
-
-    table.insert(headers.list, newHeader);
-  end;
-
-  local function buildLineFromPlayerRecord(playerRecord)
-
-    local line = AceGUI:Create("SimpleGroup");
-          line:SetFullWidth(true);
-          line:SetLayout("Flow");
-
-    local fields = {};
-
-    for i, info in ipairs(displayColumns)
-    do  
-        local field = AceGUI:Create("InteractiveLabel")
-        field:SetRelativeWidth(info.width)
-        field:SetFont("Fonts\\ARIALN.TTF", 14);
-
-        local valueFunc      = playerRecord[info.method];
-        local text, disabled = valueFunc(playerRecord);
-
-        field:SetText(text);
-        field:SetDisabled(disabled);
-
-        if     info.tooltip
-        then   field:SetCallback("OnEnter",
-                 function(this, ...)
-                   local tooltip = 
-                     { anchor = "ANCHOR_BOTTOM", 
-                       lines = { info.tooltip },
-                       title = info.ttTitleMethod 
-                                 and playerRecord[info.ttTitleMethod](playerRecord)
-                                  or info.ttTitle
-                                  or info.title,
-                     }
-                   showTooltip(this,tooltip);
-                   tooltip = nil;
-                 end);
-               field:SetCallback("OnLeave", hideTooltip);
-        elseif info.ttMethod and playerRecord[info.ttMethod]
-        then   field:SetCallback("OnEnter",
-                 function(this, ...)
-                   local tooltip = 
-                         { title = info.ttTitleMethod 
-                                    and playerRecord[info.ttTitleMethod](playerRecord)
-                                     or info.ttTitle,
-                           anchor = "ANCHOR_BOTTOM",
-                         };
-                   tooltip.lines, tooltip.columns, tooltip.icon = playerRecord[info.ttMethod](playerRecord);
-                   showTooltip(this, tooltip);
-                   tooltip = nil;
-                 end);
-               field:SetCallback("OnLeave", hideTooltip);
-        end;
-
-        if   info.callback and RP_Find.playerRecordMethods[info.callback]
-        then 
-             field:SetCallback("OnClick", 
-               function(self, ...) 
-                 local callback = playerRecord[info.callback]; 
-                 callback(playerRecord, ...); 
-                end);
-        end;
-
-        -- line:AddChild(field)
-    end;
-
-    return line;
-  end;
-    --]]
-
-  -- for _, info in ipairs(displayColumns) do makeListHeader(info); end;
-
-    --[[
-    local function buildNavbar(count, pos)
-      if count == 0 then return end;
-
-      local function buildNavbutton(num)
-        local btn = AceGUI:Create("InteractiveLabel");
-        btn:SetText(tostring(num + 1))
-        btn.num = num;
-        btn:SetWidth(20);
-        btn:SetFontObject(GameFontColor);
-        btn:SetColor(GREEN_FONT_COLOR:GetRGBA())
-        btn:SetCallback("OnClick",
-          function(self, event, button)
-            Finder.pos = self.num;
-            RP_Find:Update("Display")
-          end);
-        btn:SetCallback("OnEnter",
-          function(self, event, ...)
-            showTooltip(self, { title = "Go to page " .. tostring(num+1) });
-          end);
-        btn:SetCallback("OnLeave", hideTooltip);
-        return btn;
-      end;
-
-      local navbar = AceGUI:Create("InlineGroup");
-            navbar:SetFullWidth(true);
-            navbar:SetLayout("Flow");
-
-      local labelGroup = AceGUI:Create("SimpleGroup");
-            labelGroup:SetRelativeWidth(0.1);
-            labelGroup:SetLayout("Flow");
-      navbar:AddChild(labelGroup);
-
-      local label = AceGUI:Create("Label");
-            label:SetText("Page");
-            label:SetFullWidth(true);
-            label:SetFontObject(GameFontNormal);
-      labelGroup:AddChild(label);
-
-      local buttonGroup = AceGUI:Create("SimpleGroup");
-            buttonGroup:SetLayout("Flow");
-            buttonGroup:SetRelativeWidth(0.88);
-      navbar:AddChild(buttonGroup);
-
-      for i = 0, count, 1
-      do  local btn = buildNavbutton(i);
-          if i == pos then btn:SetDisabled(true); end;
-          buttonGroup:AddChild(btn);
-      end;
-
-      playerList:AddChild(navbar);
-    end;
-    --]]
 
   local function PlayerList_UpdatePlayerList(playerList)
     RP_Find:MakePlayerList(Finder);
@@ -2808,9 +2481,8 @@ function Finder.MakeFunc.Display(self)
 
     RP_Find.playerList.frame:ClearAllPoints();
     RP_Find.playerList.frame:SetPoint("TOPLEFT",     searchBar.frame, "BOTTOMLEFT", 0, -30 );
-    -- RP_Find.playerList.frame:SetPoint("BOTTOMRIGHT", Finder.TabGroup.frame, "BOTTOMRIGHT", -15, 15);
 
-    local totalCount = 0;
+    Finder.totalCount = 0;
 
     local playerRecordsList = RP_Find:GetAllPlayerRecords();
 
@@ -2818,6 +2490,7 @@ function Finder.MakeFunc.Display(self)
     
     for playerName, playerRecord in pairs(playerRecordsList)
     do  
+        Finder.totalCount = Finder.totalCount + 1;
         local columns = {};
         for _, col in ipairs(displayColumns)
         do  local cell = {};
@@ -2839,38 +2512,6 @@ function Finder.MakeFunc.Display(self)
     RP_Find.playerList:SetData(data);
     RP_Find.playerList:SetFilter(applyCurrentFilters);
 
-    --[[ playerRecordsList, Finder.filteredCount, Finder.totalCount = 
-      RP_Find:GetAllPlayerRecords(activeFilters, searchPattern);
-
-    if   Finder.filteredCount == 0
-    then local nothingFound = AceGUI:Create("Label");
-               nothingFound:SetFullWidth(true);
-               nothingFound:SetText(L["Display Nothing Found"]);
-         playerList:AddChild(nothingFound);
-         return 
-    end;
-
-    table.sort(playerRecordsList, sortPlayerRecords);
-
-    Finder.pos = Finder.pos or 0;
-
-    local stop;
-    local size      = RP_Find.db.profile.config.rowsPerPage or 15;
-    local shift     = Finder.pos * size;
-    local div = math.floor(Finder.filteredCount/size);
-    local mod = Finder.filteredCount % size;
-
-    if mod == 0          then div  = div - 1;  mod = size; end;
-    if div == Finder.pos then stop = mod else stop = size; end;
-
-    for i = 1, stop, 1
-    do  local index = i + shift;
-        playerList:AddChild(buildLineFromPlayerRecord(playerRecordsList[index]));
-    end;
-    --]]
-
-    -- buildNavbar(div, Finder.pos);
-
     if not RP_Find:HaveTimer("playerList")
     then   RP_Find:SaveTimer("playerList", RP_Find:ScheduleRepeatingTimer("Update", UPDATE_CYCLE_TIME)); 
     end;
@@ -2881,7 +2522,6 @@ function Finder.MakeFunc.Display(self)
 
   function panelFrame:Update(...) 
     Finder.SetActiveFilters();
-    -- for _, header in ipairs(headers.list) do ListHeader_SetOwnTitle(header) end;
     PlayerList_UpdatePlayerList(playerList, ...);
     self:DoLayout();
     Finder:UpdateTitle();
@@ -2894,28 +2534,14 @@ Finder.TitleFunc = {};
 Finder.UpdateFunc= {};
 
 function Finder.TitleFunc.Display(self, ...)
-  if self.filteredCount ~= self.totalCount
-  then self:SetTitle(
-         string.format(
-           L["Format Finder Title Display Filtered"], 
-           self.totalCount,
-           self.filteredCount
-         )
-       );
-  else self:SetTitle(
-         string.format(
-           L["Format Finder Title Display"], 
-           self.totalCount or 0
-         )
-       );
-  end;
+  self:SetTitle(string.format(L["Format Finder Title Display"], self.totalCount or 0));
 end;
 
-function Finder.TitleFunc.Ads(self, ...)   self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
-function Finder.TitleFunc.Tools(self, ...) self:SetTitle(L["Format Finder Title Tools"]);    end;
-function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(...); end;
-function Finder.UpdateFunc.Tools(self, ...)   self.TabGroup.current:Update(...); end;
-function Finder.UpdateFunc.Ads(self, ...)     self.TabGroup.current:Update(...); end;
+function Finder.TitleFunc.Ads(self,      ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
+function Finder.TitleFunc.Tools(self,    ...) self:SetTitle(L["Format Finder Title Tools"]);    end;
+function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(...);                end;
+function Finder.UpdateFunc.Tools(self,   ...) self.TabGroup.current:Update(...);                end;
+function Finder.UpdateFunc.Ads(self,     ...) self.TabGroup.current:Update(...);                end;
 
 function Finder:UpdateTitle(event, ...)
   if    not self:IsShown() or self.updatesDisabled then return end;
@@ -3329,68 +2955,17 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScan:AddChild(spacer2);
   trp3MapScan:AddChild(trp3MapScanResultsButton);
 
-  --[[
-  local massPing = AceGUI:Create("InlineGroup");
-  massPing:SetFullWidth(true);
-  massPing:SetTitle("Mass Ping Tool");
-  panelFrame:AddChild(massPing);
-
-  local pingAllButton = AceGUI:Create("Button");
-  pingAllButton:SetText("Ping All");
-  pingAllButton:SetRelativeWidth(0.20);
-  pingAllButton:SetCallback("OnEnter",
-    function(self, event, ...)
-      showTooltip(self, { title = "Ping All", 
-        lines = { "This tool will send a ping request to all players in your database.",
-                  " ",
-                  "Players who don't autorespond within a minute will be removed from your database.",
-                  " ",
-                  "You have to wait 60 minutes before sending a new mass ping." } });
-    end);
-  pingAllButton:SetCallback("OnLeave", hideTooltip);
-  pingAllButton:SetCallback("OnClick",
-    function(self, event, button)
-      self:SetDisabled(true);
-      RP_Find:Notify("Pings sent to all loaded players; anyone who doesn't respond within a minute will be removed from your database.");
-      RP_Find:PingAll();
-    end);
-
-  local function updatePingAllButton()
-    if   time() - (RP_Find:Last("pingAll") or 0) > SECONDS_PER_HOUR
-    then pingAllButton:SetDisabled(false)
-    else pingAllButton:SetDisabled(true)
-    end;
-    pingAllButton:SetDisabled(RP_Find:LastSince("pingAll", 1, SECONDS_PER_HOUR));
-  end;
-
-  massPing:AddChild(pingAllButton);
-    ]]--
-
   function panelFrame:Update() updateTrp3MapScan(); end;
-    -- updatePingAllButton();
 
   return panelFrame;
 end;
-
---[[
-function RP_Find:PingAll()
-  if   not self:LastSince("pingAll", 1, SECONDS_PER_HOUR)
-       -- time() - ( self:Last("pingAll") or 0) > SECONDS_PER_HOUR
-  then self:SetLast("pingAll");
-       self:ClearTimer("sendPing");
-       -- self:SaveTimer("sendPing", self:ScheduleTimer("CheckAllPings", SECONDS_PER_MIN));
-       for _, playerName in ipairs(self:GetAllPlayerNames()) do self:SendPing(playerName) end;
-       RP_Find:Update("Tools");
-  end;
-end;
---]]
 
 Finder:Hide();
 RP_Find.Finder = Finder;
 
 function RP_Find:LoadSelfRecord() 
   self.my = self:GetPlayerRecord(self.me, self.realm); 
-  -- self.my:Set("rpFindUser", true);
+  self.my:Set("rpFindUser", true);
   return self.my;
 end;
 
@@ -3527,24 +3102,6 @@ function RP_Find:OnInitialize()
             width = 1,
             values = menu.infoColumn,
           },
-          --[[
-          spacerInfoColumn = optionsSpacer(),
-          infoColumnTags =
-          { type = "input",
-            order = source_order(),
-            name = function()
-                     if self.addonList.RP_Tags 
-                     then return L["Config Info Column Tags"] 
-                     else return L["Config Info Column Tags Disabled"]
-                     end
-                   end,
-            desc = L["Config Info Column Tags Tooltip"],
-            get = function()            return self.db.profile.config.infoColumnTags  end,
-            set = function(info, value) self.db.profile.config.infoColumnTags = value end,
-            width = 1,
-            disabled = function() return not self.addonList.RP_Tags end,
-          },
-          --]]
           nameTooltip =
           { name = "Name Column Tooltip",
             type = "group",
@@ -3934,23 +3491,6 @@ function RP_Find:OnInitialize()
               },
             },
           },
-          --[[
-          deleteDBonLogin =
-          { name          = L["Config Delete DB on Login"],
-            type          = "toggle",
-            width         = 1.25,
-            order         = source_order(),
-            desc          = L["Config Delete DB on Login Tooltip"],
-            get           = function() return self.db.profile.config.deleteDBonLogin end,
-            set           = function(info, value) 
-                              if not value 
-                              then   self.db.profile.config.deleteDBonLogin = value 
-                              else   StaticPopup_Show(popup.deleteDBonLogin) 
-                              end
-                            end,
-          },
-          deleteSpacer = optionsSpacer(),
-          --]]
           configSmartPruning  =
           { name              = L["Config Smart Pruning"],
             type              = "group",
@@ -3970,28 +3510,7 @@ function RP_Find:OnInitialize()
                                   self.db.profile.config.useSmartPruning  = value 
                                   self:StartOrStopPruningTimer();
                                 end,
-                -- disabled      = function() return self.db.profile.config.deleteDBonLogin end,
               },
-              --[[
-              spacer1          = optionsSpacer(),
-              repeatSmartPruning =
-              { name = L["Config Smart Pruning Repeat"],
-                type = "toggle",
-                width = 2/3,
-                order = source_order(),
-                desc = L["Config Smart Pruning Repeat Tooltip"],
-                get = function() return self.db.profile.config.repeatSmartPruning end,
-                set = function(info, value) 
-                        self.db.profile.config.repeatSmartPruning = value; 
-                        self:StartOrStopPruningTimer()
-                      end,
-                disabled = function() 
-                             return not self.db.profile.config.useSmartPruning 
-                                -- or self.db.profile.config.deleteDBonLogin 
-                           end,
-              },
-              spacer2          = optionsSpacer(),
-              --]]
               pruningThreshold =
               { name                = L["Config Smart Pruning Threshold"],
                 type                = "range",
@@ -4827,7 +4346,7 @@ RP_Find.configButton:SetScript("OnEnter",
 RP_Find.configButton:SetScript("OnLeave", hideTooltip);
 
 --[[
-local function makeColorBar()
+  local function makeColorBar()
   local frameWidth = 240;
   local height = 16;
   local colorBar = CreateFrame("Frame", nil, Finder.frame);
