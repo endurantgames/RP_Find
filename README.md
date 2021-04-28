@@ -42,7 +42,7 @@ or can be run without any of those.
   - [x] Rebuild frame when loading new / resetting profile
 - [ ] Tools:
   - [x] Send map ping request
-  - [x] Mass ping / offline player removal
+  - [x] ~~Mass ping / offline player removal~~ (removed)
   - [ ] Find hotspots
     - [ ] Create list
     - [ ] Ad code
