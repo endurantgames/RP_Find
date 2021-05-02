@@ -105,18 +105,18 @@ local textIC   = -- icons for text
 --]]
 };
 
-local htmlCodes   =
-  { ["blockquote"]  = "<br /><p>" .. textIC.blank .. "|cffff00ff",
+local htmlCodes     =
+  { ["blockquote" ] = "<br /><p>" .. textIC.blank .. "|cffff00ff",
     ["/blockquote"] = "|r</p><br />",
-    ["/p"]          = "</p><br />",
-    ["pre"]         = "<br /><p>" .. textIC.blank .. "|cff00ffff",
-    ["/pre"]        = "|r</p><br />",
-    ["h2"]          = "<br /><h2>",
-    ["h3"]          = "<br /><h3>",
-    ["ul"]          = "<br />",
-    ["/ul"]         = "<br />",
-    ["li"]          = "<p>", --  .. textIC.blank,
-    ["/li"]         = "</p><br />",
+    ["/p"         ] = "</p><br />",
+    ["pre"        ] = "<br /><p>" .. textIC.blank .. "|cff00ffff",
+    ["/pre"       ] = "|r</p><br />",
+    ["h2"         ] = "<br /><h2>",
+    ["h3"         ] = "<br /><h3>",
+    ["ul"         ] = "<br />",
+    ["/ul"        ] = "<br />",
+    ["li"         ] = "<p>", --  .. textIC.blank,
+    ["/li"        ] = "</p><br />",
     ["list_marker"] = "|TInterface\\COMMON\\Indicator-Yellow.PNG:0|t",
   };
 
@@ -127,22 +127,22 @@ ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.red     = 1;
 ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.green   = 1;
 ACEMARKDOWNWIDGET_CONFIG.HtmlStyles.Normal.blue    = 1;
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.default.Popup =
-  { Text = L["Link Text Default"],
+  { Text       = L["Link Text Default"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.http.Popup =
-  { Text = L["Link Text HTTP"],
+  { Text       = L["Link Text HTTP"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.https.Popup =
-  { Text = L["Link Text HTTPS"],
+  { Text       = L["Link Text HTTPS"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
 ACEMARKDOWNWIDGET_CONFIG.LinkProtocols.mailto.Popup =
-  { Text = L["Link Text Mailto"],
+  { Text       = L["Link Text Mailto"],
     PrefixText = addOnTitle .. "\n\n",
     ButtonText = L["Button Got It"], 
   };
@@ -413,7 +413,7 @@ end;
 local function hideTooltip() GameTooltip:Hide(); end;
 
 local function colorize(text, timeValue) return text end;
-  --[[
+--[[
 local function colorize(text, timeValue)
   local color = 
     LibColor.hsv(
@@ -430,7 +430,7 @@ local function colorize(text, timeValue)
     );
   return color:format("|cffrrggbb") .. text .. "|r";
 end;
-  --]]
+--]]
 
 local RP_Find = AceAddon:NewAddon(
   addOnName, 
@@ -505,9 +505,7 @@ function RP_Find:HaveRPClient(addonToQuery)
 end;
 
 local popup =
-  { -- deleteDBonLogin = "RP_FIND_DELETE_DB_ON_LOGIN_CONFIRMATION",
-    deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION",
-  };
+  { deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION", };
 
 local function fixPopup(self) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3); end;
 
@@ -873,10 +871,10 @@ function RP_Find:SendPing(player, interactive)
   end;
 
   if     pingSent and interactive
-  then   RP_Find:Notify(string.format(L["Format Ping Sent"], playerName));
+  then   RP_Find:Notify(string.format(L["Format Ping Sent"], player));
          RP_Find:SetLast("pingPlayer");
   elseif interactive
-  then   RP_Find:Notify("Unable to send profile request to " .. player .. ".");
+  then   RP_Find:Notify(string.format(L["Format Unable To Send Ping"], player));
   end;
 end;
 
@@ -905,6 +903,7 @@ local trp3FieldHash   =
   height     = { "characteristics", "HE" },
   weight     = { "characteristics", "WE" },
   title      = { "characteristics", "FT" },
+  -- we don't really care about these:
   -- eyecolor   = { "characteristics", "EC" },
   -- birthplace = { "characteristics", "BP" },
   -- home       = { "characteristics", "RE" },
@@ -937,7 +936,6 @@ local infoColumnFunctionHash =
   ["Info Zone"           ] = function(self) return self:M("GetZoneName")   or "" end,
   ["Info Server"         ] = function(self) return self:M("GetServerName") or "" end,
   ["Info User ID"        ] = function(self) return self.playerName         or "" end,
-
   ["Info Data Timestamp" ] = function(self) return self:M("GetTimestamp") end,
 
   ["Info Race Class"] =
@@ -1142,15 +1140,18 @@ RP_Find.playerRecordMethods =
   ["IsSetLooking"    ] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 3 end,
   ["IsSetStoryteller"] = function(self) return tonumber(self:M("GetRPStatus") or 0) == 4 end,
   ["IsTrial"         ] = function(self) return tonumber(self:M("GetRPTrial")  or 0) == 1 end,
-  -- ["GetRPHonorific"  ] = function(self) return self:M("GetRP", "honorific",   "PX")   end,
-  -- ["GetRPStatus"     ] = function(self) return self:M("GetRP", "status",      "FC")   end,
-  -- ["GetRPEyeColor"   ] = function(self) return self:M("GetRP", "eyecolor",    "AE")   end,
-  -- ["GetRPStyle"      ] = function(self) return self:M("GetRP", "style",       "FR")   end,
-  -- ["GetRPBirthplace" ] = function(self) return self:M("GetRP", "birthplace",  "HB")   end,
-  -- ["GetRPHome"       ] = function(self) return self:M("GetRP", "home",        "HH")   end,
-  -- ["GetRPMotto"      ] = function(self) return self:M("GetRP", "motto",       "MO")   end,
-  -- ["GetRPHouse"      ] = function(self) return self:M("GetRP", "house",       "NH")   end,
-  -- ["GetRPNickname"   ] = function(self) return self:M("GetRP", "nick",        "NI")   end,
+
+  --[[
+  ["GetRPHonorific"  ] = function(self) return self:M("GetRP", "honorific",   "PX")   end,
+  ["GetRPStatus"     ] = function(self) return self:M("GetRP", "status",      "FC")   end,
+  ["GetRPEyeColor"   ] = function(self) return self:M("GetRP", "eyecolor",    "AE")   end,
+  ["GetRPStyle"      ] = function(self) return self:M("GetRP", "style",       "FR")   end,
+  ["GetRPBirthplace" ] = function(self) return self:M("GetRP", "birthplace",  "HB")   end,
+  ["GetRPHome"       ] = function(self) return self:M("GetRP", "home",        "HH")   end,
+  ["GetRPMotto"      ] = function(self) return self:M("GetRP", "motto",       "MO")   end,
+  ["GetRPHouse"      ] = function(self) return self:M("GetRP", "house",       "NH")   end,
+  ["GetRPNickname"   ] = function(self) return self:M("GetRP", "nick",        "NI")   end,
+  --]]
 
   ["IsLGBTFriendly"] =
     function(self)
@@ -1163,7 +1164,7 @@ RP_Find.playerRecordMethods =
 
   ["WelcomesWalkups"] = 
     function(self)
-      local pat = "walk%-? ?ups?";
+      local pat = L["Pattern Walkups Welcome"];
       local curr = self:M("GetRPCurr");
       local oocinfo = self:M("GetRPInfo");
       return (curr and curr:lower():match(pat)
@@ -1207,12 +1208,12 @@ RP_Find.playerRecordMethods =
       local  status = self:M("GetRPStatus")
       local  statusNum = tonumber(status);
 
-      if     statusNum == 1 then return "Out of Character"
-      elseif statusNum == 2 then return "In Character"
-      elseif statusNum == 3 then return "Looking for Contact"
-      elseif statusNum == 4 then return "Storyteller"
-      elseif statusNum == 0 then return ""
-      elseif status == nil then return ""
+      if     statusNum == 1   then return L["Flag Is Set OOC"]
+      elseif statusNum == 2   then return L["Flag Is Set IC"]
+      elseif statusNum == 3   then return L["Flag Is Set Looking"]
+      elseif statusNum == 4   then return L["Flag Is Set Storyteller"]
+      elseif statusNum == 0   then return ""
+      elseif status    == nil then return ""
       else   return status;
       end;
     end,
@@ -1303,7 +1304,8 @@ RP_Find.playerRecordMethods =
 
       if RP_Find.db.profile.config.nameTooltip.trial
       then temp = self:M("IsTrial");
-           if temp then table.insert(columns, { "Trial Status", "Trial" });
+           if temp then table.insert(columns, 
+                        { L["Trial Status"], L["Flag Is Trial"] });
            end;
       end;
 
@@ -1311,7 +1313,7 @@ RP_Find.playerRecordMethods =
       then temp = self:M("GetRPCurr");
            if temp and temp ~= ""
            then table.insert(lines, " ");
-                table.insert(lines, "Currently:");
+                table.insert(lines, L["Info Currently"] .. ":");
                 table.insert(lines, col.white(temp));
             end;
             currently = nil;
@@ -1321,7 +1323,7 @@ RP_Find.playerRecordMethods =
       then temp = self:M("GetRPInfo");
            if temp and temp ~= ""
            then table.insert(lines, " ");
-                table.insert(lines, "OOC Info:");
+                table.insert(lines, L["Info OOC Info"] .. ":");
                 table.insert(lines, col.white(temp));
             end;
       end;
@@ -1705,7 +1707,7 @@ function Finder:CreateButtonBar()
       tooltip = L["Button Toolbar Preview Ad Tooltip"],
       func    = function(self, event, button) 
                   if   RP_Find.adFrame:IsShown() 
-                   and RP_Find.adFrame:M("GetPlayerName") == RP_Find.me
+                   and RP_Find.adFrame:GetLoadedPlayer() == RP_Find.me
                   then RP_Find.adFrame:Hide()
                   else Finder:LoadTab("Ads"); 
                        RP_Find.adFrame.ShowPreview();
@@ -1836,8 +1838,10 @@ function Finder:CreateButtonBar()
   sendAdCountdown:SetCallback("OnEnter",
     function(self, event, ...)
       showTooltip(self, 
-        { title = "Send Ad Timer", 
-          lines = { "This timer shows how long until you can send your next ad." } });
+        { title = L["Tooltip Title Send Ad Timer"],
+          lines = { L["Tooltip Text Send Ad Timer"] } 
+        }
+      );
     end);
   sendAdCountdown:SetCallback("OnLeave", hideTooltip);
   sendAdCountdown:SetFont(fontFile, buttonSize / 3);
@@ -1855,7 +1859,7 @@ function RP_Find:StartSendAdCountdown()
 end;
 
 function RP_Find:UpdateSendAdCountdown()
-  local remaining = SECONDS_PER_MIN - (time() - (RP_Find:Last("sendAd")));
+  local remaining = SECONDS_PER_MIN - (time() - (RP_Find:Last("sendAd") or 0));
   if   remaining <= 0 or self:HaveTimer("autoSend")
   then self.Finder.sendAdCountdown:SetText();
        self.Finder.sendAdCountdown:SetDisabled(true);
@@ -1906,8 +1910,8 @@ function Finder:CreateProfileButton()
   profileButton:SetCallback("OnEnter",
     function(self, event, ...)
       self:SetColor(1, 1, 0);
-      showTooltip(self, { title = "Current Profile",
-        lines = { "Click to change the current profile." } });
+      showTooltip(self, { title = L["Tooltip Title Current Profile"],
+        lines = { L["Tooltip Text Current Profile"] } });
     end);
   profileButton:SetCallback("OnLeave",
     function(self, event, ...)
@@ -1955,7 +1959,8 @@ function Finder:CreateProfileButton()
           button:SetCallback("OnEnter",
             function(self, event, ...)
               self:SetColor(1, 1, 0);
-              showTooltip(self, { title = profileName, lines = { "Click to set this as the active profile." } });
+              showTooltip(self, { title = profileName, 
+                lines = { L["Tooltip Text Set Active Profile"] } });
             end);
           button:SetCallback("OnLeave",
             function(self, event, ...)
@@ -1983,8 +1988,8 @@ function Finder:CreateProfileButton()
         end)
       close:SetCallback("OnEnter",
         function(self, event, ...)
-          showTooltip(self, { title = "Close", 
-            lines = { "Close this window without changing the active profile." } } );
+          showTooltip(self, { title = L["Tooltip Title Close Profile Selector"],
+            lines = { L["Tooltip Text Close Profile Selector"] } } );
         end);
       close:SetCallback("OnLeave", hideTooltip);
 
@@ -2147,7 +2152,7 @@ Finder.filterList =
                local flags = playerRecord:M("GetFlags");
                return flags and flags ~= ""
              end,
-      title = "Flags Column Not Empty",
+      title = L["Filter Flags Column Not Empty"],
       enabled = false,
     },
 
@@ -2559,7 +2564,7 @@ function Finder.MakeFunc.Display(self)
     RP_Find:RecalculateColumnWidths(Finder.TabGroup)
 
     RP_Find.playerList.frame:ClearAllPoints();
-    RP_Find.playerList.frame:SetPoint("TOPLEFT",     searchBar.frame, "BOTTOMLEFT", 0, -30 );
+    RP_Find.playerList.frame:SetPoint("TOPLEFT", searchBar.frame, "BOTTOMLEFT", 0, -30 );
 
     Finder.totalCount = 0;
 
@@ -2615,11 +2620,11 @@ function Finder.TitleFunc.Display(self, ...)
   self:SetTitle(string.format(L["Format Finder Title Display"], self.totalCount or 0));
 end;
 
-function Finder.TitleFunc.Ads(self,      ...) self:SetTitle(RP_Find.addOnTitle .. "- Your Ad"); end;
-function Finder.TitleFunc.Tools(self,    ...) self:SetTitle(L["Format Finder Title Tools"]);    end;
-function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(...);                end;
-function Finder.UpdateFunc.Tools(self,   ...) self.TabGroup.current:Update(...);                end;
-function Finder.UpdateFunc.Ads(self,     ...) self.TabGroup.current:Update(...);                end;
+function Finder.TitleFunc.Ads(self,      ...) self:SetTitle(L["Format Finder Title Ads"]);   end;
+function Finder.TitleFunc.Tools(self,    ...) self:SetTitle(L["Format Finder Title Tools"]); end;
+function Finder.UpdateFunc.Display(self, ...) self.TabGroup.current:Update(...);             end;
+function Finder.UpdateFunc.Tools(self,   ...) self.TabGroup.current:Update(...);             end;
+function Finder.UpdateFunc.Ads(self,     ...) self.TabGroup.current:Update(...);             end;
 
 function Finder:UpdateTitle(event, ...)
   if    not self:IsShown() or self.updatesDisabled then return end;
@@ -2681,7 +2686,7 @@ function Finder.MakeFunc.Ads(self)
   local currentProfile;
 
   local function updatePreviewIfShown()
-    if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+    if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetLoadedPlayer() == RP_Find.me
     then RP_Find.adFrame:UpdatePreview() 
     end;
   end;
@@ -2748,8 +2753,8 @@ function Finder.MakeFunc.Ads(self)
         self, 
         { title = L["Button Clear Ad"], 
           lines = 
-          { "Click to clear your ad.", 
-            "Warning: This can't be undone." 
+          { L["Button Clear Ad Tooltip 1"],
+            L["Button Clear Ad Tooltip 2"],
           },
         }
       );
@@ -2762,7 +2767,8 @@ function Finder.MakeFunc.Ads(self)
 
   previewAdButton:SetCallback("OnEnter",
     function(self, event, ...)
-      showTooltip(self, { title = L["Button Preview Ad"], lines = { "Preview your ad." } });
+      showTooltip(self, { title = L["Button Preview Ad"], 
+                          lines = { L["Button Preview Ad Tooltip"] } });
     end);
 
   previewAdButton:SetCallback("OnLeave", hideTooltip);
@@ -2781,8 +2787,8 @@ function Finder.MakeFunc.Ads(self)
         self, 
         { title = L["Button Send Ad"], 
           lines = 
-          { "Click this to send your ad.", 
-            "You can send an ad only once per minute." 
+          { L["Button Send Ad Tooltip 1"],
+            L["Button Send Ad Tooltip 2"],
           } 
         }
       )
@@ -2799,7 +2805,8 @@ function Finder.MakeFunc.Ads(self)
     end);
   autoSendStartButton:SetCallback("OnEnter",
     function(self, event, button)
-      showTooltip(self, { title = L["Button Toolbar Autosend Start"], lines = { L["Button Toolbar Autosend Start Tooltip"] } })
+      showTooltip(self, { title = L["Button Toolbar Autosend Start"], 
+                          lines = { L["Button Toolbar Autosend Start Tooltip"] } })
     end);
   autoSendStartButton:SetCallback("OnLeave", hideTooltip)
 
@@ -2815,7 +2822,7 @@ function Finder.MakeFunc.Ads(self)
   autoSendStopButton:SetCallback("OnEnter",
     function(self, event, button)
       showTooltip(self, 
-        { title = "Cancel Autosend", 
+        { title = L["Button Toolbar Autosend Stop"],
           lines = { L["Button Toolbar Autosend Stop Tooltip"] } 
         }
       );
@@ -2842,7 +2849,7 @@ function Finder.MakeFunc.Ads(self)
 
   titleField:SetCallback("OnEnter",
     function(self, event, ...)
-      showTooltip(self, { title = L["Field Ad Title"], lines = { "Enter a title for your ad." } });
+      showTooltip(self, { title = L["Field Ad Title"], lines = { L["Field Ad Title Tooltip"] } });
     end);
   titleField:SetCallback("OnLeave", hideTooltip);
 
@@ -2862,7 +2869,9 @@ function Finder.MakeFunc.Ads(self)
 
   adultToggle:SetCallback("OnEnter",
     function(self, event, ...)
-      showTooltip(self, { title = "Adult Ad", lines = { "Check this button to show that your ad is an adult ad.", "If your ad contains certain keywords, it will automatically be set as an adult ad, regardless of this setting." } });
+      showTooltip(self, { title = L["Field Adult Ad Tooltip Title"],
+                          lines = { L["Field Adult Ad Tooltip 1"], 
+                                    L["Field Adult Ad Tooltip 2"] } });
     end);
   adultToggle:SetCallback("OnLeave", hideTooltip);
 
@@ -2888,7 +2897,7 @@ function Finder.MakeFunc.Ads(self)
 
   bodyField:SetCallback("OnEnter",
     function(self, event, ...)
-      showTooltip(self, { title = L["Field Ad Text"], lines = { "Set the body of your ad." } });
+      showTooltip(self, { title = L["Field Ad Text"], lines = { L["Field Ad Text Tooltip"] } });
     end);
   bodyField:SetCallback("OnLeave", hideTooltip);
 
@@ -2976,7 +2985,7 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScanZone:SetCallback("OnEnter",
     function(self, event, ...)
       showTooltip(self, { title = L["Field Zone to Scan"], 
-        lines = { "Select a zone that you want to a TRP3 map scan request to." } });
+        lines = { L["Field Zone to Scan Tooltip"] } });
     end)
   trp3MapScanZone:SetCallback("OnLeave", hideTooltip);
   trp3MapScanZone:SetCallback("OnValueChanged",
@@ -2993,10 +3002,8 @@ function Finder.MakeFunc.Tools(self)
     function(self, event, ...)
       local zoneInfo = C_Map.GetMapInfo(RP_Find.Finder.scanZone);
       showTooltip(self, { title = L["Button Scan Now"],
-        lines = { "This will send a (silent) map scan request to all players in " ..
-                  zoneInfo.name .. " who use TRP3.",
-                  " ", 
-                  "Players whose TRP3 addons respond to the map scan request will be added to your database." },
+        lines = { string.format(L["Button Scan Now Tooltip 1"], zoneInfo.name),
+                  L["Button Scan Now Tooltip 2"] }
         });
     end);
   trp3MapScanButton:SetCallback("OnLeave", hideTooltip);
@@ -3014,9 +3021,9 @@ function Finder.MakeFunc.Tools(self)
   trp3MapScanResultsButton:SetCallback("OnEnter",
     function(self, event, ...)
       showTooltip(self, { title = L["Button Scan Results"], 
-         lines = { "Click this button to switch to the database tab.",
-                   " ",
-                   "Your filter will be set to show players who responded to your last map scan." } });
+         lines = { L["Button Scan Results Tooltip 1"], " ",
+                   L["Button Scan Results Tooltip 2"] },
+                 });
     end);
   trp3MapScanResultsButton:SetCallback("OnLeave", hideTooltip);
   trp3MapScanResultsButton:SetCallback("OnClick",
@@ -3146,7 +3153,7 @@ function RP_Find:OnInitialize()
                                self.db.profile.config.seeAdultAds = value 
                                if self.adFrame:IsShown()
                                then self.adFrame:SetPlayerRecord(
-                                      self:GetPlayerRecord( self.adFrame:M("GetPlayerName") ));
+                                      self:GetPlayerRecord( self.adFrame:GetLoadedPlayer() ));
                                end;
                              end,
             width          = "full",
@@ -3156,9 +3163,8 @@ function RP_Find:OnInitialize()
           { type = "toggle",
             order = source_order(),
             width = "full",
-            name = "Lighten Colors",
-            desc = "Some players' RP names and classes contain color codes that are too dark to read." ..
-                   " Check this box to automatically lighten the colors.",
+            name = L["Config Lighten Colors"],
+            desc = L["Config Lighten Colors Tooltip"],
             get = function() return self.db.profile.config.lightenColors end,
             set = function(info, value) 
                     self.db.profile.config.lightenColors = value
@@ -3182,7 +3188,7 @@ function RP_Find:OnInitialize()
             values = menu.infoColumn,
           },
           nameTooltip =
-          { name = "Name Column Tooltip",
+          { name = L["Config Name Column Tooltip"],
             type = "group",
             inline = true,
             width = "full",
@@ -3190,153 +3196,153 @@ function RP_Find:OnInitialize()
             args =
             { 
               icon = 
-              { name = "Icon",
+              { name = L["Config Name Column Icon"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's icon in the tooltip.",
+                desc = L["Config Name Column Icon Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.icon end,
                 set = function(info, value) self.db.profile.config.nameTooltip.trial = icon end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               status = 
-              { name = "Status",
+              { name = L["Config Name Column Status"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's IC/OOC status in the tooltip.",
+                desc = L["Config Name Column Status Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.status end,
                 set = function(info, value) self.db.profile.config.nameTooltip.status = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               class = 
-              { name = "Class",
+              { name = L["Config Name Column Class"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's class in the tooltip.",
+                desc = L["Config Name Column Class Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.class end,
                 set = function(info, value) self.db.profile.config.nameTooltip.class = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               race = 
-              { name = "Race",
+              { name = L["Config Name Column Race"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's race in the tooltip.",
+                desc = L["Config Name Column Race Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.race end,
                 set = function(info, value) self.db.profile.config.nameTooltip.race = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               pronouns = 
-              { name = "Pronouns",
+              { name = L["Config Name Column Pronouns"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's pronouns in the tooltip.",
+                desc = L["Config Name Column Pronouns Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.pronouns end,
                 set = function(info, value) self.db.profile.config.nameTooltip.pronouns = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               title = 
-              { name = "Title",
+              { name = L["Config Name Column Title"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's title in the tooltip.",
+                desc = L["Config Name Column Title Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.title end,
                 set = function(info, value) self.db.profile.config.nameTooltip.title = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               age = 
-              { name = "Age",
+              { name = L["Config Name Column Age"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's age in the tooltip.",
+                desc = L["Config Name Column Age Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.age end,
                 set = function(info, value) self.db.profile.config.nameTooltip.age = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               zone = 
-              { name = "Zone",
+              { name = L["Config Name Column Zone"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's current zone in the tooltip.",
+                desc = L["Config Name Column Zone Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.zone end,
                 set = function(info, value) self.db.profile.config.nameTooltip.zone = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               height = 
-              { name = "Height",
+              { name = L["Config Name Column Height"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's height in the tooltip.",
+                desc = L["Config Name Column Height Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.height end,
                 set = function(info, value) self.db.profile.config.nameTooltip.height = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
               weight = 
-              { name = "Weight",
+              { name = L["Config Name Column Weight"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's weight in the tooltip.",
+                desc = L["Config Name Column Weight Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.weight end,
                 set = function(info, value) self.db.profile.config.nameTooltip.weight = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               trial = 
-              { name = "Trial",
+              { name = L["Config Name Column Trial"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's trial status in the tooltip.",
+                desc = L["Config Name Column Trial Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.trial end,
                 set = function(info, value) self.db.profile.config.nameTooltip.trial = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               addon = 
-              { name = "Addon",
+              { name = L["Config Name Column Addon"],
                 type = "toggle",
                 width = 0.5,
                 order = source_order(),
-                desc = "Display the character's RP addon in the tooltip.",
+                desc = L["Config Name Column Addon Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.addon end,
                 set = function(info, value) self.db.profile.config.nameTooltip.addon = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               currently =
-              { name = "Currently",
+              { name = L["Config Name Column Currently"],
                 type = "toggle",
                 width = 1,
                 order = source_order(),
-                desc = "Display the character's currently in the tooltip.",
+                desc = L["Config Name Column Currently Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.currently end,
                 set = function(info, value) self.db.profile.config.nameTooltip.currently = value end,
                 disabled = function() return not self:HaveRPClient(); end,
               },
 
               oocinfo =
-              { name = "OOC Info",
+              { name = L["Config Name Column OOC Info"],
                 type = "toggle",
                 width = 1,
                 order = source_order(),
-                desc = "Display the character's OOC info in the tooltip.",
+                desc = L["Config Name Column OOC Info Tooltip"],
                 get = function() return self.db.profile.config.nameTooltip.oocinfo end,
                 set = function(info, value) self.db.profile.config.nameTooltip.oocinfo = value end,
                 disabled = function() return not self:HaveRPClient(); end,
@@ -3386,10 +3392,10 @@ function RP_Find:OnInitialize()
             width          = "full",
           },
           versionCheck =
-          { name = "Version Check",
+          { name = L["Config Version Check"],
             type = "toggle",
             order = source_order(),
-            desc = "Notify whenever there's a new version of " .. self.addOnTitle .. " available.",
+            desc = L["Config Version Check Tooltip"],
             get = function() return self.db.profile.config.versionCheck end,
             set = function(info, value) self.db.profile.config.versionCheck = value end,
             width = "full",
@@ -3785,7 +3791,7 @@ adFrame.pictureOverlay:SetPoint("BOTTOMRIGHT", adFrame, "TOPLEFT", 54, -52);
 
 adFrame.pictureOverlay:SetScript("OnEnter",
   function(self)
-    local playerRecord = RP_Find:GetPlayerRecord(adFrame(GetPlayerName));
+    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetLoadedPlayer());
     local _, columns = playerRecord:M("GetFlagsTooltip"); 
     showTooltip(self, 
       { title   = playerRecord:M("GetFlags"),
@@ -3803,7 +3809,7 @@ adFrame.titleOverlay:SetScript("OnMouseUp", function() adFrame:StopMovingOrSizin
 
 adFrame.titleOverlay:SetScript("OnEnter",
   function(self)
-    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetPlayerName());
+    local playerRecord = RP_Find:GetPlayerRecord(adFrame:GetLoadedPlayer());
     local lines, columns, _ = playerRecord:M("GetNameTooltip"); -- don't need to show the icon
     showTooltip(self, 
       { title   = playerRecord:M("GetRPNameColorFixed"),
@@ -3861,12 +3867,12 @@ function adFrame:Reset()
   self.backdrop:SetVertexColor(0, 0, 0, 2/3);
 end;
 
-function adFrame:GetPlayerName() return self.playerName; end;
+function adFrame:GetLoadedPlayer() return self.playerName; end;
 
 function adFrame:SetSubtitle(text, default) 
   if   default and (text == "" or not text)
-  then self.subtitle.text:SetSubtitle(default); 
-  else self.subtitle.text:SetText(text);
+  then self.subtitle.text:SetText( default ); 
+  else self.subtitle.text:SetText(   text  );
   end;
 end;
 
@@ -3887,7 +3893,7 @@ function adFrame.UpdatePreview()
 end;
 
 function adFrame.ShowPreview()
-  if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetPlayerName() == RP_Find.me
+  if RP_Find.adFrame:IsShown() and RP_Find.adFrame:GetLoadedPlayer() == RP_Find.me
   then RP_Find.adFrame:Hide();
   else adFrame:UpdatePreview()
   end;
