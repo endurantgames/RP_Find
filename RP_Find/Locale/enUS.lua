@@ -202,6 +202,7 @@ L["Explain LFG Disabled"                   ] = "These options are disabled becau
 L["Field Ad Text Tooltip"                  ] = "Set the body of your ad.";
 L["Field Ad Text"                          ] = "Ad Text";
 L["Field Ad Title"                         ] = "Ad Title";
+L["Field Ad Title Tooltip"                 ] = "Give a title to your LFRP ad.";
 L["Field Adult Ad Tooltip 1"               ] = "Check this button to show that your ad is an adult ad.";
 L["Field Adult Ad Tooltip 2"               ] = "If your add contains certain keywords, it will automatically be flagged as an adult ad, regardless of this setting.";
 L["Field Adult Ad Tooltip Title"           ] = "Adult Ad";
