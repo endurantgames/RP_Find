@@ -249,7 +249,10 @@ local menu =
   zoneOrder    = {};
   perPage      = {},
   perPageOrder = {},
-
+  confirmInvites = { ["ALL"] = L["Confirm All Invites"],
+                     ["NONE"] = L["Confirm No Invites"],
+                     ["NOT FRIENDS"] = L["Confirm Only Non-Friends"] };
+  confirmInvitesOrder = { "ALL", "NONE", "NOT FRIENDS" },
 };
 
 for i = 10, 30, 5 do menu.perPage[tostring(i)] = tostring(i); table.insert(menu.perPageOrder, tostring(i)) end;
@@ -505,7 +508,10 @@ function RP_Find:HaveRPClient(addonToQuery)
 end;
 
 local popup =
-  { deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION", };
+  { deleteDBNow     = "RP_FIND_DELETE_DB_NOW_CONFIRMATION", 
+    sendInvite      = "RP_FIND_SEND_INVITE_CONFIRMATION",
+  
+  };
 
 local function fixPopup(self) self.text:SetJustifyH("LEFT"); self.text:SetSpacing(3); end;
 
@@ -524,6 +530,23 @@ StaticPopupDialogs[popup.deleteDBNow] =
   preferredIndex = 3,
   wide           = true,
   OnShow         = fixStaticPopup,
+}
+
+StaticPopupDialogs[popup.sendInvite] =
+{ showAlert = true,
+  text = L["Popup Send Invite Confirm"],
+  button1 = YES,
+  button2 = NO,
+  exclusive = true,
+  OnAccept = function()  end,
+  OnCancel = function() RP_Find:Notify(L["Notify Invite Not Sent"]) end,
+  timeout = 60,
+  whileDead = true,
+  hideOnEscape = true,
+  hideOnCancel = true,
+  preferredIndex = 3, 
+  wide = true,
+  OnShow = fixStaticPopup,
 }
 
 function RP_Find:PurgePlayer(name) self.playerRecords[name] = nil; end;
@@ -1430,11 +1453,31 @@ RP_Find.playerRecordMethods =
       self.playerName == RP_Find.me or 
       RP_Find:LastSince("sendInvite", 1, SECONDS_PER_MIN) end,
 
-  ["CmdInvite"] =
+  ["DoInvite"] =
     function(self)
       C_PartyInfo.InviteUnit(self.playerName)
       RP_Find:SetLast("sendInvite");
       RP_Find:Update("Display");
+    end,
+
+  ["AskInvite"] = 
+    function(self)
+      StaticPopupDialogs[popup.sendInvite].text =
+        string.format(L["Popup Send Invite Confirm"],
+          self.playerName);
+      StaticPopup_Show(popup.sendInvite) 
+    end,
+
+  ["CmdInvite"] = 
+    function(self) 
+      if     RP_Find.db.profile.config.confirmInvites == "NONE"
+      then   self:M("DoInvite")
+      elseif RP_Find.db.profile.config.confirmInvites == "ALL"
+      then   self:M("AskInvite")
+      elseif self:M("IsFriendOfPlayer")
+      then   self:M("DoInvite")
+      else   self:M("AskInvite")
+      end;
     end,
 
   ["HaveTRP3Data"] = 
@@ -1509,6 +1552,7 @@ RP_Find.defaults =
       smartPruningThreshold = 10,
       notifyLFRP         = true,
       seeAdultAds        = false,
+      confirmInvites     = "NOT FRIENDS",
       rowsPerPage        = 10,
       buttonBarSize      = 28,
       infoColumn         = "Info Server",
@@ -3158,6 +3202,20 @@ function RP_Find:OnInitialize()
                              end,
             width          = "full",
           },
+          confirmInvites =
+          { name = L["Config Confirm Invites"],
+            type = "select",
+            order = source_order(),
+            desc = L["Config Confirm Invites Tooltip"], 
+            get = function() return self.db.profile.config.confirmInvites end,
+            set = function(info, value)
+                    self.db.profile.config.confirmInvites = value
+                  end,
+
+            width = 1,
+            sorting = menu.confirmInvitesOrder,
+            values = menu.confirmInvites
+          },
 
           lightenColors =
           { type = "toggle",
@@ -4561,7 +4619,5 @@ _G["BINDING_NAME_RP_FIND_DISPLAY"  ] = L["Binding Display"       ];
 _G["BINDING_NAME_RP_FIND_ADS"      ] = L["Binding Ads"           ];
 _G["BINDING_NAME_RP_FIND_TOOLS"    ] = L["Binding Tools"         ];
 _G["BINDING_NAME_RP_FIND_MAP_SCAN" ] = L["Binding Send Map Scan" ];
-
-
 
 _G[addOnName] = RP_Find;
