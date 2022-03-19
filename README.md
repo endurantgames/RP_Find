@@ -6,6 +6,11 @@ It works in conjunction with all of the major roleplaying addons --
 Total RP 3, MyRolePlay, etc --
 or can be run without any of those.
 
+## Current Status
+
+Since I no longer play World of Warcraft, this addon is no longer being maintained.
+Therefore I have converted this repository to a "public archive"
+
 ## To Do:
 
 - [ ] Localization strings
