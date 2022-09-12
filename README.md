@@ -21,6 +21,9 @@ updating their Interface numbers to the current Wow (retail) versions.
 
 - [ ] Localization strings
   - [ ] Need localization strings for recent changes
+- [ ] Update toc to current version of WoW
+- [ ] Check Libs
+  - [ ] LibStub
 - [ ] Ads
   - [x] Improve editor interface
   - [x] Ad viewer
